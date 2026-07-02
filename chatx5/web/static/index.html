@@ -1904,6 +1904,7 @@ let connectInFlight = false;
 let progressLastUpdate = 0;
 let lastLinkToastAt = 0;
 const LS_VIEWING_PEER = 'chatx5_viewing_peer';
+const LS_VIEWING_VIA = 'chatx5_viewing_via';
 const LS_UNREAD = 'chatx5_unread_counts';
 const HUB_GROUP_PEER = '__hub_group__';
 let unreadCounts = {};
@@ -2902,8 +2903,11 @@ function fetchIdentity() {
       }
       updatePeerHeader();
       const saved = localStorage.getItem(LS_VIEWING_PEER);
+      const savedVia = localStorage.getItem(LS_VIEWING_VIA);
       const savedIsContact = saved && isSavedContactHash(saved);
-      if (savedIsContact && !viewingPeer) openChat(saved, false);
+      if (savedIsContact && !viewingPeer) {
+        openChat(saved, false, savedVia ? {via: savedVia} : undefined);
+      }
       else if (saved && !savedIsContact) {
         try { localStorage.removeItem(LS_VIEWING_PEER); } catch (_) {}
       }
@@ -3066,7 +3070,9 @@ function handleWSMessage(msg) {
       const now = Date.now();
       if (connectInFlight && !msg.data.background) {
         connectInFlight = false;
-        if (!viewingPeer || peersMatch(viewingPeer, h)) openChat(h, false);
+        if (!viewingPeer || peersMatch(viewingPeer, h)) {
+          openChat(h, false, {via: linkVia});
+        }
         toast('Connected');
         lastLinkToastAt = now;
       } else if (msg.data.path_switch && viewingPeer && peersMatch(viewingPeer, h)) {
@@ -3099,7 +3105,9 @@ function handleWSMessage(msg) {
       const okVia = msg.via || viewingVia || viaForLinkedPeer(msg.hash);
       setLinkPeer(msg.hash, true, okVia);
       if (msg.linked_peers) syncLinkedPeers(msg.linked_peers);
-      if (!viewingPeer || peersMatch(viewingPeer, msg.hash)) openChat(msg.hash, false);
+      if (!viewingPeer || peersMatch(viewingPeer, msg.hash)) {
+        openChat(msg.hash, false, {via: okVia});
+      }
       toast('Connected!');
     }
   } else if (msg.type === 'connect_fail') {
@@ -5128,7 +5136,10 @@ function closeChatView() {
   if (!viewingPeer) return;
   viewingPeer = null;
   viewingVia = null;
-  try { localStorage.removeItem(LS_VIEWING_PEER); } catch (_) {}
+  try {
+    localStorage.removeItem(LS_VIEWING_PEER);
+    localStorage.removeItem(LS_VIEWING_VIA);
+  } catch (_) {}
   document.getElementById('messages').innerHTML = '';
   document.getElementById('placeholder').style.display = 'flex';
   document.getElementById('messages').style.display = 'none';
@@ -5177,12 +5188,22 @@ function androidHandleBack() {
 function openChat(hash, tryConnect, meta) {
   viewingPeer = (hash || '').replace(/:/g, '');
   if (hash === HUB_GROUP_PEER) viewingPeer = HUB_GROUP_PEER;
-  viewingVia = meta?.via ? normalizeVia(meta.via) : null;
+  const inferred = meta?.via
+    || peerMetaForHash(hash)?.via
+    || viaForLinkedPeer(hash)
+    || null;
+  viewingVia = inferred ? normalizeVia(inferred) : null;
   clearUnread(viewingPeer);
   const persistView = viewingPeer === HUB_GROUP_PEER || isSavedContactHash(viewingPeer);
   try {
-    if (persistView) localStorage.setItem(LS_VIEWING_PEER, viewingPeer);
-    else localStorage.removeItem(LS_VIEWING_PEER);
+    if (persistView) {
+      localStorage.setItem(LS_VIEWING_PEER, viewingPeer);
+      if (viewingVia) localStorage.setItem(LS_VIEWING_VIA, viewingVia);
+      else localStorage.removeItem(LS_VIEWING_VIA);
+    } else {
+      localStorage.removeItem(LS_VIEWING_PEER);
+      localStorage.removeItem(LS_VIEWING_VIA);
+    }
   } catch (_) {}
   document.getElementById('placeholder').style.display = 'none';
   document.getElementById('messages').style.display = 'flex';
@@ -5236,8 +5257,10 @@ function sendMessage() {
     toast('Select a chat first');
     return;
   }
-  const linked = isPeerLinked(viewingPeer);
-  ws.send(JSON.stringify({type: 'send', text, peer: viewingPeer}));
+  const linked = isPeerLinked(viewingPeer, viewingVia);
+  const payload = {type: 'send', text, peer: viewingPeer};
+  if (viewingVia) payload.via = normalizeVia(viewingVia);
+  ws.send(JSON.stringify(payload));
   input.value = '';
   autoResize(input);
   document.getElementById('emoji-picker')?.classList.remove('open');

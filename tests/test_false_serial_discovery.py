@@ -72,5 +72,26 @@ class FalseSerialDiscoveryTests(unittest.TestCase):
         self.assertEqual(len(peers), 1)
 
 
+    def test_purge_misclassified_serial_keeps_verified_usb_rows(self):
+        disc = PeerDiscovery()
+        serial_hash = "ddeeff00ddeeff00ddeeff00ddeeff00"
+        key = f"{serial_hash}:serial"
+        disc.peers[key] = {
+            "hash": serial_hash,
+            "name": "ARCH",
+            "via": "serial",
+            "serial_rns": True,
+            "last_seen": time.time(),
+        }
+        with patch(
+            "chatx5.core.discovery.announce_packet_receiving_interface",
+            return_value=object(),
+        ):
+            with patch("chatx5.core.discovery.interface_family", return_value="udp"):
+                removed = disc.purge_misclassified_serial()
+        self.assertEqual(removed, 0)
+        self.assertIn(key, disc.peers)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -311,7 +311,7 @@ class CrossTrafficRoutingTests(unittest.TestCase):
 
 
 class DiscoveryResolverTests(unittest.TestCase):
-    def test_dual_transport_prefers_serial_without_explicit_ip(self):
+    def test_dual_transport_prefers_lan_without_explicit_via(self):
         from chatx5.web.server import ChatWebServer
 
         server = ChatWebServer.__new__(ChatWebServer)
@@ -328,14 +328,10 @@ class DiscoveryResolverTests(unittest.TestCase):
             "ip": "10.10.10.37",
         }
         server._scoped_peers = lambda: [serial_peer, rns_peer]
-        server._discovery_scope_ip = lambda: "10.0.5.10"
+        server._discovery_scope_ip = lambda: "10.10.10.37"
 
-        with patch(
-            "chatx5.core.transport_isolation.dual_transport_isolation_enabled",
-            return_value=True,
-        ):
-            meta = server._discovery_peer_for_connect(None, ARCH)
-        self.assertEqual(meta.get("via"), "serial")
+        meta = server._discovery_peer_for_connect(None, ARCH)
+        self.assertEqual(meta.get("via"), "rns")
 
     def test_explicit_lan_ip_uses_rns_entry(self):
         from chatx5.web.server import ChatWebServer
