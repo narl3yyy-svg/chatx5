@@ -764,6 +764,13 @@ class ConnectMixin:
 
             if requested_transport == "tcp":
                 hub_link = self._hub_link_for_peer(clean)
+                if not hub_link and self.active_link and self.active_peer_hash:
+                    if (
+                        self._link_is_hub_tcp(self.active_link)
+                        and self.hashes_equivalent(clean, self.active_peer_hash)
+                        and self._link_interface_healthy(self.active_link)
+                    ):
+                        hub_link = self.active_link
                 if hub_link and self._link_interface_healthy(hub_link):
                     print(f"[connect] Hub TCP link active to {clean[:16]}...")
                     return self._finish_connect(

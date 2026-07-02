@@ -87,6 +87,21 @@ Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
 
 `MessagingBackend` now inherits `AnnounceMixin` before `ConnectMixin` (connect uses transport-ready helpers). `backend.py` is ~1,900 lines.
 
+## Phase 8 plan — `web/server.py` split (not started)
+
+`ChatWebServer` (~5,700 lines) will be split incrementally without behavior changes:
+
+| Step | Module | Contents |
+|------|--------|------------|
+| 8a | `web/routes/` | HTTP route table + thin handlers delegating to services |
+| 8b | `web/ws/` | WebSocket connect, broadcast, message fan-out |
+| 8c | `web/hub_runtime.py` | Hub settings apply, TCP hot-add, group status |
+| 8d | `web/discovery_bridge.py` | Peer discovery callbacks, scope, contact sync |
+| 8e | `web/rns_lifecycle.py` | RNS startup, interface config, announce scheduling |
+| 8f | `web/server.py` | Slim orchestrator wiring the above (~800 lines target) |
+
+Each step ships with tests green and no API changes to `run.sh` / Android.
+
 ## Planned phases
 
 | Phase | Target | Notes |
@@ -97,7 +112,7 @@ Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
 | 5 | `transfer.py` | Done — see above |
 | 6 | `hub.py` | Done — see above |
 | 7 | `announce.py` | Done — see above |
-| 8 | `web/server.py` split | Routes vs WS vs discovery helpers |
+| 8 | `web/server.py` split | Planned — see Phase 8 plan above |
 | 9 | Android | Stop committing bundle; sync-only at build (optional) |
 | 10 | Perf | Peer hash index sets, probe cache, WS debounce |
 
@@ -121,8 +136,21 @@ bash scripts/sync-android.sh   # after editing chatx5/
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.
 
+## v0.5.24 hotfixes (done, pre–Phase 8)
+
+Mesh debugging fixes shipped before the `web/server.py` split:
+
+| Area | Fix |
+|------|-----|
+| Hub TCP relay | Server: inbound `TCPClientInterface` (no `target_host`) counts as hub client. Client: only TCP dials to configured hub host count (not LAN P2P TCP). |
+| Hub group chat | `connect_to(prefer_transport=tcp)` reuses active hub link; 8s rate limit on hub open attempts; server logs `N TCP client(s) linked`. |
+| Serial discovery | IP-less USB announces accepted when serial transport is active (`announce_receiving_interface` fallback). |
+| Serial runtime | `configured_serial_enabled` / `serial_runtime_active` ignore stale `enabled: false` when port is accessible. |
+
+**276 tests pass** (1 skipped). Tag: `v0.5.24`.
+
 ## Constraints honored
 
-- No user-visible behavior changes in Phase 0–1.
-- All 254 unit tests pass.
+- No user-visible API changes in Phase 0–7 or v0.5.24 hotfixes.
+- All unit tests pass (`bash scripts/check.sh`).
 - `run.sh` / Android CI unchanged except verify step.

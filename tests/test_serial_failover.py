@@ -118,6 +118,9 @@ class SerialConnectPreferenceTests(unittest.TestCase):
 class SerialRuntimeEnsureTests(unittest.TestCase):
     def test_ensure_runtime_serial_waits_for_existing_interface(self):
         iface = _FakeSerialIface("/dev/ttyUSB0", online=False)
+        serial_cfg = [
+            {"preset": "serial", "type": "SerialInterface", "port": "/dev/ttyUSB0"},
+        ]
         with patch.object(ri, "configured_serial_port", return_value=("/dev/ttyUSB0", 57600)):
             with patch.object(ri, "serial_port_accessible", return_value=True):
                 with patch.object(ri, "find_serial_interface", return_value=iface):
@@ -126,12 +129,15 @@ class SerialRuntimeEnsureTests(unittest.TestCase):
                             with patch.object(ri, "time") as mock_time:
                                 mock_time.sleep = lambda _: None
                                 mock_time.time = time.time
-                                result = ri.ensure_runtime_serial([])
+                                result = ri.ensure_runtime_serial(serial_cfg)
         hot_add.assert_not_called()
         self.assertIs(result, iface)
 
     def test_ensure_runtime_serial_returns_initializing_interface_without_hot_add(self):
         iface = _FakeSerialIface("/dev/ttyUSB0", online=False)
+        serial_cfg = [
+            {"preset": "serial", "type": "SerialInterface", "port": "/dev/ttyUSB0"},
+        ]
         with patch.object(ri, "configured_serial_port", return_value=("/dev/ttyUSB0", 57600)):
             with patch.object(ri, "serial_port_accessible", return_value=True):
                 with patch.object(ri, "find_serial_interface", return_value=iface):
@@ -140,7 +146,7 @@ class SerialRuntimeEnsureTests(unittest.TestCase):
                             with patch.object(ri, "time") as mock_time:
                                 mock_time.sleep = lambda _: None
                                 mock_time.time = time.time
-                                result = ri.ensure_runtime_serial([])
+                                result = ri.ensure_runtime_serial(serial_cfg)
         hot_add.assert_not_called()
         self.assertIs(result, iface)
 

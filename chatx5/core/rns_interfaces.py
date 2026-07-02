@@ -223,9 +223,7 @@ def configured_serial_enabled(interfaces=None, config_dir=None):
     for iface in items:
         if iface.get("preset") != "serial" and iface.get("type") != "SerialInterface":
             continue
-        if iface.get("user_disabled") or iface.get("enabled") is False:
-            continue
-        if (iface.get("port") or "").strip():
+        if serial_runtime_active(iface):
             return True
     return False
 
@@ -298,10 +296,10 @@ def serial_port_available(port):
 
 
 def serial_runtime_active(iface):
-    """True when serial is enabled in settings and this process can open the port."""
+    """True when serial is configured (not user-disabled) and the port is accessible."""
     if iface.get("preset") != "serial" and iface.get("type") != "SerialInterface":
         return False
-    if iface.get("user_disabled") or iface.get("enabled") is False:
+    if iface.get("user_disabled"):
         return False
     port = (iface.get("port") or "").strip()
     if not port:

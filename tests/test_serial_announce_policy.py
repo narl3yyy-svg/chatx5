@@ -49,15 +49,15 @@ class SerialAnnouncePolicyTests(unittest.TestCase):
         backend.announce_interval = 1
         with patch.object(backend, "_has_active_transfer", return_value=False):
             with patch(
-                "chatx5.core.messaging.backend.load_settings_interfaces",
+                "chatx5.core.messaging.announce.load_settings_interfaces",
                 return_value=[{"preset": "serial", "enabled": True}],
             ):
                 with patch(
-                    "chatx5.core.messaging.backend.lan_discovery_configured",
+                    "chatx5.core.messaging.announce.lan_discovery_configured",
                     return_value=False,
                 ):
                     with patch(
-                        "chatx5.core.messaging.backend.configured_serial_enabled",
+                        "chatx5.core.messaging.announce.configured_serial_enabled",
                         return_value=True,
                     ):
                         with patch.object(backend, "_serial_transport_ready", return_value=True):
@@ -77,18 +77,18 @@ class SerialAnnouncePolicyTests(unittest.TestCase):
 
         with patch.object(backend, "_has_active_transfer", return_value=False):
             with patch(
-                "chatx5.core.messaging.backend.load_settings_interfaces",
+                "chatx5.core.messaging.announce.load_settings_interfaces",
                 return_value=[
                     {"preset": "udp_lan", "enabled": True},
                     {"preset": "serial", "enabled": True},
                 ],
             ):
                 with patch(
-                    "chatx5.core.messaging.backend.lan_discovery_configured",
+                    "chatx5.core.messaging.announce.lan_discovery_configured",
                     return_value=True,
                 ):
                     with patch(
-                        "chatx5.core.messaging.backend.configured_serial_enabled",
+                        "chatx5.core.messaging.announce.configured_serial_enabled",
                         return_value=True,
                     ):
                         with patch.object(backend, "_serial_transport_ready", return_value=True):
@@ -98,8 +98,8 @@ class SerialAnnouncePolicyTests(unittest.TestCase):
                                 with patch.object(
                                     backend, "_burst_serial_announce", side_effect=serial_announce
                                 ):
-                                    with patch("chatx5.core.messaging.backend.prune_dead_serial_interfaces"):
-                                        with patch("chatx5.core.messaging.backend.time.sleep"):
+                                    with patch("chatx5.core.messaging.announce.prune_dead_serial_interfaces"):
+                                        with patch("chatx5.core.messaging.announce.time.sleep"):
                                             backend._announce_loop()
         self.assertEqual(calls["silent"], 1)
         self.assertEqual(calls["serial"], 1)

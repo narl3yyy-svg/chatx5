@@ -2525,10 +2525,8 @@ class ChatWebServer:
         settings = self.load_settings()
         if settings.get("hub_role") != "client":
             return
-        if self.messaging and link:
-            iface = self.messaging._link_attached_interface(link)
-            if not self.messaging._link_is_hub_transport(iface):
-                return
+        if self.messaging and link and not self.messaging._link_is_hub_tcp(link):
+            return
         clean = self._peer_dest_hash(peer_hash)
         if not clean or self._is_self_hash(clean):
             return
@@ -2549,15 +2547,8 @@ class ChatWebServer:
                 resolved = fixed
         elif not resolved:
             resolved = self._peer_dest_hash(peer_hash)
-        hub_tcp_link = (
-            self.messaging
-            and link
-            and (
-                self.messaging._link_is_hub_transport(
-                    self.messaging._link_attached_interface(link)
-                )
-                or self.messaging._inbound_link_is_hub_tcp(link)
-            )
+        hub_tcp_link = bool(
+            self.messaging and link and self.messaging._link_is_hub_tcp(link)
         )
         if (
             resolved

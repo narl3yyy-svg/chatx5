@@ -80,17 +80,34 @@ class HubMixin:
 
     def _link_is_hub_tcp(self, link):
         """True when a link uses the hub TCP transport (client dial or server listener)."""
-        if not link:
+        if not link or not self._hub_transport_active():
             return False
         role, _ = self._load_hub_settings()
-        if role == "off":
-            return False
         hub_host, hub_port = self._hub_endpoint_from_settings()
         iface = self._link_attached_interface(link)
-        if iface and self._link_is_hub_transport(
-            iface, role=role, hub_host=hub_host, hub_port=hub_port,
-        ):
-            return True
+        if iface:
+            if self._link_is_hub_transport(
+                iface, role=role, hub_host=hub_host, hub_port=hub_port,
+            ):
+                return True
+            fam = interface_family(iface)
+            if fam in ("udp", "serial"):
+                return False
+            if fam == "tcp":
+                if role == "server":
+                    if type(iface).__name__ == "TCPClientInterface":
+                        target = (getattr(iface, "target_host", None) or "").strip()
+                        return not target
+                    return True
+                if role == "client":
+                    if type(iface).__name__ == "TCPServerInterface":
+                        return False
+                    target = (getattr(iface, "target_host", None) or "").strip()
+                    if target:
+                        return self._link_is_hub_transport(
+                            iface, role=role, hub_host=hub_host, hub_port=hub_port,
+                        )
+                    return True
         return self._inbound_link_is_hub_tcp(link)
 
     def _peer_uses_hub_transport(self, peer_hash):
@@ -223,31 +240,11 @@ class HubMixin:
         if not link or not self._hub_transport_active():
             return False
         role, _ = self._load_hub_settings()
-        hub_host, hub_port = self._hub_endpoint_from_settings()
-        attached = None
-        for attr in ("attached_interface", "parent_interface"):
-            iface = getattr(link, attr, None)
-            if iface:
-                attached = iface
-                break
-        if attached:
-            if self._link_is_hub_transport(
-                attached, role=role, hub_host=hub_host, hub_port=hub_port,
-            ):
-                return True
-            fam = interface_family(attached)
-            if fam in ("udp", "serial"):
-                return False
-            if role == "server" and type(attached).__name__ == "TCPServerInterface":
-                port = int(
-                    getattr(attached, "listen_port", None)
-                    or getattr(attached, "port", None)
-                    or 4242
-                )
-                return port == int(hub_port or 4242)
-            if fam == "tcp":
-                return False
-        return role == "server"
+        if role == "server":
+            return True
+        if role == "client":
+            return self._hub_tcp_transport_online()
+        return False
 
     def _hub_tcp_transport_online(self):
         from chatx5.core.rns_interfaces import (
@@ -290,6 +287,10 @@ class HubMixin:
         if role == "server":
             peers = self._hub_tcp_linked_peers()
             if peers:
+                last_n = int(getattr(self, "_last_hub_client_count", -1))
+                if len(peers) != last_n:
+                    self._last_hub_client_count = len(peers)
+                    print(f"[hub] Hub server: {len(peers)} TCP client(s) linked")
                 return True
             now = time.time()
             last = float(getattr(self, "_last_hub_wait_log", 0) or 0)
@@ -310,8 +311,14 @@ class HubMixin:
         peer = self.dest_hash_for(hub_hash)
         if not peer or peer == "unknown":
             return False
-        if self._hub_link_for_peer(peer):
+        existing = self._hub_link_for_peer(peer)
+        if existing:
             return True
+        now = time.time()
+        last = float(getattr(self, "_last_hub_open_attempt", 0) or 0)
+        if now - last < 8.0:
+            return bool(self._hub_link_for_peer(peer))
+        self._last_hub_open_attempt = now
         if self._connect_in_progress:
             return False
         from chatx5.core.lan_rns import clear_peer_path_unless_family, prune_lan_path_for_peer
