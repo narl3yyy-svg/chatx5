@@ -1,0 +1,100 @@
+# Builds chatx5 Android APK on version tags (desktop: clone repo + run.sh / install.bat).
+name: Build Android APK
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.3.51). Leave empty to use build.gradle versionName.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Accept licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Read app version from build.gradle.kts
+        id: appver
+        run: |
+          VERSION_NAME=$(grep 'versionName' android/app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_CODE=$(grep 'versionCode' android/app/build.gradle.kts | head -1 | sed -E 's/.*=\s*([0-9]+).*/\1/')
+          echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Sync Python sources into Android bundle
+        run: bash scripts/sync-android.sh
+
+      - name: Determine release version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TAG="${GITHUB_REF_NAME}"
+          else
+            INPUT="${{ github.event.inputs.version }}"
+            if [ -n "$INPUT" ]; then
+              VERSION="${INPUT#v}"
+            else
+              VERSION="${{ steps.appver.outputs.name }}-build.${GITHUB_RUN_NUMBER}"
+            fi
+            TAG="v${VERSION}"
+          fi
+          APK="chatx5-${VERSION}.apk"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "apk=${APK}" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "${{ steps.version.outputs.apk }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: chatx5-${{ steps.version.outputs.version }}-apk
+          path: ${{ steps.version.outputs.apk }}
+
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: chatx5 v${{ steps.version.outputs.version }}
+          body: |
+            ## chatx5 v${{ steps.version.outputs.version }}
+
+            See [CHANGELOG.md](https://github.com/narl3yyy-svg/chatx5/blob/main/CHANGELOG.md) for full release notes.
+
+            ## Download
+
+            | Platform | Install |
+            |----------|---------|
+            | **Android** | `${{ steps.version.outputs.apk }}` — sideload (arm64) |
+            | **Windows** | `git clone` → `run.bat web --share` |
+            | **macOS** | `git clone` → `bash scripts/install-macos.sh` → `./run.sh web --share` |
+            | **Arch / Ubuntu** | `git clone` → `bash scripts/install-arch.sh` or `install-ubuntu.sh` → `./run.sh web --share` |
+
+            Desktop: clone repo and run. CI releases ship the Android APK only.
+          files: ${{ steps.version.outputs.apk }}
+          make_latest: true
