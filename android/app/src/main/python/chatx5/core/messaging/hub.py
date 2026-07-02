@@ -222,11 +222,31 @@ class HubMixin:
         """True when an inbound link arrived on the hub TCP relay (iface may be unset)."""
         if not link or not self._hub_transport_active():
             return False
+        role, _ = self._load_hub_settings()
+        hub_host, hub_port = self._hub_endpoint_from_settings()
+        attached = None
         for attr in ("attached_interface", "parent_interface"):
             iface = getattr(link, attr, None)
             if iface:
-                return self._link_is_hub_transport(iface)
-        role, _ = self._load_hub_settings()
+                attached = iface
+                break
+        if attached:
+            if self._link_is_hub_transport(
+                attached, role=role, hub_host=hub_host, hub_port=hub_port,
+            ):
+                return True
+            fam = interface_family(attached)
+            if fam in ("udp", "serial"):
+                return False
+            if role == "server" and type(attached).__name__ == "TCPServerInterface":
+                port = int(
+                    getattr(attached, "listen_port", None)
+                    or getattr(attached, "port", None)
+                    or 4242
+                )
+                return port == int(hub_port or 4242)
+            if fam == "tcp":
+                return False
         return role == "server"
 
     def _hub_tcp_transport_online(self):

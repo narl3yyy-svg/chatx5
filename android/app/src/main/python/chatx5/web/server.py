@@ -743,6 +743,15 @@ class ChatWebServer:
         from chatx5.core.lan_rns import interface_family, peer_path_on_family
         from chatx5.utils.lan_scope import peer_in_scope
 
+        target = normalize_hash(peer_hash or "")
+        if (
+            target
+            and self.messaging
+            and self.messaging._peer_hash_is_serial_endpoint(target)
+            and serial_discovery_active()
+        ):
+            return True
+
         if link and self.messaging:
             iface = self.messaging._link_attached_interface(link)
             if interface_family(iface) == "serial":

@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.23": [
+        "Fix serial connect crash (clear_peer_path_unless_family scoping bug in connect.py).",
+        "Hub group chat: hub server accepts inbound TCP clients on port 4242; clients keep LAN P2P and hub TCP links separate.",
+        "Serial USB inbound links accepted for known serial endpoint hashes (outside LAN scope fix).",
+        "Contact sync from discovery ensures contacts directory exists before write.",
+    ],
     "0.5.22": [
         "Hub group chat: hub clients open RNS links over hub TCP (port 4242) instead of falling back to LAN/UDP P2P.",
         "Hub send/relay uses hub TCP links only; server counts inbound hub TCP clients correctly.",
