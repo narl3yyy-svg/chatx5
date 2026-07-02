@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.24": [
+        "Hub TCP: server counts inbound TCPClientInterface links as hub relay; hub-client TCP dials match hub host only.",
+        "Hub group chat: connect reuses active hub TCP link; stops ensure_hub_link retry storm; server logs linked client count.",
+        "Serial discovery: IP-less USB announces register as serial when serial transport is active.",
+        "Serial runtime: stale enabled=false no longer blocks hot-add when the USB port is accessible.",
+    ],
     "0.5.23": [
         "Fix serial connect crash (clear_peer_path_unless_family scoping bug in connect.py).",
         "Hub group chat: hub server accepts inbound TCP clients on port 4242; clients keep LAN P2P and hub TCP links separate.",

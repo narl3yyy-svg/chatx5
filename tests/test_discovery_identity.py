@@ -118,17 +118,20 @@ class DiscoveryIdentityTests(unittest.TestCase):
             "serial",
         )
 
-    def test_ipless_announce_without_packet_iface_rejected(self):
+    def test_ipless_announce_without_packet_iface_accepted_as_serial(self):
         disc = PeerDiscovery()
         disc.running = True
         disc.accept_peers = True
         peer_hash = bytes.fromhex("986da79e42cd8b10dc6ccb069d978420")
         app_data = b'{"app":"chatx5","name":"ubuntu"}'
         with patch("chatx5.core.discovery.announce_packet_receiving_interface", return_value=None):
-            with patch("chatx5.core.discovery.interface_family", return_value=""):
-                with patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
-                    disc._on_announce(peer_hash, app_data, announced_identity=None)
-        self.assertFalse(disc.has_peer_hash("986da79e42cd8b10dc6ccb069d978420"))
+            with patch("chatx5.core.discovery.announce_receiving_interface", return_value=None):
+                with patch("chatx5.core.discovery.interface_family", return_value=""):
+                    with patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
+                        disc._on_announce(peer_hash, app_data, announced_identity=None)
+        self.assertTrue(disc.has_peer_hash("986da79e42cd8b10dc6ccb069d978420"))
+        peer = disc.peer_row("986da79e42cd8b10dc6ccb069d978420", via="serial")
+        self.assertIsNotNone(peer)
 
     def test_stale_peer_pruned_after_ttl(self):
         disc = PeerDiscovery()
@@ -155,6 +158,21 @@ class DiscoveryIdentityTests(unittest.TestCase):
                     with patch("chatx5.utils.platform.discovery_scope_ip", return_value="10.10.10.37"):
                         disc._on_announce(peer_hash, app_data)
         self.assertNotIn("f1c2ac9061239f7c096701f02969729c", disc.peers)
+
+    def test_ipless_announce_treated_as_serial_when_usb_up(self):
+        disc = PeerDiscovery()
+        disc.running = True
+        disc.accept_peers = True
+        peer_hash = bytes.fromhex("87a012c46dc2274afccae6fe597b8675")
+        app_data = b'{"app":"chatx5","name":"330s"}'
+        with patch("chatx5.core.discovery.announce_packet_receiving_interface", return_value=None):
+            with patch("chatx5.core.discovery.announce_receiving_interface", return_value=None):
+                with patch("chatx5.core.discovery.interface_family", return_value=""):
+                    with patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
+                        disc._on_announce(peer_hash, app_data)
+        peer = disc.peer_row("87a012c46dc2274afccae6fe597b8675", via="serial")
+        self.assertIsNotNone(peer)
+        self.assertEqual(peer.get("via"), "serial")
 
     def test_serial_announce_with_lan_ip_rejected(self):
         disc = PeerDiscovery()

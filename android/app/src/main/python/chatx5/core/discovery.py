@@ -5,6 +5,7 @@ import RNS
 
 from chatx5.core.lan_rns import (
     announce_packet_receiving_interface,
+    announce_receiving_interface,
     interface_family,
     register_udp_peer_ip,
     serial_interface_online,
@@ -692,6 +693,8 @@ class PeerDiscovery:
             return
 
         packet_iface = announce_packet_receiving_interface(destination_hash)
+        if packet_iface is None:
+            packet_iface = announce_receiving_interface(destination_hash)
         packet_fam = interface_family(packet_iface) if packet_iface else ""
         scope = self._scope_ip()
         via = "rns"
@@ -711,6 +714,9 @@ class PeerDiscovery:
             if scope and not peer_in_scope(announce_ip, scope):
                 return
             via = "rns"
+        elif serial_discovery_active():
+            via = "serial"
+            announce_ip = ""
         else:
             return
         if via == "serial":

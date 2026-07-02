@@ -390,6 +390,39 @@ class HubTcpLinkSelectionTests(unittest.TestCase):
 
 
 class HubInboundTcpInterfaceTests(unittest.TestCase):
+    def test_server_inbound_tcpclient_counts_as_hub_tcp(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "server", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+
+        class TCPClientInterface:
+            pass
+
+        link = MagicMock()
+        link.attached_interface = TCPClientInterface()
+        self.assertTrue(backend._link_is_hub_tcp(link))
+
+    def test_server_outbound_tcpclient_not_hub_tcp(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "server", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+
+        class TCPClientInterface:
+            target_host = "10.0.30.101"
+            target_port = 4242
+
+        link = MagicMock()
+        link.attached_interface = TCPClientInterface()
+        self.assertFalse(backend._link_is_hub_tcp(link))
+
     def test_inbound_tcpserver_on_hub_port_counts_as_hub(self):
         ident = MagicMock()
         ident.hash = bytes.fromhex("a" * 32)
@@ -406,7 +439,7 @@ class HubInboundTcpInterfaceTests(unittest.TestCase):
         link.attached_interface = TCPServerInterface()
         self.assertTrue(backend._inbound_link_is_hub_tcp(link))
 
-    def test_inbound_tcpserver_wrong_port_not_hub(self):
+    def test_server_inbound_udp_not_hub_tcp(self):
         ident = MagicMock()
         ident.hash = bytes.fromhex("a" * 32)
         tmp = tempfile.mkdtemp()
@@ -415,12 +448,12 @@ class HubInboundTcpInterfaceTests(unittest.TestCase):
             json.dump({"hub_role": "server", "hub_port": 4242}, fh)
         backend = MessagingBackend(identity=ident, config_dir=tmp)
 
-        class TCPServerInterface:
-            listen_port = 54242
+        class UDPInterface:
+            pass
 
         link = MagicMock()
-        link.attached_interface = TCPServerInterface()
-        self.assertFalse(backend._inbound_link_is_hub_tcp(link))
+        link.attached_interface = UDPInterface()
+        self.assertFalse(backend._link_is_hub_tcp(link))
 
 
 class HubInboundScopeTests(unittest.TestCase):
@@ -474,14 +507,13 @@ class HubServerHashUpdateTests(unittest.TestCase):
         lan_link = MagicMock()
         lan_link.attached_interface = MagicMock()
         server.messaging = MagicMock()
-        server.messaging._link_attached_interface.return_value = lan_link.attached_interface
-        server.messaging._link_is_hub_transport.return_value = False
+        server.messaging._link_is_hub_tcp.return_value = False
 
         server._maybe_update_hub_server_hash("b" * 32, link=lan_link)
         server.save_settings.assert_not_called()
 
         hub_link = MagicMock()
-        server.messaging._link_is_hub_transport.return_value = True
+        server.messaging._link_is_hub_tcp.return_value = True
         server._maybe_update_hub_server_hash("b" * 32, link=hub_link)
         server.save_settings.assert_called_once()
 
