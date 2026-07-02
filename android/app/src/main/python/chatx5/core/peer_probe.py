@@ -87,7 +87,7 @@ def link_rtt_ms(messaging, hash_hex, transport=None):
     except (TypeError, ValueError):
         return None
 
-_pending_probes = {}
+_pending_probes: dict[str, dict] = {}
 _pending_lock = threading.Lock()
 
 

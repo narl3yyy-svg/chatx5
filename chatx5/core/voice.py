@@ -1,9 +1,6 @@
 import os
-import subprocess
-import tempfile
-import threading
 import queue
-import struct
+import threading
 import time
 
 AUDIO_DIR = "voice_notes"
@@ -75,8 +72,9 @@ class VoicePlayer:
     @staticmethod
     def play(file_path):
         try:
-            import pyaudio
             import wave
+
+            import pyaudio
             wf = wave.open(file_path, 'rb')
             audio = pyaudio.PyAudio()
             stream = audio.open(format=audio.get_format_from_width(wf.getsampwidth()),
@@ -92,15 +90,15 @@ class VoicePlayer:
             audio.terminate()
             wf.close()
             return True
-        except:
+        except Exception:
             import subprocess
             try:
                 subprocess.run(["paplay", file_path], check=False)
                 return True
-            except:
+            except Exception:
                 try:
                     subprocess.run(["aplay", file_path], check=False)
                     return True
-                except:
+                except Exception:
                     subprocess.Popen(["xdg-open", file_path])
                     return False

@@ -11,12 +11,9 @@ from aiohttp import web
 
 from chatx5._version import __version__ as APP_VERSION
 from chatx5.core.identity import IdentityManager
-from chatx5.core.messaging import HUB_GROUP_PEER, is_hub_peer_hash
 from chatx5.core.lan_rns import serial_interface_online
-from chatx5.core.rns_interfaces import (
-    configured_serial_enabled,
-    lan_discovery_configured,
-)
+from chatx5.core.messaging import HUB_GROUP_PEER, is_hub_peer_hash
+from chatx5.core.rns_interfaces import lan_discovery_configured
 from chatx5.utils.platform import (
     enumerate_lan_interfaces,
     invalidate_desktop_interface_cache,
@@ -29,6 +26,19 @@ from chatx5.web.hub_runtime import HubRuntimeMixin
 from chatx5.web.messaging_bridge import MessagingBridgeMixin
 from chatx5.web.peer_connect import PeerConnectMixin
 from chatx5.web.rns_lifecycle import RNSLifecycleMixin
+from chatx5.web.rns_utils import (
+    CONFIG_DIR,
+    DATA_DIR,
+    NETWORK_STATS_AUTO_RESET_SEC,
+    SESSION_SYSTEM_LINK_CLOSED_TTL,
+    SETTINGS_FILE,
+    build_android_rns_config,
+    build_desktop_rns_config,
+    detect_lan_ip,
+    ensure_rns_ports_free,
+    shutdown_rns_stack,
+    stop_stale_chatx5_servers,
+)
 from chatx5.web.routes import register_routes
 from chatx5.web.routes.contacts_routes import ContactRoutesMixin
 from chatx5.web.routes.debug_routes import DebugRoutesMixin
@@ -38,21 +48,6 @@ from chatx5.web.routes.queue_routes import QueueRoutesMixin
 from chatx5.web.routes.static_routes import StaticRoutesMixin
 from chatx5.web.routes.system_routes import SystemRoutesMixin
 from chatx5.web.routes.transfers_routes import TransferRoutesMixin
-from chatx5.web.rns_utils import (
-    CONFIG_DIR,
-    DATA_DIR,
-    SETTINGS_FILE,
-    NETWORK_STATS_AUTO_RESET_SEC,
-    SESSION_SYSTEM_LINK_CLOSED_TTL,
-    build_android_rns_config,
-    build_desktop_rns_config,
-    detect_lan_ip,
-    ensure_rns_ports_free,
-    shutdown_rns_stack,
-    stop_stale_chatx5_servers,
-    _port_holder_pids,
-    _rns_startup_failure,
-)
 from chatx5.web.settings_store import SettingsStoreMixin
 from chatx5.web.share_browser import ShareBrowserMixin
 from chatx5.web.ws import WebSocketMixin
@@ -70,7 +65,9 @@ __all__ = [
     "build_desktop_rns_config",
     "detect_lan_ip",
     "ensure_rns_ports_free",
+    "lan_discovery_configured",
     "main",
+    "serial_interface_online",
     "shutdown_rns_stack",
     "stop_stale_chatx5_servers",
 ]
@@ -389,7 +386,7 @@ class ChatWebServer(
         asyncio.run(_serve())
 
     def run(self):
-        from aiohttp.web_runner import GracefulExit, AppRunner, TCPSite
+        from aiohttp.web_runner import AppRunner, GracefulExit, TCPSite
 
         self._prepare_listen_ports()
 
@@ -472,37 +469,6 @@ class ChatWebServer(
             except Exception:
                 pass
             loop.close()
-
-
-def main():
-    import argparse
-    if sys.platform == "win32":
-        try:
-            sys.stdout.reconfigure(line_buffering=True)
-            sys.stderr.reconfigure(line_buffering=True)
-        except Exception:
-            pass
-    parser = argparse.ArgumentParser(description="chatx5 web server")
-    parser.add_argument("--host", default="127.0.0.1", help="Bind address")
-    parser.add_argument("--port", type=int, default=8742, help="Port")
-    parser.add_argument("--share", action="store_true", help="Listen on 0.0.0.0 (accessible on LAN)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Show RNS debug logs")
-    parser.add_argument("--debug", "-d", action="store_true",
-                        help="Extreme RNS logging + chatx5 trace logs (very noisy)")
-    parser.add_argument("--force", "-f", action="store_true",
-                        help="Stop any existing chatx5 server before starting")
-    args = parser.parse_args()
-    host = "0.0.0.0" if args.share else args.host
-    server = ChatWebServer(host=host, port=args.port, verbose=args.verbose, debug=args.debug, force=args.force)
-    try:
-        server.run()
-    except KeyboardInterrupt:
-        pass
-    raise SystemExit(0)
-
-
-if __name__ == "__main__":
-    main()
 
 
 def main():

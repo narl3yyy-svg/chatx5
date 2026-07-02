@@ -4,7 +4,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.6.3
+**Current version:** 0.6.4
 
 ## How chatx5 works
 
@@ -114,11 +114,21 @@ LAN P2P chat between the same peers still uses UDP; group chat uses the separate
 ## Development
 
 ```bash
-bash scripts/check.sh          # tests + Android sync verify
+python -m venv .venv && .venv/bin/pip install -e ".[dev]"   # ruff, mypy, pre-commit
+pre-commit install
+bash scripts/check.sh          # ruff + mypy + tests + Android sync verify
 bash scripts/bump-version.sh X.Y.Z
-bash scripts/sync-android.sh   # after editing chatx5/
+bash scripts/sync-android.sh   # manual sync (also runs automatically before Gradle builds)
 cd android && ./gradlew assembleDebug   # local APK (JDK 17 + Android SDK)
 ```
+
+### Android Python bundle
+
+Chaquopy requires a copy of `chatx5/` under `android/app/src/main/python/`. That tree is **kept in git** so CI and offline builds work, but it must stay identical to the canonical `chatx5/` package:
+
+- `scripts/sync-android.sh` — copy canonical sources into the bundle
+- `scripts/verify-android-sync.sh` — fails `check.sh` if trees diverge
+- Gradle `syncPythonSources` task — runs `sync-android.sh` before every `preBuild`
 
 ### Project layout (web layer)
 

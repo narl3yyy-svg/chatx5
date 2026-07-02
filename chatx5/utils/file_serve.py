@@ -1,8 +1,8 @@
 """Chunked HTTP file responses (avoids Windows sendfile / WinError 87 on large files)."""
 
 import asyncio
-import os
 import mimetypes
+import os
 
 from aiohttp import web
 from aiohttp.client_exceptions import ClientConnectionResetError

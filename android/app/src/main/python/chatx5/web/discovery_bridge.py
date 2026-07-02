@@ -3,6 +3,7 @@
 import asyncio
 import sys
 
+import chatx5.core.discovery as discovery_core
 from chatx5.core.contacts import (
     find_contact_by_hash,
     list_contacts,
@@ -12,7 +13,6 @@ from chatx5.core.contacts import (
     update_contact_endpoint,
     update_contact_transport_hash,
 )
-import chatx5.core.discovery as discovery_core
 from chatx5.core.discovery import normalize_hash, register_identity_from_peer
 from chatx5.core.lan_rns import (
     clear_all_lan_paths,
@@ -175,7 +175,7 @@ class DiscoveryBridgeMixin:
                 pass
         self.active_peer = None
         print(
-            f"[network] LAN scope changed — links cleared"
+            "[network] LAN scope changed — links cleared"
             + (f" (scope={scope})" if scope else "")
         )
 

@@ -69,7 +69,7 @@ class SerialTransferTests(unittest.TestCase):
 
 class TransferCancelTests(unittest.TestCase):
     def test_cancel_incoming_marks_transfer_cancelled(self):
-        from chatx5.core.messaging import MessagingBackend, MESSAGE_TYPE_TRANSFER_CANCEL
+        from chatx5.core.messaging import MessagingBackend
 
         ident = MagicMock()
         ident.hash = bytes.fromhex("a" * 32)

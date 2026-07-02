@@ -1,6 +1,5 @@
 """Direct HTTP LAN bulk transfer (bypasses slow RNS resource segmentation on same subnet)."""
 
-import os
 import secrets
 import threading
 import time
@@ -8,7 +7,7 @@ import time
 from chatx5.core.discovery import normalize_hash
 
 _offers_lock = threading.Lock()
-_offers = {}
+_offers: dict[str, dict] = {}
 
 
 def register_offer(transfer_id, file_path, peer_hash, host, port, ttl=7200):

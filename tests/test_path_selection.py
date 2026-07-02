@@ -146,8 +146,8 @@ class PathSelectionTests(unittest.TestCase):
 
 class TimingConstantsTests(unittest.TestCase):
     def test_probe_and_beacon_intervals_are_30s(self):
-        from chatx5.core.peer_probe import PROBE_INTERVAL_S, PROBE_STALE_S
         from chatx5.core.lan_beacon import LanBeacon
+        from chatx5.core.peer_probe import PROBE_INTERVAL_S, PROBE_STALE_S
 
         self.assertEqual(PROBE_INTERVAL_S, 30)
         self.assertEqual(PROBE_STALE_S, 30)

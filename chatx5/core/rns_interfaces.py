@@ -172,8 +172,9 @@ def _new_id():
 def load_settings_interfaces(config_dir=None):
     """Load rns_interfaces from settings.json (best-effort)."""
     try:
-        from chatx5.utils.helpers import get_config_dir
         import json
+
+        from chatx5.utils.helpers import get_config_dir
 
         root = config_dir or get_config_dir()
         path = os.path.join(root, "settings.json")
@@ -1077,8 +1078,9 @@ def ensure_runtime_tcp_client(settings=None, config_dir=None):
     """Dial TCP hub server when hub_role is client (runtime hot-add)."""
     if not settings:
         try:
-            from chatx5.utils.helpers import get_config_dir
             import json
+
+            from chatx5.utils.helpers import get_config_dir
             path = os.path.join(config_dir or get_config_dir(), "settings.json")
             with open(path, encoding="utf-8") as fh:
                 settings = json.load(fh)
@@ -1113,8 +1115,9 @@ def ensure_runtime_tcp_lan_server(settings=None, config_dir=None):
     """Start TCP LAN listener when tcp_lan preset is enabled (not hub mode)."""
     if not settings:
         try:
-            from chatx5.utils.helpers import get_config_dir
             import json
+
+            from chatx5.utils.helpers import get_config_dir
             path = os.path.join(config_dir or get_config_dir(), "settings.json")
             with open(path, encoding="utf-8") as fh:
                 settings = json.load(fh)
@@ -1150,8 +1153,9 @@ def ensure_tcp_client_to_peer(peer_ip, port=None, settings=None, config_dir=None
         return None
     if not settings:
         try:
-            from chatx5.utils.helpers import get_config_dir
             import json
+
+            from chatx5.utils.helpers import get_config_dir
             path = os.path.join(config_dir or get_config_dir(), "settings.json")
             with open(path, encoding="utf-8") as fh:
                 settings = json.load(fh)
@@ -1187,8 +1191,9 @@ def ensure_runtime_tcp_hub(settings=None, config_dir=None):
     """Start TCP hub listener when hub_role is server (runtime hot-add)."""
     if not settings:
         try:
-            from chatx5.utils.helpers import get_config_dir
             import json
+
+            from chatx5.utils.helpers import get_config_dir
             path = os.path.join(config_dir or get_config_dir(), "settings.json")
             with open(path, encoding="utf-8") as fh:
                 settings = json.load(fh)

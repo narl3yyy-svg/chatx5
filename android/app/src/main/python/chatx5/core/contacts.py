@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import re
 
 
 def contacts_dir(config_dir):

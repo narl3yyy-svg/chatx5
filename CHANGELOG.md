@@ -2,6 +2,12 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.4] — 2026-07-02
+
+### Changed
+- **Phase 9 (tooling & hygiene)** — pre-commit config; `check.sh` requires ruff + mypy; `setup.py` is a pyproject.toml shim; Gradle `syncPythonSources` before Android builds; trimmed imports in extracted `web/` modules.
+- **Messaging** — inbound link/packet callbacks moved to `inbound_callbacks.py`; `backend.py` ~1,670 lines.
+
 ## [0.6.3] — 2026-07-02
 
 ### Changed

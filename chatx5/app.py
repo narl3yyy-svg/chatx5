@@ -1,14 +1,15 @@
 import os
+import subprocess
 import sys
 import time
-import subprocess
 from datetime import datetime
+
 import RNS
 
 from chatx5.core.identity import IdentityManager
 from chatx5.core.messaging import MessagingBackend
-from chatx5.core.voice import VoiceRecorder, VoicePlayer
-from chatx5.utils.helpers import get_config_dir, get_data_dir, format_size, truncate_hash
+from chatx5.core.voice import VoicePlayer, VoiceRecorder
+from chatx5.utils.helpers import format_size, get_config_dir, get_data_dir, truncate_hash
 
 CONFIG_DIR = get_config_dir()
 DATA_DIR = get_data_dir()
@@ -91,21 +92,21 @@ class Chatx5App:
                 self._sixel_print(img_path)
             else:
                 self._chafa_print(img_path)
-        except:
+        except Exception:
             pass
 
     def _kitty_icat(self, img_path):
         try:
             subprocess.run(["kitty", "+kitten", "icat", img_path],
                          capture_output=True, timeout=5)
-        except:
+        except Exception:
             pass
 
     def _sixel_print(self, img_path):
         try:
             subprocess.run(["convert", img_path, "sixel:-"],
                          capture_output=True, timeout=5)
-        except:
+        except Exception:
             pass
 
     def _chafa_print(self, img_path):
@@ -114,7 +115,7 @@ class Chatx5App:
                                   capture_output=True, timeout=5)
             if result.returncode == 0:
                 print(result.stdout.decode())
-        except:
+        except Exception:
             pass
 
     def connect(self, peer_hash):
@@ -158,7 +159,7 @@ class Chatx5App:
             self.voice_recorder.stop_recording()
 
         if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            print(f"Recording saved, sending...")
+            print("Recording saved, sending...")
             return self.messaging.send_file(file_path, "voice")
         return False
 
@@ -176,7 +177,7 @@ class Chatx5App:
                 with open(path) as fh:
                     name = fh.read().strip()
                     contacts.append((f, name))
-            except:
+            except Exception:
                 contacts.append((f, f))
         return contacts
 
@@ -205,7 +206,7 @@ def main():
 
     app = Chatx5App()
     my_hash = app.start()
-    print(f"chatx5 v0.1.0")
+    print("chatx5 v0.1.0")
     print(f"Your identity: {my_hash}")
     print("---")
 

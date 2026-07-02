@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from chatx5.core.identity import DualIdentityManager, IDENTITY_FILE_LAN, IDENTITY_FILE_LEGACY
+from chatx5.core.identity import IDENTITY_FILE_LAN, IDENTITY_FILE_LEGACY, DualIdentityManager
 
 
 class DualIdentityTests(unittest.TestCase):

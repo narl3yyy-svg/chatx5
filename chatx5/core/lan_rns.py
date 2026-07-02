@@ -9,8 +9,6 @@ from chatx5.core.lan_targets import directed_broadcasts, efficient_unicast_hosts
 from chatx5.utils.platform import (
     is_android,
     lan_connected,
-    lan_ip,
-    list_network_interfaces,
     physical_lan_reachable,
 )
 
@@ -175,8 +173,7 @@ def iter_transport_interfaces():
         yield iface
         spawned = getattr(iface, "spawned_interfaces", None)
         if isinstance(spawned, dict):
-            for child in spawned.values():
-                yield child
+            yield from spawned.values()
 
 
 def online_interfaces(family=None):
@@ -369,7 +366,7 @@ def prune_cross_zone_paths(serial_peer_hashes=None):
     return removed
 
 
-_serial_path_pins = set()
+_serial_path_pins: set[str] = set()
 
 
 def _normalize_dest_hex(hash_hex):
@@ -638,7 +635,7 @@ def udp_interface_targets():
 
 
 _udp_patched = False
-_known_peer_ips = set()
+_known_peer_ips: set[str] = set()
 
 
 def register_udp_peer_ip(ip):

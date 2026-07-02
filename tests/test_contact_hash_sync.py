@@ -27,8 +27,9 @@ class ContactHashSyncTests(unittest.TestCase):
         contact = find_contact_by_hash(self.tmp, stale_serial)
         contact["lan_hash"] = stale_serial
         contact["hash"] = stale_serial
-        from chatx5.core.contacts import _contact_path, normalize_contact
         import json
+
+        from chatx5.core.contacts import _contact_path, normalize_contact
 
         key = stale_serial
         with open(_contact_path(self.tmp, key), "w") as fh:

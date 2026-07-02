@@ -297,8 +297,9 @@ def get_lan_ip_preference():
 
 def load_lan_interface_preference(config_dir=None):
     try:
-        from chatx5.utils.helpers import get_config_dir
         import json
+
+        from chatx5.utils.helpers import get_config_dir
 
         root = config_dir or get_config_dir()
         path = os.path.join(root, "settings.json")

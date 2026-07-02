@@ -27,8 +27,9 @@ class PeerIdentityTests(unittest.TestCase):
         self.assertEqual(connect, normalize_hash(dest.hash.hex()))
 
     def test_discovery_dedupe_prefers_rns_over_beacon(self):
-        from chatx5.core.discovery import PeerDiscovery
         import time
+
+        from chatx5.core.discovery import PeerDiscovery
         disc = PeerDiscovery()
         disc.accept_peers = True
         now = time.time()

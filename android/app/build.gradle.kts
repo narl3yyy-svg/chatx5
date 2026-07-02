@@ -15,8 +15,8 @@ val versionProps = Properties().apply {
 val appVersionName = versionProps.getProperty("VERSION_NAME", "0.0.0")
 val appVersionCode = versionProps.getProperty("VERSION_CODE", "1").toInt()
 // CI release metadata (keep in sync via scripts/bump-version.sh)
-val releaseVersionNameForCi = "0.6.3"  // versionName
-val releaseVersionCodeForCi = 190  // versionCode
+val releaseVersionNameForCi = "0.6.4"  // versionName
+val releaseVersionCodeForCi = 191  // versionCode
 
 android {
     namespace = "com.chatx5.android"
@@ -75,4 +75,16 @@ chaquopy {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.webkit:webkit:1.12.1")
+}
+
+// Keep Chaquopy bundle aligned with chatx5/ before every Gradle build.
+tasks.register<Exec>("syncPythonSources") {
+    group = "chatx5"
+    description = "Sync chatx5/ Python tree into the Android Chaquopy bundle"
+    workingDir = rootProject.projectDir.parentFile
+    commandLine("bash", "scripts/sync-android.sh")
+}
+
+tasks.named("preBuild").configure {
+    dependsOn("syncPythonSources")
 }

@@ -1,11 +1,11 @@
 """System metrics helpers for the web UI status bar."""
 
+import json
 import os
 import re
-import json
-import time
 import subprocess
 import sys
+import time
 
 from chatx5.utils.platform import is_android
 

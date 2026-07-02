@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import RNS
 from chatx5.core.messaging import MessagingBackend
 
 

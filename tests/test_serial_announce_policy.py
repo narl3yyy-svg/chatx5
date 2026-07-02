@@ -10,9 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from chatx5.core.discovery import PeerDiscovery
 from chatx5.core.messaging import (
-    MessagingBackend,
     SERIAL_ANNOUNCE_BURST_COUNT,
     SERIAL_CONNECT_PRIME_INTERVAL_S,
+    MessagingBackend,
 )
 
 

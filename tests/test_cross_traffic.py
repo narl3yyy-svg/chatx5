@@ -9,7 +9,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from chatx5.core.messaging import MessagingBackend
 
-
 UBUNTU = "f1c2ac9061239f7c096701f02969729c"
 WINDOWS = "87a012c46dc2274afccae6fe597b8675"
 ARCH = "436ce5fd79d0932dc10b24da54a180f8"
