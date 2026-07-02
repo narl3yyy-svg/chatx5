@@ -158,4 +158,4 @@ See [REFACTOR_SUMMARY.md](REFACTOR_SUMMARY.md) for the full modular refactor his
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GPL-3.0-only — see [LICENSE](LICENSE).

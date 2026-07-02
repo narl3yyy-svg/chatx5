@@ -2,14 +2,8 @@ import json
 import os
 import threading
 import time
-from contextlib import contextmanager
 
 import RNS
-
-
-@contextmanager
-def _null_context():
-    yield
 
 from chatx5.core.discovery import (
     message_dest_hash_for_identity,
