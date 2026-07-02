@@ -32,7 +32,11 @@ class FalseSerialDiscoveryTests(unittest.TestCase):
             "port": 8742,
             "pubkey": "dGVzdA==",
         }
-        with patch("chatx5.core.discovery.PeerDiscovery._scope_ip", return_value=None):
+        # Mock at the platform level (not just PeerDiscovery._scope_ip) so every
+        # scope read in the _on_beacon path is unscoped — the CI runner is not on
+        # 10.0.30.0/24, otherwise the LAN beacon is rejected and the phantom
+        # serial row is never superseded.
+        with patch("chatx5.utils.platform.discovery_scope_ip", return_value=None):
             with patch("chatx5.core.peer_identity.peer_record_from_beacon") as rec:
                 rec.return_value = {
                     "hash": lan_hash,
