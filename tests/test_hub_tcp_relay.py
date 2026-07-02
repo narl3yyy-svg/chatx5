@@ -12,9 +12,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from chatx5.core import rns_interfaces as ri
 from chatx5.core.lan_rns import interface_family
 from chatx5.core.messaging import (
-    ChatMessage,
     HUB_GROUP_PEER,
     MESSAGE_TYPE_TEXT,
+    ChatMessage,
     MessagingBackend,
     is_hub_peer_hash,
 )

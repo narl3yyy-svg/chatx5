@@ -77,8 +77,8 @@ class AnnounceMixin:
         if not host:
             return False
         try:
-            from chatx5.utils.platform import discovery_scope_ip
             from chatx5.utils.lan_scope import peer_in_scope
+            from chatx5.utils.platform import discovery_scope_ip
 
             scope = (discovery_scope_ip() or "").strip()
             if not scope:
@@ -267,7 +267,7 @@ class AnnounceMixin:
         if lan_ok:
             print(f"[messaging] Announced on LAN (name={self.display_name or 'none'})")
         else:
-            print(f"[messaging] Announced on RNS (serial/other — LAN disconnected)")
+            print("[messaging] Announced on RNS (serial/other — LAN disconnected)")
 
     def _lan_transport_ready(self):
         interfaces = load_settings_interfaces(self.config_dir)

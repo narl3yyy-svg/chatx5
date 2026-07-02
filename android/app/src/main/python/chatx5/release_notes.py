@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.4": [
+        "Phase 9: pre-commit + mandatory ruff/mypy in check.sh; setup.py delegates to pyproject.toml.",
+        "Gradle auto-syncs Python sources before Android builds; web module imports trimmed.",
+        "Messaging: inbound link callbacks extracted to inbound_callbacks.py (backend.py slimmer).",
+    ],
     "0.6.3": [
         "Phase 8 complete: web server split into routes/, ws/, rns_lifecycle.py, and focused mixins.",
         "server.py is now a ~500-line orchestrator — easier to debug HTTP, WebSocket, and RNS layers.",

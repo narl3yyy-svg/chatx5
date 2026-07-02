@@ -9,15 +9,14 @@ from urllib import request as urlrequest
 import RNS
 
 from chatx5.core.discovery import (
+    message_dest_hash_for_identity,
     normalize_hash,
     register_identity_from_peer,
-    message_dest_hash_for_identity,
 )
 from chatx5.core.lan_rns import (
-    clear_peer_path_unless_family,
-    clear_peer_path_unless_lan_families,
     clear_paths_on_family,
     clear_peer_path,
+    clear_peer_path_unless_family,
     ensure_serial_path_pinned,
     peer_path_entry,
     pin_serial_path,
@@ -30,7 +29,6 @@ from chatx5.core.lan_rns import (
     request_paths_for_hash,
     restore_serial_path_from_announce,
     scrub_peer_path,
-    serial_interface_online,
     serial_path_is_pinned,
     suppress_offline_lan_transports,
     unpin_serial_path,
@@ -59,20 +57,17 @@ from chatx5.core.messaging.constants import (
     SERIAL_PATH_PRIME_TIMEOUT_S,
 )
 from chatx5.core.rns_interfaces import (
-    configured_serial_enabled,
     configured_tcp_lan_enabled,
     configured_udp_lan_enabled,
+    dedupe_serial_interfaces,
     ensure_runtime_serial,
     ensure_tcp_client_to_peer,
     lan_discovery_configured,
     load_settings_interfaces,
-    dedupe_serial_interfaces,
-    prune_dead_serial_interfaces,
 )
 from chatx5.core.serial_transfer import (
     boost_serial_establishment_timeout,
     is_serial_interface,
-    tune_serial_link,
 )
 
 

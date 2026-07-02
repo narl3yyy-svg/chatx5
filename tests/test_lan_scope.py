@@ -201,6 +201,7 @@ class LanScopeTests(unittest.TestCase):
 
     def test_lan_broadcast_uses_pinned_ip(self):
         from unittest.mock import patch
+
         from chatx5.utils.platform import lan_broadcast, set_lan_interface_preference
 
         set_lan_interface_preference("10.10.100.4")

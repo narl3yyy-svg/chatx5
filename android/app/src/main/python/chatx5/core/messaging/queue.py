@@ -22,14 +22,14 @@ class QueueMixin:
         try:
             with open(self.queue_file) as f:
                 return json.load(f)
-        except:
+        except Exception:
             return []
 
     def _save_queue(self):
         try:
             with open(self.queue_file, "w") as f:
                 json.dump(self.message_queue, f, indent=2)
-        except:
+        except Exception:
             pass
 
     def enqueue(self, msg_type, content, target_hash=None, file_name=None, file_size=None, file_path=None, msg_id=None):

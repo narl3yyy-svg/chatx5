@@ -192,7 +192,7 @@ class LanBeacon:
         while self.running and self._rx_sock:
             try:
                 data, addr = self._rx_sock.recvfrom(4096)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break

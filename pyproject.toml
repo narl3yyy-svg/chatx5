@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatx5"
-version = "0.6.3"
+version = "0.6.4"
 description = "Decentralized chat over Reticulum Network Stack"
 readme = "README.md"
 license = {text = "GPL-3.0-only"}
@@ -18,6 +18,15 @@ dependencies = [
 voice = ["pyaudio"]
 tui = ["textual>=0.52"]
 full = ["pyaudio", "textual>=0.52"]
+dev = [
+    "ruff>=0.9",
+    "mypy>=1.11",
+    "pre-commit>=4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["chatx5*"]
 
 [project.scripts]
 chatx5 = "chatx5.app:main"
@@ -35,7 +44,14 @@ exclude = ["android/", ".venv/", "build/", "dist/"]
 select = ["E", "F", "I", "UP"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E731", "E741"]
+"chatx5/core/messaging/backend.py" = ["E402"]
+"chatx5/core/messaging/__init__.py" = ["E402", "F401"]
+
 [tool.mypy]
 python_version = "3.10"
 ignore_missing_imports = true
-exclude = ["android/", "tests/"]
+exclude = ["android/", "tests/", "build/", "dist/"]
+warn_unused_ignores = true
+warn_redundant_casts = true

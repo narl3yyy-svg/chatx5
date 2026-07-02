@@ -49,6 +49,7 @@ class TransportIsolationTests(unittest.TestCase):
 
     def test_apply_transport_isolation_patches_path_request(self):
         import RNS.Transport as Transport
+
         import chatx5.core.transport_isolation as ti
 
         original_pr = Transport.path_request

@@ -2,7 +2,6 @@
 
 import math
 
-
 CHATX5_RNS_MTU = 1064  # matches RNS UDPInterface.HW_MTU
 
 

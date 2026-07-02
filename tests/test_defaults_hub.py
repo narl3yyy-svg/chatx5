@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from chatx5.core import rns_interfaces as ri
 from chatx5.core.discovery import PeerDiscovery
 from chatx5.core.lan_rns import interface_family
-from chatx5.core.messaging import is_hub_peer_hash, HUB_GROUP_PEER, MessagingBackend
+from chatx5.core.messaging import HUB_GROUP_PEER, MessagingBackend, is_hub_peer_hash
 
 
 class DefaultInterfaceTests(unittest.TestCase):
@@ -116,6 +116,7 @@ class HubTcpClientActiveTests(unittest.TestCase):
 class HubDiscoveryScopeTests(unittest.TestCase):
     def test_pinned_lan_scope_applies_while_hub_client(self):
         from unittest.mock import patch
+
         from chatx5.web.server import ChatWebServer
 
         server = ChatWebServer.__new__(ChatWebServer)
@@ -131,6 +132,7 @@ class HubDiscoveryScopeTests(unittest.TestCase):
 
     def test_hub_client_without_pin_has_no_scope(self):
         from unittest.mock import patch
+
         from chatx5.web.server import ChatWebServer
 
         server = ChatWebServer.__new__(ChatWebServer)
@@ -148,6 +150,7 @@ class HubDiscoveryScopeTests(unittest.TestCase):
 class HubP2pLinkTests(unittest.TestCase):
     def test_link_needs_failover_keeps_udp_for_p2p_peer(self):
         from unittest.mock import MagicMock, patch
+
         import RNS
 
         ident = MagicMock()
@@ -391,10 +394,10 @@ class HubFailoverTests(unittest.TestCase):
 
 class HubGroupIsolationTests(unittest.TestCase):
     def _backend_with_links(self, hub_role="off", hub_host="10.0.30.109"):
-        from unittest.mock import MagicMock, patch
         import json
         import os
         import tempfile
+        from unittest.mock import MagicMock
 
         ident = MagicMock()
         ident.hash = bytes.fromhex("a" * 32)
@@ -491,8 +494,9 @@ class HubGroupIsolationTests(unittest.TestCase):
         self.assertNotIn("e" * 32, backend._hub_tcp_linked_peers())
 
     def test_on_message_drops_hub_group_when_hub_off(self):
-        from chatx5.web.server import ChatWebServer
         from unittest.mock import MagicMock, patch
+
+        from chatx5.web.server import ChatWebServer
 
         server = ChatWebServer.__new__(ChatWebServer)
         server.config_dir = "/tmp/chatx5-hub-off"

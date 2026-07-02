@@ -8,10 +8,10 @@ from urllib import request as urlrequest
 
 import RNS
 
-from chatx5.utils.helpers import format_speed
 from chatx5.core.lan_rns import interface_family
 from chatx5.core.lan_transfer import register_offer, remove_offer
 from chatx5.core.messaging.constants import (
+    _NO_COMPRESS_SUFFIXES,
     LAN_HTTP_CHUNK,
     LAN_HTTP_MIN_BYTES,
     MAX_CONCURRENT_RECEIVES,
@@ -22,17 +22,15 @@ from chatx5.core.messaging.constants import (
     MESSAGE_TYPE_TEXT,
     MESSAGE_TYPE_TRANSFER_CANCEL,
     MESSAGE_TYPE_VIDEO,
-    _NO_COMPRESS_SUFFIXES,
 )
 from chatx5.core.messaging.models import ChatMessage
 from chatx5.core.serial_transfer import (
     is_serial_interface,
-    serial_baud_from_interface,
-    serial_transfer_timeout_s,
     tune_incoming_resource,
     tune_outgoing_resource,
     tune_serial_link,
 )
+from chatx5.utils.helpers import format_speed
 from chatx5.utils.platform import lan_ip, physical_lan_reachable
 
 
@@ -235,12 +233,12 @@ class TransferMixin:
                         shutil.copy2(resource.storagepath, save_path)
                         print(f"[messaging] File copied from storage to {save_path}")
                     else:
-                        print(f"[messaging] No data available in resource")
+                        print("[messaging] No data available in resource")
                         return
 
                     if chat_msg.msg_type == MESSAGE_TYPE_LONGTEXT:
                         try:
-                            with open(save_path, "r", encoding="utf-8") as f:
+                            with open(save_path, encoding="utf-8") as f:
                                 long_text = f.read()
                             chat_msg.msg_type = MESSAGE_TYPE_TEXT
                             chat_msg.content = long_text
@@ -812,7 +810,10 @@ class TransferMixin:
                 )
                 timeout_s = None
                 if serial_path:
-                    from chatx5.core.serial_transfer import serial_transfer_timeout_s, serial_baud_from_interface
+                    from chatx5.core.serial_transfer import (
+                        serial_baud_from_interface,
+                        serial_transfer_timeout_s,
+                    )
                     timeout_s = serial_transfer_timeout_s(
                         fsize, serial_baud_from_interface(xfer_iface),
                     )

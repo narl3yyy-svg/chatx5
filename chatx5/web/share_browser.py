@@ -14,7 +14,6 @@ from chatx5.core.messaging.constants import MESSAGE_TYPE_SHARE_BROWSE
 from chatx5.core.messaging.models import ChatMessage
 from chatx5.utils.helpers import safe_basename, safe_rel_path_under
 
-
 SHARE_SESSION_TTL_S = 7200
 
 

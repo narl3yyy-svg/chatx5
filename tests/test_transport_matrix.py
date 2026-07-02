@@ -468,7 +468,6 @@ class SerialInboundScopeTests(unittest.TestCase):
         self.assertTrue(allowed)
 
     def test_inbound_serial_link_allowed_before_attached_interface(self):
-        import RNS
 
         backend = _messaging()
         serial_iface = MagicMock()

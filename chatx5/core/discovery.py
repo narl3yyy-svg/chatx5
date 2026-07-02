@@ -1,6 +1,7 @@
 import base64
 import json
 import time
+
 import RNS
 
 from chatx5.core.lan_rns import (
@@ -299,7 +300,7 @@ class PeerDiscovery:
                 peer["probe_failures"] = 0
                 peer["last_probe_ok"] = last_seen
             if ok and rtt_ms is not None:
-                from chatx5.core.peer_probe import rolling_avg_ms, avg_ms
+                from chatx5.core.peer_probe import avg_ms, rolling_avg_ms
                 samples = rolling_avg_ms(peer.get("rtt_samples"), rtt_ms)
                 peer["rtt_samples"] = samples
                 peer["rtt_ms"] = int(rtt_ms)

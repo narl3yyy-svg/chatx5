@@ -2,15 +2,16 @@
 
 import os
 import re
-import signal
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import time
 
 from chatx5.utils.helpers import get_config_dir, get_data_dir
-from chatx5.utils.platform import is_android, lan_ip as platform_lan_ip
+from chatx5.utils.platform import is_android
+from chatx5.utils.platform import lan_ip as platform_lan_ip
 
 if getattr(sys, "frozen", False):
     from chatx5.utils.rns_frozen import ensure_rns_interfaces
@@ -192,7 +193,7 @@ def _port_holder_pids(port, udp=True):
             proto = f"UDP:{port}" if udp else f"TCP:{port}"
             args = ["lsof", "-n", "-P", "-t", "-i", proto]
             if not udp:
-                args = ["lsof", "-n", "-P", "-t", "-iTCP:%d" % port, "-sTCP:LISTEN"]
+                args = ["lsof", "-n", "-P", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"]
             result = subprocess.run(
                 args,
                 capture_output=True, text=True, timeout=5, check=False,

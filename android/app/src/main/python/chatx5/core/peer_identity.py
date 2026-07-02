@@ -202,7 +202,7 @@ def purge_rns_paths_for_hashes(hashes):
     if not targets:
         return 0
     for clean in targets:
-        if scrub_peer_path:
+        if scrub_peer_path is not None:
             try:
                 scrub_peer_path(clean)
             except Exception:
