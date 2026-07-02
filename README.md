@@ -7,7 +7,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.6.5
+**Current version:** 0.6.6
 
 ## How chatx5 works
 
@@ -51,7 +51,9 @@ chatx5 treats **LAN** and **USB serial** as **separate endpoints** on the same d
 | **LAN / Serial probe interval** | RTT ping frequency (0 = off) |
 | **LAN IPv4** | Scope for discovery, beacons, and wake |
 
-Regenerate identities under **Settings → Profile**. View **release notes** via the version badge in the bottom dock or **Settings → System → About**.
+Regenerate identities under **Settings → Profile**. View **release notes** via the version badge in the bottom dock.
+
+**Maintainer:** [narl3yyy-svg](https://github.com/narl3yyy-svg) — sole author and contributor.
 
 ### Troubleshooting
 

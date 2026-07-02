@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.6": [
+        "Fix: LAN beacons now include each peer's USB serial connect hash — both machines see LAN and USB rows (fixes Arch only seeing Ubuntu on LAN).",
+        "RNS announces for a known peer's serial endpoint hash are classified as USB when the identity already has a LAN row.",
+        "Settings → About no longer duplicates release notes — tap the version badge in the bottom dock instead.",
+    ],
     "0.6.5": [
         "Fix: Hub client host/port field no longer disappears while you type — it now follows the Hub-mode dropdown instead of the saved role.",
         "Hub group chat: hub TCP links register under the proven remote hash (fixes relay + client send when identity/message-dest hashes differ).",

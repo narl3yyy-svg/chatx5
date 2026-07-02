@@ -510,6 +510,15 @@ class SettingsStoreMixin:
             except Exception:
                 self.lan_beacon.identity_pubkey = None
             self.lan_beacon.display_name = effective_display_name(self.load_settings())
+        if self.lan_beacon and role == "serial" and my_dest_clean:
+            self.lan_beacon.serial_hash = my_dest_clean
+            self.lan_beacon.serial_identity_hash = my_ident_clean
+            try:
+                self.lan_beacon.serial_identity_pubkey = (
+                    ident.get_public_key() if ident else None
+                )
+            except Exception:
+                self.lan_beacon.serial_identity_pubkey = None
 
         self.active_peer = None
         if self.messaging:
