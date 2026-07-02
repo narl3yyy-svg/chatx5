@@ -166,6 +166,10 @@ class HubRuntimeMixin:
         """Hot-apply hub interfaces on a running RNS instance (Android/desktop)."""
         settings = settings or self.load_settings()
         hub_role = settings.get("hub_role", "off")
+        # This can be invoked from a background threading.Timer (see
+        # _ensure_hub_host_in_scope) that may fire while the server is still
+        # initializing or already torn down, so read messaging defensively.
+        messaging = getattr(self, "messaging", None)
         try:
             from chatx5.core.rns_interfaces import (
                 ensure_runtime_tcp_client,
@@ -178,17 +182,17 @@ class HubRuntimeMixin:
             if hub_role == "server":
                 remove_tcp_client_interfaces()
                 iface = ensure_runtime_tcp_hub(settings, self.config_dir)
-                if iface and self.messaging:
-                    self.messaging._silent_announce()
-                    self.messaging._schedule_hub_queue_drain()
+                if iface and messaging:
+                    messaging._silent_announce()
+                    messaging._schedule_hub_queue_drain()
                 online = tcp_server_interface_online(int(settings.get("hub_port") or 4242))
                 if online:
                     print(
                         f"[hub] TCP hub server listening on 0.0.0.0:"
                         f"{settings.get('hub_port', 4242)}"
                     )
-                    if self.messaging:
-                        self.messaging._schedule_hub_link_ensure(delay=1.0)
+                    if messaging:
+                        messaging._schedule_hub_link_ensure(delay=1.0)
                 else:
                     print(
                         f"[hub] TCP hub server not online yet on port "
@@ -200,18 +204,18 @@ class HubRuntimeMixin:
                 port = int(settings.get("hub_port") or 4242)
                 if hub_tcp_client_active(settings):
                     iface = ensure_runtime_tcp_client(settings, self.config_dir)
-                    if iface and self.messaging:
-                        self.messaging._silent_announce()
+                    if iface and messaging:
+                        messaging._silent_announce()
                     online = tcp_client_interface_online()
                     if online:
                         print(f"[hub] TCP hub client connected to {host}:{port}")
-                        if self.messaging:
-                            self.messaging._schedule_hub_link_ensure(delay=1.0)
-                            self.messaging._schedule_hub_queue_drain()
+                        if messaging:
+                            messaging._schedule_hub_link_ensure(delay=1.0)
+                            messaging._schedule_hub_queue_drain()
                     elif host:
                         print(f"[hub] TCP hub client connecting to {host}:{port}...")
-                        if self.messaging:
-                            self.messaging._schedule_hub_link_ensure(delay=4.0)
+                        if messaging:
+                            messaging._schedule_hub_link_ensure(delay=4.0)
                 elif host:
                     remove_tcp_client_to_host(host, port)
                     pinned = (settings.get("lan_interface") or "").strip()
