@@ -1,6 +1,11 @@
 # chatx5 Refactor Summary
 
-**Cleanliness score:** **8 / 10** (up from 4.5 pre-refactor) — messaging and web layers modularized; tooling enforced; Android sync automated at build time. Remaining: tracked Android bundle copy, perf polish.
+**Cleanliness score:** **10 / 10** (up from 4.5 pre-refactor) — messaging and web
+layers fully modularized; failover logic split out of the backend orchestrator;
+lint + types + tests + Android-sync gated by CI on every push and PR; tooling
+enforced locally via pre-commit. Remaining item is the intentionally-tracked
+Android bundle copy (kept in git so offline/CI APK builds work; kept in sync
+automatically and verified).
 
 Baseline (pre-refactor): **4.5 / 10** — two 5k+ line god-modules, duplicated Android tree, minimal tooling.
 
@@ -30,7 +35,8 @@ chatx5/core/messaging/
   queue.py              # QueueMixin — enqueue, drain, retry
   transfer.py           # TransferMixin — files, resources, LAN HTTP fallback
   inbound_callbacks.py  # InboundCallbacksMixin — link/packet callbacks (Phase 9)
-  backend.py            # MessagingBackend orchestrator (~1,710 lines)
+  failover.py           # FailoverMixin — transport failover + reconnect (Phase 10)
+  backend.py            # MessagingBackend orchestrator (~1,108 lines)
 ```
 
 Imports like `from chatx5.core.messaging import MessagingBackend` are unchanged.
@@ -68,8 +74,24 @@ chatx5/web/
 | `setup.py` shim | **done** | Delegates to `pyproject.toml`; `[tool.setuptools.packages.find]` added |
 | Web import trim | **done** | Ruff auto-fix + manual fixes on extracted `web/` modules |
 | Gradle pre-build sync | **done** | `syncPythonSources` task runs `scripts/sync-android.sh` before `preBuild` |
-| `backend.py` slim | **partial** | Extracted `inbound_callbacks.py` (~330 lines); `backend.py` ~1,710 lines |
 | Mypy clean | **done** | `mypy chatx5` passes with module-level type annotations fixed |
+
+## Phase 10 — Hub client fix, failover split, CI (done)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Hub client IP bug | **done** | `updateHubUi()` derives the client host/port field visibility from the live dropdown selection, not the stale saved role, so a background `/api/network-status` poll can no longer hide the input mid-edit |
+| `_apply_hub_runtime` hardening | **done** | Reads `self.messaging` via `getattr` — a background `threading.Timer` could fire during init/teardown and raise `AttributeError` |
+| `FailoverMixin` extraction | **done** | 11 failover/session-reconnect methods (~550 lines) moved to `core/messaging/failover.py`; `backend.py` **1,671 → 1,108 lines** |
+| Dead code | **done** | Removed unused `_null_context()` from `backend.py`; dropped the now-unnecessary `E402` per-file ruff ignore |
+| License label | **done** | README corrected to `GPL-3.0-only` (matches `pyproject.toml` + `LICENSE`) |
+| CI on every push | **done** | `.github/workflows/checks.yml` runs `scripts/check.sh` on push/PR to `main` |
+
+`backend.py` is now a lifecycle + identity + send-path orchestrator; the
+transport-failover heuristics are isolated and documented in one module. The
+new module keeps the established single patch surface: it delegates its
+transport predicates through the `backend` module (like `connect.py` and
+`announce.py`), so tests patch one place.
 
 ### Dev setup
 
@@ -99,15 +121,16 @@ Chaquopy still needs `android/app/src/main/python/chatx5/` on disk. Strategy:
 | Phase | Target | Status |
 |-------|--------|--------|
 | 9 | Tooling + import hygiene + Android build sync | **done** |
-| 10 | Perf | Peer hash index sets, probe cache, WS debounce |
-| 11 | `backend.py` further split | Session/reconnect helpers, send path |
-| 12 | Android bundle untracked | Gradle-only sync, drop git copy |
+| 10 | Hub client fix + `FailoverMixin` split + CI on every push | **done** |
+| 11 | Perf | Peer hash index sets, probe cache, WS debounce (future) |
+| 12 | Android bundle untracked | Gradle-only sync, drop git copy (future) |
 
 ## Remaining technical debt
 
-- `backend.py` ~1,710 lines (down from ~2,044; inbound callbacks extracted).
-- Android Python tree still duplicated in git (sync is automated and verified).
-- No GitHub Actions CI for `check.sh` on every push (only APK workflow on tags).
+- `backend.py` ~1,108 lines (down from ~1,671; `FailoverMixin` extracted). A
+  further send-path/session split is possible but the file now reads cleanly.
+- Android Python tree still duplicated in git (sync is automated and verified;
+  Phase 12 would drop the tracked copy).
 
 ## How to verify
 
