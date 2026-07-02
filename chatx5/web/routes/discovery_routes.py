@@ -47,6 +47,7 @@ class DiscoveryRoutesMixin:
                         self.messaging._silent_announce, also_serial=False,
                     )
                 if configured_serial_enabled(configured) and serial_interface_online():
+                    self._sync_beacon_serial_fields()
                     await asyncio.to_thread(
                         self.messaging._burst_serial_announce, 1, force=True,
                     )

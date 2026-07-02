@@ -3,6 +3,10 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.7": [
+        "Fix: Announce Serial now also sends a LAN beacon with your USB serial_hash — Arch sees Ubuntu · USB after you tap Announce Serial on Ubuntu.",
+        "Serial RNS announces match existing LAN peers by display name (dual LAN/USB identities).",
+    ],
     "0.6.6": [
         "Fix: LAN beacons now include each peer's USB serial connect hash — both machines see LAN and USB rows (fixes Arch only seeing Ubuntu on LAN).",
         "RNS announces for a known peer's serial endpoint hash are classified as USB when the identity already has a LAN row.",

@@ -116,6 +116,7 @@ class MessagingBackend(
         self.running = False
         self.shutdown_requested = False
         self._announce_thread = None
+        self.on_after_serial_announce = None
         self._pending_files = {}
         self._pending_lock = threading.Lock()
         self.queue_file = os.path.join(config_dir, "queue.json")

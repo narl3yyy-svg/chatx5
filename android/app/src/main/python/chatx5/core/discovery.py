@@ -686,6 +686,18 @@ class PeerDiscovery:
                 print(f"[discovery] on_peer_seen error: {e}")
         return True
 
+    def _lan_peer_row_for_name(self, name):
+        """Return an existing LAN/beacon row with the same display name."""
+        label = (name or "").strip()
+        if not label:
+            return None
+        for peer in self.peers.values():
+            if (peer.get("via") or "").strip() == "serial":
+                continue
+            if (peer.get("name") or "").strip() == label:
+                return peer
+        return None
+
     def _on_announce(self, destination_hash, app_data, announced_identity=None):
         if not self.running or not self.accept_peers:
             return
@@ -760,25 +772,30 @@ class PeerDiscovery:
             return
         if via == "serial":
             announce_ip = ""
-        elif (
-            via == "rns"
-            and not announce_ip
-            and serial_discovery_active()
-            and identity_hex
-        ):
-            # Serial message-dest hash announced without IP while we already know
-            # this identity on LAN — treat as the peer's USB row (dual-hash model).
-            for existing in self.peers.values():
-                ex_via = (existing.get("via") or "").strip()
-                if ex_via == "serial":
-                    continue
-                if normalize_hash(existing.get("identity_hash")) != identity_hex:
-                    continue
-                if normalize_hash(existing.get("hash")) == hash_hex:
+        elif via == "rns" and not announce_ip and serial_discovery_active():
+            # Dual-identity model: LAN and USB use separate RNS identities, so match
+            # by identity_hash when equal, otherwise by display name (330s on LAN +
+            # 330s serial endpoint hash are the same host).
+            reclassified = False
+            if identity_hex:
+                for existing in self.peers.values():
+                    ex_via = (existing.get("via") or "").strip()
+                    if ex_via == "serial":
+                        continue
+                    if normalize_hash(existing.get("identity_hash")) != identity_hex:
+                        continue
+                    if normalize_hash(existing.get("hash")) == hash_hex:
+                        reclassified = True
+                        break
+                    via = "serial"
+                    announce_ip = ""
+                    reclassified = True
                     break
-                via = "serial"
-                announce_ip = ""
-                break
+            if not reclassified and name:
+                lan_peer = self._lan_peer_row_for_name(name)
+                if lan_peer and normalize_hash(lan_peer.get("hash")) != hash_hex:
+                    via = "serial"
+                    announce_ip = ""
         peer = {
             "hash": hash_hex,
             "name": name or hash_hex[:8],
