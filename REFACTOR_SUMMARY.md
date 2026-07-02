@@ -25,7 +25,8 @@ chatx5/core/messaging/
   connect.py       # ConnectMixin — wake, path prime, connect_to
   hub.py           # HubMixin — hub TCP link ensure, hash fetch
   queue.py         # QueueMixin — enqueue, drain, retry
-  backend.py       # MessagingBackend (transfer/announce/hub relay remain)
+  transfer.py      # TransferMixin — files, resources, LAN HTTP fallback
+  backend.py       # MessagingBackend (announce/hub relay remain)
 ```
 
 Imports like `from chatx5.core.messaging import MessagingBackend` are unchanged.
@@ -41,7 +42,7 @@ Extracted ~840 lines into `PeerLinkMixin` in `links.py`:
 - `linked_peers()`, `_best_outgoing_link()`, `_peer_link_active()`, `_peer_link_usable()`
 - Inbound link adoption helpers (`_find_active_link_for_peer`, `_handoff_to_link`, etc.)
 
-`MessagingBackend` now inherits `PeerLinkMixin`, `ConnectMixin`, `HubMixin`, and `QueueMixin`. `backend.py` is ~3,350 lines.
+`MessagingBackend` now inherits `PeerLinkMixin`, `ConnectMixin`, `HubMixin`, `QueueMixin`, and `TransferMixin`. `backend.py` is ~2,520 lines.
 
 ## Phase 3 — connect.py extraction (done)
 
@@ -55,6 +56,16 @@ Extracted ~1,070 lines into `ConnectMixin` in `connect.py`:
 
 Extracted ~280 lines into `QueueMixin` in `queue.py` (enqueue, drain, retry, prune).
 
+## Phase 5 — transfer.py extraction (done)
+
+Extracted ~830 lines into `TransferMixin` in `transfer.py`:
+
+- RNS resource send/receive, progress, cancellation
+- LAN HTTP file fallback (`_send_file_lan_http`, `_download_lan_http_offer`)
+- Long-text resource transfer, `send_file`, `cancel_transfer`
+
+`MessagingBackend` now inherits `TransferMixin`. `backend.py` is ~2,520 lines.
+
 ## Planned phases
 
 | Phase | Target | Notes |
@@ -62,7 +73,7 @@ Extracted ~280 lines into `QueueMixin` in `queue.py` (enqueue, drain, retry, pru
 | 2 | `links.py` | Done — see above |
 | 3 | `connect.py` | Done — see above |
 | 4 | `queue.py` | Done — see above |
-| 5 | `transfer.py` | Files, resources, LAN HTTP fallback |
+| 5 | `transfer.py` | Done — see above |
 | 6 | `hub.py` | Hub relay and group messaging |
 | 7 | `announce.py` | Announce loops, serial burst |
 | 8 | `web/server.py` split | Routes vs WS vs discovery helpers |
@@ -84,7 +95,7 @@ bash scripts/sync-android.sh   # after editing chatx5/
 
 ## Remaining technical debt
 
-- `backend.py` still ~3,350 lines — next extraction is `transfer.py` (Phase 5).
+- `backend.py` still ~2,520 lines — next extraction is `announce.py` (Phase 7).
 - `web/server.py` still ~5,700 lines.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.

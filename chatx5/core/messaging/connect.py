@@ -877,6 +877,12 @@ class ConnectMixin:
             if requested_transport == "serial":
                 prefer_serial = True
                 peer_ip = None
+            elif (
+                requested_transport != "lan"
+                and self._peer_hash_is_serial_endpoint(dest_hex)
+            ):
+                prefer_serial = True
+                peer_ip = None
             elif requested_transport == "lan":
                 prefer_serial = False
                 from chatx5.core.lan_rns import (

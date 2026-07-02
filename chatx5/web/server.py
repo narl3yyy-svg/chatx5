@@ -661,6 +661,56 @@ class ChatWebServer:
         sender = self.messaging.dest_hash_for(sender_hash)
         return bool(sender and peer_path_on_family(sender, "serial"))
 
+    def _resolve_hub_host_in_scope(self, hub_host, settings=None):
+        """Pick a hub host IP on the pinned LAN when the saved host is on another subnet."""
+        from chatx5.utils.lan_scope import peer_in_scope
+        from chatx5.utils.platform import parse_lan_interface_value
+
+        host = (hub_host or "").strip()
+        if not host:
+            return host
+        settings = settings or self.load_settings()
+        pinned = (settings.get("lan_interface") or "").strip()
+        scope = ""
+        if pinned:
+            _, ip = parse_lan_interface_value(pinned)
+            scope = (ip or "").strip()
+        if not scope:
+            scope = self._discovery_scope_ip() or ""
+        if scope and peer_in_scope(host, scope):
+            return host
+        if not scope or not self.discovery:
+            return host
+        saved_hash = (settings.get("hub_server_hash") or "").strip().replace(":", "")
+        candidates = []
+        for peer in self._scoped_peers():
+            ip = (peer.get("ip") or "").strip()
+            if not ip or not peer_in_scope(ip, scope):
+                continue
+            ph = (peer.get("hash") or "").replace(":", "")
+            ih = (peer.get("identity_hash") or "").replace(":", "")
+            if saved_hash and saved_hash in (ph, ih):
+                return ip
+            candidates.append((peer.get("last_seen") or 0, ip, peer.get("name") or ""))
+        if not candidates:
+            return host
+        for _seen, ip, _name in sorted(candidates, reverse=True):
+            try:
+                url = f"http://{ip}:{int(settings.get('http_port') or 8742)}/api/network-status"
+                from urllib import request as urlrequest
+                import json as _json
+
+                req = urlrequest.Request(url, method="GET")
+                with urlrequest.urlopen(req, timeout=2) as resp:
+                    data = _json.loads(resp.read().decode("utf-8"))
+                if (data.get("hub_role") or "").strip().lower() == "server":
+                    return ip
+            except Exception:
+                continue
+        if len(candidates) == 1:
+            return candidates[0][1]
+        return host
+
     def _peer_in_discovery_scope(self, peer_hash, link=None):
         from chatx5.core.discovery import normalize_hash, serial_discovery_active
         from chatx5.core.lan_rns import interface_family, peer_path_on_family
@@ -669,6 +719,8 @@ class ChatWebServer:
         if link and self.messaging:
             iface = self.messaging._link_attached_interface(link)
             if interface_family(iface) == "serial":
+                return True
+            if not iface and self.messaging._serial_inbound_scope_ok(peer_hash, link):
                 return True
             if iface and not self.messaging._link_acceptable_for_peer(link, peer_hash):
                 return False
@@ -680,6 +732,12 @@ class ChatWebServer:
         target = normalize_hash(peer_hash or "")
         if not target:
             return False
+        if serial_discovery_active() and getattr(self, "discovery", None):
+            for peer in self.discovery.peers.values():
+                ph = normalize_hash(peer.get("hash"))
+                ih = normalize_hash(peer.get("identity_hash"))
+                if target in (ph, ih) and (peer.get("via") or "").strip() == "serial":
+                    return True
         if (
             serial_discovery_active()
             and self.messaging
@@ -1300,6 +1358,15 @@ class ChatWebServer:
                     )
             elif hub_role == "client":
                 host = (settings.get("hub_host") or "").strip()
+                resolved_host = self._resolve_hub_host_in_scope(host, settings)
+                if resolved_host and resolved_host != host:
+                    print(
+                        f"[hub] Hub host {host} outside pinned LAN — "
+                        f"using in-scope peer {resolved_host}"
+                    )
+                    host = resolved_host
+                    settings = dict(settings)
+                    settings["hub_host"] = host
                 port = int(settings.get("hub_port") or 4242)
                 if hub_tcp_client_active(settings):
                     iface = ensure_runtime_tcp_client(settings, self.config_dir)
@@ -1630,7 +1697,9 @@ class ChatWebServer:
             lan_transfer_enabled=(self.host in ("0.0.0.0", "::")),
             peer_endpoint_resolver=self._peer_endpoint_for_transfer,
             peer_scope_checker=self._peer_in_discovery_scope,
-            peer_transport_resolver=lambda h: self._discovery_peer_for_connect(None, h),
+            peer_transport_resolver=lambda h, via=None: self._discovery_peer_for_connect(
+                None, h, via=via,
+            ),
             identity_serial=self.identity_mgr.identity_serial,
             dual_identity_mode=True,
         )
@@ -2666,6 +2735,8 @@ class ChatWebServer:
                 via=data.get("via"),
                 lan_hash=data.get("lan_hash"),
                 serial_hash=data.get("serial_hash"),
+                lan_identity_hash=data.get("lan_identity_hash"),
+                serial_identity_hash=data.get("serial_identity_hash"),
                 custom_name=bool(data.get("custom_name")),
             )
             self._schedule_contacts_broadcast()
@@ -2700,6 +2771,21 @@ class ChatWebServer:
             return None
         clean = normalize_hash(hash_hex)
         requested = (via or "").strip().lower()
+        if clean:
+            serial_row = None
+            lan_row = None
+            for p in self._scoped_peers():
+                ph = normalize_hash(p.get("hash"))
+                if ph != clean:
+                    continue
+                if (p.get("via") or "").strip() == "serial":
+                    serial_row = p
+                else:
+                    lan_row = lan_row or p
+            if requested == "serial" and serial_row:
+                return serial_row
+            if requested != "lan" and serial_row and not lan_row:
+                return serial_row
         by_hash = None
         by_serial = None
         by_rns = None

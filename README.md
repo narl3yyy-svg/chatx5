@@ -4,7 +4,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.5.13
+**Current version:** 0.5.19
 
 ## How chatx5 works (v0.5+)
 

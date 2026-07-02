@@ -2,6 +2,17 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.5.19] — 2026-07-01
+
+### Fixed
+- **Serial inbound scope** — USB serial links no longer rejected as “outside LAN scope” when RNS has not set `attached_interface` yet, or when the peer uses a serial-only hash distinct from its LAN hash.
+- **Serial connect routing** — connecting to a serial discovery hash uses the USB path instead of attempting LAN when dual identities use separate hashes.
+- **Contact save merge** — saving from a USB/serial row merges LAN + serial into one contact when the peer name matches; identity hash fields are persisted correctly.
+- **Hub client subnet** — when the saved hub host is outside the pinned LAN (e.g. `10.0.5.37` on a `10.0.30.x` network), the client auto-resolves an in-scope hub server IP from discovery.
+
+### Changed
+- **Phase 5 refactor** — file transfer logic moved to `chatx5/core/messaging/transfer.py` (`TransferMixin`).
+
 ## [0.5.8] — 2026-06-27
 
 ### Fixed
