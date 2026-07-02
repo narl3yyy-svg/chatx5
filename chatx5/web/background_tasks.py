@@ -87,25 +87,31 @@ class BackgroundTasksMixin:
                 if rtt is None:
                     rtt = probe_serial_path(hash_hex, timeout_s=1.5)
                 if rtt is not None:
-                    self.discovery.update_peer_probe(hash_hex, rtt_ms=rtt, ok=True)
+                    self.discovery.update_peer_probe(
+                        hash_hex, rtt_ms=rtt, ok=True, via=probe_transport,
+                    )
                     rtt_updated = True
                 else:
-                    if self.discovery.clear_peer_rtt(hash_hex):
+                    if self.discovery.clear_peer_rtt(hash_hex, via=probe_transport):
                         rtt_updated = True
-                    self.discovery.update_peer_probe(hash_hex, ok=False)
+                    self.discovery.update_peer_probe(hash_hex, ok=False, via=probe_transport)
                 continue
             if ip:
                 rtt = probe_udp_peer(ip, timeout_s=1.5, packet_bytes=probe_packet_bytes())
                 if rtt is not None:
-                    self.discovery.update_peer_probe(hash_hex, rtt_ms=rtt, ok=True)
+                    self.discovery.update_peer_probe(
+                        hash_hex, rtt_ms=rtt, ok=True, via=probe_transport,
+                    )
                     rtt_updated = True
                 else:
-                    if self.discovery.clear_peer_rtt(hash_hex):
+                    if self.discovery.clear_peer_rtt(hash_hex, via=probe_transport):
                         rtt_updated = True
-                    self.discovery.update_peer_probe(hash_hex, ok=False)
+                    self.discovery.update_peer_probe(hash_hex, ok=False, via=probe_transport)
                 continue
             if link_rtt is not None:
-                self.discovery.update_peer_probe(hash_hex, rtt_ms=link_rtt, ok=True)
+                self.discovery.update_peer_probe(
+                    hash_hex, rtt_ms=link_rtt, ok=True, via=probe_transport,
+                )
                 rtt_updated = True
         removed = self.discovery.purge_stale_probes()
         if rtt_updated and self.websockets and self._loop:

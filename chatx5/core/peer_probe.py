@@ -152,6 +152,12 @@ def probe_serial_path(hash_hex, timeout_s=PROBE_TIMEOUT_S):
     clean = (hash_hex or "").replace(":", "").strip().lower()
     if len(clean) != 32:
         return None
+    # A path already in the local table is not a round-trip measurement — timing
+    # a cached lookup yields a bogus ~0 ms value. Only measure the time for a
+    # freshly requested serial path to appear; if one is already cached, report
+    # None (the caller keeps the link's handshake RTT, or shows no number).
+    if peer_path_on_family(clean, "serial"):
+        return None
     start = time.time()
     try:
         request_paths_for_hash(clean, family="serial")
