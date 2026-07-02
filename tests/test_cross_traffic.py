@@ -36,6 +36,9 @@ class _FakeLink:
         ident = _FakeIdentity(self._remote_dest)
         return ident
 
+    def teardown(self):
+        self.status = 0
+
 
 def _iface(family):
     m = MagicMock()
@@ -308,6 +311,30 @@ class CrossTrafficRoutingTests(unittest.TestCase):
                     ):
                         chosen = backend._best_outgoing_link(UBUNTU)
         self.assertIs(chosen, serial_link)
+
+    def test_max_peer_links_evicts_oldest(self):
+        backend = self._backend()
+        self._wire_dual_links(backend)
+        backend.max_peer_links = 1
+        backend._link_connect_order = {
+            backend._link_map_key(UBUNTU, "serial"): 1.0,
+            backend._link_map_key(WINDOWS, "lan"): 2.0,
+        }
+        with patch.object(backend, "_link_interface_healthy", return_value=True):
+            evicted = backend._enforce_max_peer_links(
+                keep_keys=[backend._link_map_key(UBUNTU, "serial")]
+            )
+        self.assertEqual(evicted, 1)
+        self.assertNotIn(backend._link_map_key(WINDOWS, "lan"), backend.peer_links)
+
+    def test_parallel_sessions_disabled_when_max_peer_links_is_one(self):
+        backend = self._backend()
+        backend.max_peer_links = 1
+        with patch(
+            "chatx5.core.transport_isolation.dual_transport_isolation_enabled",
+            return_value=True,
+        ):
+            self.assertFalse(backend._parallel_sessions_allowed())
 
 
 class DiscoveryResolverTests(unittest.TestCase):
