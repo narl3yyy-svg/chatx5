@@ -52,7 +52,7 @@ class ConnectWakeTests(unittest.TestCase):
         self.assertTrue(usable)
         self.assertIs(adopt, link)
 
-    @patch("chatx5.core.messaging.physical_lan_reachable", return_value=True)
+    @patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True)
     def test_user_initiated_connect_wakes_lan_peer(self, _lan):
         m = self._messaging()
         peer = "a" * 32

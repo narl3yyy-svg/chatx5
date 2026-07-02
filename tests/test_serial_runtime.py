@@ -33,7 +33,7 @@ class SerialRuntimeTests(unittest.TestCase):
     def test_announce_on_serial_skips_without_serial_destination(self):
         backend = MessagingBackend(MagicMock(), tempfile.mkdtemp(), dual_identity_mode=True)
         serial_iface = MagicMock()
-        with patch("chatx5.core.messaging.is_serial_interface", return_value=True):
+        with patch("chatx5.core.messaging.backend.is_serial_interface", return_value=True):
             with patch.object(backend, "ensure_serial_runtime", return_value=False):
                 self.assertFalse(backend._announce_on_interface(serial_iface))
 

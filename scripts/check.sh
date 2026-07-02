@@ -5,6 +5,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+echo "==> Verifying Android Python bundle sync"
+bash scripts/verify-android-sync.sh
+
+if command -v ruff >/dev/null 2>&1; then
+  echo "==> Ruff lint (chatx5/)"
+  ruff check chatx5/ tests/
+else
+  echo "==> Skipping ruff (install with: pip install ruff)"
+fi
+
 echo "==> Running unit tests"
 python -m unittest discover -s tests -v
 
