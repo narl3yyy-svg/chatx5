@@ -423,6 +423,33 @@ def prune_lan_path_for_peer(hash_hex):
     return False
 
 
+def prune_serial_path_for_peer(hash_hex):
+    """Remove a cached serial path for one peer when LAN is the active transport."""
+    dest_bytes = _dest_bytes_for_hash(hash_hex)
+    if dest_bytes is None:
+        return False
+    try:
+        with RNS.Transport.path_table_lock:
+            entry = RNS.Transport.path_table.get(dest_bytes)
+            if not entry or len(entry) <= 5:
+                return False
+            if interface_family(entry[5]) == "serial":
+                RNS.Transport.path_table.pop(dest_bytes, None)
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def clear_peer_path_unless_lan_families(hash_hex):
+    """Drop cached path when it is not on UDP/TCP/LAN."""
+    scrub_peer_path(hash_hex)
+    _, path_iface = peer_path_entry(hash_hex)
+    if path_iface and not is_lan_transport_family(interface_family(path_iface)):
+        return clear_peer_path(hash_hex)
+    return False
+
+
 def peer_path_on_family(hash_hex, family):
     """Return path interface for peer when it uses the given transport family."""
     scrub_peer_path(hash_hex)

@@ -1765,6 +1765,12 @@ body.android-shell.sidebar-open #sidebar-backdrop {
               onchange="saveSerialAnnounceInterval()" onblur="saveSerialAnnounceInterval()">
             <p class="field-hint">Periodic USB serial broadcast. 0 = off (use sidebar Announce Serial).</p>
           </div>
+          <div class="settings-section">
+            <label for="settings-max-peer-links">Max simultaneous peer connections</label>
+            <input type="number" id="settings-max-peer-links" min="0" max="64" step="1" value="0"
+              onchange="saveMaxPeerLinks()" onblur="saveMaxPeerLinks()">
+            <p class="field-hint">0 = unlimited. 1 = only one active link at a time (LAN and USB count separately). When full, the oldest connection is closed for a new one.</p>
+          </div>
         </div>
 
         <div class="settings-block">
@@ -2268,6 +2274,8 @@ function applySettingsToForm(s, ifaces) {
     if (v == null && s.auto_announce) v = 30;
     serialAnnEl.value = String(v != null ? v : 0);
   }
+  const maxLinksEl = document.getElementById('settings-max-peer-links');
+  if (maxLinksEl) maxLinksEl.value = String(s.max_peer_links != null ? s.max_peer_links : 0);
   onHubRoleChange();
   updateHubUi();
 }
@@ -2280,7 +2288,14 @@ function refreshLanInterfaces(showToast, btn, forceRefresh) {
   }
   const qs = forceRefresh ? '?refresh=1' : '';
   return fetch('/api/interfaces' + qs)
-    .then(r => r.json())
+    .then(async r => {
+      let d = {};
+      try { d = await r.json(); } catch (_) {}
+      if (!r.ok) {
+        throw new Error(d.error || `HTTP ${r.status}`);
+      }
+      return d;
+    })
     .then(d => {
       const ifaces = d.interfaces || [];
       const sel = document.getElementById('settings-lan-interface');
@@ -2291,8 +2306,8 @@ function refreshLanInterfaces(showToast, btn, forceRefresh) {
       if (showToast) toast(ifaces.length ? `Refreshed — ${ifaces.length} network card(s)` : 'Refreshed — no network cards found');
       return ifaces;
     })
-    .catch(() => {
-      if (showToast) toast('Failed to refresh network cards');
+    .catch((err) => {
+      if (showToast) toast('Failed to refresh network cards' + (err?.message ? `: ${err.message}` : ''));
       return [];
     })
     .finally(() => {
@@ -2470,6 +2485,24 @@ function saveSerialProbeInterval() {
     if (d.status === 'ok') {
       window._appSettings = d.settings || {};
       toast(sec ? ('Serial link ping: ' + sec + 's') : 'Serial link ping: off');
+    } else toast('Save failed: ' + (d.error || ''));
+  }).catch(() => toast('Save failed'));
+}
+
+function saveMaxPeerLinks() {
+  const el = document.getElementById('settings-max-peer-links');
+  let limit = parseInt(el?.value, 10);
+  if (!Number.isFinite(limit) || limit < 0) limit = 0;
+  if (limit > 64) limit = 64;
+  if (el) el.value = String(limit);
+  fetch('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({max_peer_links: limit}),
+  }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') {
+      window._appSettings = d.settings || {};
+      toast(limit ? (`Max connections: ${limit}`) : 'Max connections: unlimited');
     } else toast('Save failed: ' + (d.error || ''));
   }).catch(() => toast('Save failed'));
 }
@@ -5092,6 +5125,9 @@ function saveSettings() {
   if (serial_probe_interval_s > 0 && serial_probe_interval_s < 3) serial_probe_interval_s = 3;
   const lan_announce_interval_s = clampIntervalInput(document.getElementById('settings-lan-announce-interval'), 0);
   const serial_announce_interval_s = clampIntervalInput(document.getElementById('settings-serial-announce-interval'), 0);
+  let max_peer_links = parseInt(document.getElementById('settings-max-peer-links')?.value, 10);
+  if (!Number.isFinite(max_peer_links) || max_peer_links < 0) max_peer_links = 0;
+  if (max_peer_links > 64) max_peer_links = 64;
   fetch('/api/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -5099,7 +5135,7 @@ function saveSettings() {
       name, history_retention: retention, received_dir, hub_role, hub_host, hub_port,
       lan_probe_interval_s, serial_probe_interval_s,
       brand_title: (document.getElementById('settings-brand-title')?.value || '').trim().slice(0, 18),
-      lan_announce_interval_s, serial_announce_interval_s,
+      lan_announce_interval_s, serial_announce_interval_s, max_peer_links,
     })
   }).then(async r => {
     const d = await r.json();

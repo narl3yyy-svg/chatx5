@@ -884,7 +884,11 @@ class ChatWebServer:
             if last_probe and (now - last_probe) < probe_interval:
                 continue
             peer["last_rtt_probe_at"] = now
-            link_rtt = link_rtt_ms(self.messaging, hash_hex) if self.messaging else None
+            probe_transport = "serial" if is_serial else "lan"
+            link_rtt = (
+                link_rtt_ms(self.messaging, hash_hex, transport=probe_transport)
+                if self.messaging else None
+            )
             if is_serial:
                 rtt = link_rtt
                 if rtt is None:
@@ -1355,6 +1359,7 @@ class ChatWebServer:
             "brand_title": "",
             "setup_complete": False,
             "last_release_notes_seen": "",
+            "max_peer_links": 0,
         }
         try:
             with open(SETTINGS_FILE) as f:
@@ -1626,6 +1631,7 @@ class ChatWebServer:
         )
         self.messaging.lan_announce_interval_s = lan_ann
         self.messaging.serial_announce_interval_s = ser_ann
+        self.messaging.max_peer_links = int(settings.get("max_peer_links") or 0)
         self.voice_recorder = VoiceRecorder(self.config_dir)
         dest = self.messaging.start()
         sent_ids = [
@@ -2436,7 +2442,13 @@ class ChatWebServer:
         link_rtt = None
         if self.discovery and self.messaging:
             from chatx5.core.peer_probe import link_rtt_ms
-            link_rtt = link_rtt_ms(self.messaging, resolved)
+            link_via = None
+            if link:
+                try:
+                    link_via = self.messaging._transport_from_link(link)
+                except Exception:
+                    link_via = None
+            link_rtt = link_rtt_ms(self.messaging, resolved, transport=link_via)
             if link_rtt is not None:
                 self.discovery.update_peer_probe(resolved, rtt_ms=link_rtt, ok=True)
                 self._schedule_peers_broadcast()
@@ -3426,10 +3438,14 @@ class ChatWebServer:
 
     async def handle_interfaces_get(self, request):
         refresh = request.query.get("refresh", "").lower() in ("1", "true", "yes")
-        ifaces = await asyncio.to_thread(
-            lambda: self._interfaces_for_picker(refresh=refresh)
-        )
-        return web.json_response({"interfaces": ifaces})
+        try:
+            ifaces = await asyncio.to_thread(
+                lambda: self._interfaces_for_picker(refresh=refresh)
+            )
+            return web.json_response({"interfaces": ifaces})
+        except Exception as exc:
+            print(f"[network] Interface rescan failed: {exc}")
+            return web.json_response({"interfaces": [], "error": str(exc)}, status=500)
 
     async def handle_network_status(self, request):
         try:
@@ -4056,6 +4072,12 @@ class ChatWebServer:
                 settings["last_release_notes_seen"] = (
                     str(data.get("last_release_notes_seen") or "").strip()
                 )
+            if "max_peer_links" in data:
+                try:
+                    limit = int(data.get("max_peer_links") or 0)
+                except (TypeError, ValueError):
+                    limit = 0
+                settings["max_peer_links"] = max(0, min(64, limit))
             hub_changed = any(
                 k in data for k in ("hub_role", "hub_host", "hub_port")
             )
@@ -4066,10 +4088,14 @@ class ChatWebServer:
                 )
             settings = self._apply_hub_settings(settings)
             self.save_settings(settings)
+            if "max_peer_links" in data and self.messaging:
+                self.messaging.max_peer_links = int(settings.get("max_peer_links") or 0)
             setup_fast = bool(data.get("setup_complete"))
             if setup_fast:
                 if self.messaging:
                     self.messaging.display_name = effective_display_name(settings)
+                    if "max_peer_links" in data and settings.get("max_peer_links", 0) > 0:
+                        self.messaging._enforce_max_peer_links()
                 if lan_scope_changed:
                     async def _safe_lan_scope():
                         try:
@@ -4126,6 +4152,10 @@ class ChatWebServer:
                 self._schedule_peers_broadcast()
             if self.messaging:
                 self.messaging.display_name = effective_display_name(settings)
+                if "max_peer_links" in data:
+                    self.messaging.max_peer_links = int(settings.get("max_peer_links") or 0)
+                    if settings.get("max_peer_links", 0) > 0:
+                        await asyncio.to_thread(self.messaging._enforce_max_peer_links)
             if lan_scope_changed and self.websockets and self._loop:
                 await self._broadcast({
                     "type": "link_closed",

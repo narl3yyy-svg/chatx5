@@ -57,15 +57,18 @@ def clamp_announce_interval(seconds):
     return max(0, min(ANNOUNCE_INTERVAL_MAX_S, value))
 
 
-def link_rtt_ms(messaging, hash_hex):
+def link_rtt_ms(messaging, hash_hex, transport=None):
     """RTT from an active RNS link to the peer, if any."""
     if not messaging or not hash_hex:
         return None
     clean = (hash_hex or "").replace(":", "").strip().lower()
     if len(clean) != 32:
         return None
+    via = (transport or "").strip().lower()
+    if via in ("rns", "beacon", "udp", "tcp"):
+        via = "lan"
     try:
-        link = messaging._link_for_peer(clean)
+        link = messaging._link_for_peer(clean, transport=via or None)
     except Exception:
         return None
     if not link:

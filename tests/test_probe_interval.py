@@ -60,6 +60,9 @@ class ProbeIntervalTests(unittest.TestCase):
         messaging._link_for_peer.return_value = link
         rtt = link_rtt_ms(messaging, "b" * 32)
         self.assertEqual(rtt, 16)
+        messaging._link_for_peer.reset_mock()
+        link_rtt_ms(messaging, "b" * 32, transport="serial")
+        messaging._link_for_peer.assert_called_with("b" * 32, transport="serial")
 
     def test_probe_runs_despite_fresh_last_seen(self):
         """RTT probes use last_rtt_probe_at, not announce last_seen."""

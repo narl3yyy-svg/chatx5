@@ -266,6 +266,8 @@ class MessagingBackend:
         self._peer_lan_unreachable = {}
         self._user_disconnected = set()
         self._transport_reconnect_pending = False
+        self.max_peer_links = 0
+        self._link_connect_order = {}
 
     def _is_self_hash(self, h):
         clean = normalize_hash(h)
@@ -380,6 +382,9 @@ class MessagingBackend:
         if meta:
             via = (meta.get("via") or "").strip()
             ip = (meta.get("ip") or "").strip()
+            if via in ("rns", "beacon", "lan"):
+                if ip and self._peer_lan_ip_usable(ip):
+                    return {"udp", "lan", "tcp"}
             if via == "serial":
                 return {"serial"} if serial_ready else set()
             if ip and self._peer_lan_ip_usable(ip):
@@ -488,11 +493,58 @@ class MessagingBackend:
 
     def _parallel_sessions_allowed(self):
         """True when USB serial and LAN are both up — independent peer links per transport."""
+        limit = int(getattr(self, "max_peer_links", 0) or 0)
+        if limit == 1:
+            return False
         try:
             from chatx5.core.transport_isolation import dual_transport_isolation_enabled
             return dual_transport_isolation_enabled()
         except Exception:
             return False
+
+    def _enforce_max_peer_links(self, keep_keys=None):
+        """Close oldest active links when over the configured connection limit."""
+        limit = int(getattr(self, "max_peer_links", 0) or 0)
+        if limit <= 0:
+            return 0
+        keep_keys = {k for k in (keep_keys or []) if k}
+        evicted = 0
+        while True:
+            active = []
+            for key, link in list(self.peer_links.items()):
+                try:
+                    if getattr(link, "status", None) == RNS.Link.CLOSED:
+                        continue
+                except Exception:
+                    pass
+                if not self._link_interface_healthy(link):
+                    continue
+                active.append((self._link_connect_order.get(key, 0), key, link))
+            if len(active) <= limit:
+                break
+            active.sort(key=lambda item: item[0])
+            victim = None
+            for _, key, link in active:
+                if key not in keep_keys:
+                    victim = (key, link)
+                    break
+            if not victim:
+                break
+            key, link = victim
+            try:
+                link.teardown()
+                evicted += 1
+            except Exception:
+                pass
+            peer = self._peer_from_link_key(key)
+            transport = None
+            if ":" in str(key):
+                transport = str(key).rsplit(":", 1)[-1]
+            self._unlink_peer(peer, transport=transport)
+            self._link_connect_order.pop(key, None)
+        if evicted:
+            print(f"[connect] Evicted {evicted} link(s) — max_peer_links={limit}")
+        return evicted
 
     def _teardown_other_peer_links(self, keep_peer_hash, handoff=False):
         """Close active links to every peer except the one being connected."""
@@ -592,6 +644,7 @@ class MessagingBackend:
         self.peer_links[key] = link
         if key != peer:
             self.peer_links.pop(peer, None)
+        self._link_connect_order[key] = time.time()
         self._cache_link_peer(link, peer)
 
     def _unlink_peer(self, peer_hash, transport=None):
@@ -3174,11 +3227,14 @@ class MessagingBackend:
         if not self._peer_link_active(dest_hex, alt_hex, transport=transport):
             return False, None
         peer = self.dest_hash_for(dest_hex)
-        adopt = (
-            self._link_for_peer(peer, transport=transport)
-            or self._find_active_link_for_peer(dest_hex, alt_hex)
-        )
+        adopt = self._link_for_peer(peer, transport=transport)
+        if not adopt and transport:
+            return False, None
         if not adopt:
+            adopt = self._find_active_link_for_peer(dest_hex, alt_hex)
+        if not adopt:
+            return False, None
+        if transport and not self._link_transport_matches(adopt, transport):
             return False, None
         if not self._link_interface_healthy(adopt) or not self._peer_has_path(dest_hex):
             return False, adopt
@@ -4556,6 +4612,14 @@ class MessagingBackend:
                 if requested_transport:
                     self._session_transport = requested_transport
                 self._session_peer_hash = session_hash
+                limit = int(getattr(self, "max_peer_links", 0) or 0)
+                if limit > 0:
+                    keep_keys = []
+                    if requested_transport:
+                        keep_keys.append(self._link_map_key(session_hash, requested_transport))
+                    else:
+                        keep_keys.append(session_hash)
+                    self._enforce_max_peer_links(keep_keys=keep_keys)
                 if self._parallel_sessions_allowed():
                     if (
                         not self.active_link
@@ -4731,6 +4795,12 @@ class MessagingBackend:
                 peer_ip = None
             elif requested_transport == "lan":
                 prefer_serial = False
+                from chatx5.core.lan_rns import (
+                    clear_peer_path_unless_lan_families,
+                    prune_serial_path_for_peer,
+                )
+                prune_serial_path_for_peer(dest_hex)
+                clear_peer_path_unless_lan_families(dest_hex)
             serial_only = serial_ready and (prefer_serial or not lan_ready or peer_lan_down)
             prune_stale_lan_paths()
             bridged = prune_bridged_lan_paths()
@@ -4740,12 +4810,17 @@ class MessagingBackend:
                 clear_peer_path_unless_family(dest_hex, "serial")
                 peer_ip = None
 
-            serial_only_peer = (
-                prefer_serial
-                or serial_only
-                or self._peer_expected_transport_families(dest_hex) == {"serial"}
-            )
-            if serial_ready and serial_only_peer:
+            if requested_transport == "serial":
+                serial_only_peer = serial_ready
+            elif requested_transport == "lan":
+                serial_only_peer = False
+            else:
+                serial_only_peer = (
+                    prefer_serial
+                    or serial_only
+                    or self._peer_expected_transport_families(dest_hex) == {"serial"}
+                )
+            if serial_ready and serial_only_peer and requested_transport != "lan":
                 prime_timeout = 12.0 if not physical_lan else 8.0
                 if self._connect_serial_peer(
                     destination, dest_hex, clean, old_link=old_link,
@@ -4816,7 +4891,7 @@ class MessagingBackend:
                     adopt = self._link_for_peer(dest_hex) or self.active_link
                     return self._finish_connect(dest_hex, link=adopt)
                 print("[connect] Peer did not connect back — trying outbound fallback...")
-            elif serial_ready and peer_ip and not lan_ready:
+            elif serial_ready and peer_ip and not lan_ready and requested_transport != "lan":
                 print("[connect] LAN unreachable — using serial only (no HTTP wake)")
                 peer_ip = None
                 self._prime_serial_path(dest_hex)
@@ -4825,11 +4900,18 @@ class MessagingBackend:
                     f"[connect] Outbound to caller at {peer_ip}:{peer_port or 8742} "
                     f"({dest_hex[:16]}...)"
                 )
-            elif serial_ready and not peer_ip:
+            elif serial_ready and not peer_ip and requested_transport != "lan":
                 self._prime_serial_path(dest_hex, timeout_s=12.0)
 
             scrub_peer_path(dest_hex)
-            if serial_only or (serial_ready and not lan_ready):
+            if requested_transport == "lan":
+                if peer_ip or is_android():
+                    self._prime_lan_path(dest_hex, peer_ip=peer_ip)
+                else:
+                    request_paths_for_hash(dest_hex, family="udp")
+            elif requested_transport == "serial":
+                request_paths_for_hash(dest_hex, family="serial")
+            elif serial_only or (serial_ready and not lan_ready):
                 request_paths_for_hash(dest_hex, family="serial")
             elif peer_ip or is_android():
                 self._prime_lan_path(dest_hex, peer_ip=peer_ip)
@@ -4837,7 +4919,11 @@ class MessagingBackend:
                 request_paths_for_hash(dest_hex)
             if is_android() and not peer_ip and not serial_ready:
                 print("[connect] Android: no peer IP — connect from Discovered list or add contact with LAN IP")
-            if serial_only or (serial_ready and not lan_ready):
+            if requested_transport == "lan":
+                connect_timeout = LINK_CONNECT_TIMEOUT_S
+            elif requested_transport == "serial":
+                connect_timeout = SERIAL_LINK_CONNECT_TIMEOUT_S
+            elif serial_only or (serial_ready and not lan_ready):
                 connect_timeout = SERIAL_LINK_CONNECT_TIMEOUT_S
             elif failover:
                 connect_timeout = FAILOVER_CONNECT_TIMEOUT_S
@@ -4845,7 +4931,12 @@ class MessagingBackend:
                 connect_timeout = ANDROID_LINK_CONNECT_TIMEOUT_S
             else:
                 connect_timeout = LINK_CONNECT_TIMEOUT_S
-            path_hint = "serial" if (serial_only or (serial_ready and not lan_ready)) else "auto"
+            if requested_transport == "lan":
+                path_hint = "lan"
+            elif requested_transport == "serial":
+                path_hint = "serial"
+            else:
+                path_hint = "serial" if (serial_only or (serial_ready and not lan_ready)) else "auto"
             print(f"[connect] Connecting to {dest_hex[:16]}... ({path_hint}, timeout {connect_timeout}s)")
 
             if self._establish_outbound_link(
@@ -4874,7 +4965,8 @@ class MessagingBackend:
                     return self._finish_connect(dest_hex, link=adopt)
 
             if (
-                serial_ready
+                requested_transport != "lan"
+                and serial_ready
                 and not serial_only
                 and (peer_lan_down or not physical_lan)
                 and not self._peer_link_active(dest_hex, clean)

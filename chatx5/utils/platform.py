@@ -588,12 +588,38 @@ def _linux_enumerate_interfaces():
                 continue
             ips = _linux_iface_ipv4_addrs(ifname, addr_map=addr_map)
             if not ips:
+                primary = _linux_iface_ipv4(ifname)
+                if primary:
+                    ips = [primary]
+            if not ips:
                 entries.append(_linux_iface_entry(ifname, addr_map=addr_map))
             else:
                 for ip in ips:
                     entries.append(_linux_iface_entry(ifname, ip=ip, addr_map=addr_map))
     except OSError:
         pass
+    if not entries:
+        try:
+            proc = subprocess.run(
+                ["ip", "-o", "-4", "addr", "show", "scope", "global"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+            for line in (proc.stdout or "").splitlines():
+                parts = line.split()
+                if len(parts) < 4:
+                    continue
+                ifname = parts[1].rstrip(":")
+                ip = parts[3].split("/", 1)[0]
+                if not ifname or ifname == "lo" or _linux_skip_iface(ifname):
+                    continue
+                if ip.startswith(("127.", "169.254.")):
+                    continue
+                entries.append(_linux_iface_entry(ifname, ip=ip))
+        except Exception:
+            pass
     return entries
 
 
