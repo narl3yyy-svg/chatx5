@@ -4,7 +4,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.6.2
+**Current version:** 0.6.3
 
 ## How chatx5 works
 
@@ -117,9 +117,32 @@ LAN P2P chat between the same peers still uses UDP; group chat uses the separate
 bash scripts/check.sh          # tests + Android sync verify
 bash scripts/bump-version.sh X.Y.Z
 bash scripts/sync-android.sh   # after editing chatx5/
+cd android && ./gradlew assembleDebug   # local APK (JDK 17 + Android SDK)
 ```
 
-See [REFACTOR_SUMMARY.md](REFACTOR_SUMMARY.md) for the modular refactor status (messaging package split, web server split in progress).
+### Project layout (web layer)
+
+The web server is a thin orchestrator; HTTP, WebSocket, and RNS logic live in dedicated modules:
+
+```
+chatx5/web/
+  server.py              # ChatWebServer orchestrator (~500 lines)
+  rns_utils.py           # port helpers, CONFIG_DIR, detect_lan_ip
+  rns_lifecycle.py       # RNS startup, interfaces, network HTTP handlers
+  messaging_bridge.py    # messaging callbacks, link/progress events
+  peer_connect.py        # connect API, failover loop
+  history_store.py       # chat history persistence + API
+  settings_store.py      # settings load/save + API
+  background_tasks.py    # probe loop, discovery broadcaster, queue retry
+  hub_runtime.py         # hub TCP relay runtime
+  discovery_bridge.py    # discovery scope + peer callbacks
+  share_browser.py       # shared-folder browse sessions
+  routes/register.py     # HTTP route table
+  routes/*_routes.py     # domain handler mixins (identity, contacts, transfers, …)
+  ws/manager.py          # WebSocket connect, broadcast, protocol dispatch
+```
+
+See [REFACTOR_SUMMARY.md](REFACTOR_SUMMARY.md) for the full modular refactor history (messaging package + web server split).
 
 ---
 

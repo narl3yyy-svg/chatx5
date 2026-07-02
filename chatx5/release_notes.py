@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.3": [
+        "Phase 8 complete: web server split into routes/, ws/, rns_lifecycle.py, and focused mixins.",
+        "server.py is now a ~500-line orchestrator — easier to debug HTTP, WebSocket, and RNS layers.",
+        "No user-visible behavior changes; all existing APIs and tests preserved.",
+    ],
     "0.6.2": [
         "Hub group chat: hub server keeps inbound TCP client links alongside LAN/serial P2P (no longer torn down as worse path).",
         "Hub client opens a dedicated hub-TCP RNS link for group messages instead of reusing the LAN session.",
