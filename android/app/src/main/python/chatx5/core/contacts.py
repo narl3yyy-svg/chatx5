@@ -2,6 +2,8 @@
 
 import json
 import os
+import re
+import re
 
 
 def contacts_dir(config_dir):
@@ -67,18 +69,51 @@ def _name_is_hash_like(name, hashes):
     return False
 
 
+def _is_corrupt_contact_name(name, hashes=None):
+    """True when a stored/display name looks like leaked UI or hash+rtt garbage."""
+    raw = (name or "").strip()
+    if not raw:
+        return True
+    if "\n" in raw or "\r" in raw:
+        return True
+    if len(raw) > 48:
+        return True
+    if re.search(r"\bLAN\b|\bUSB\b", raw, re.I):
+        return True
+    if re.search(r"\d+ms\b", raw, re.I):
+        return True
+    compact = raw.replace(":", "").replace(" ", "")
+    if len(compact) >= 20 and re.fullmatch(r"[0-9a-f]+", compact, re.I):
+        return True
+    if re.search(r"[0-9a-f]{16,}", compact, re.I):
+        hex_chars = sum(1 for c in compact.lower() if c in "0123456789abcdef")
+        if hex_chars >= max(16, len(compact) * 0.6):
+            return True
+    if hashes and _name_is_hash_like(raw, hashes):
+        return True
+    return False
+
+
+def _sanitize_contact_name(name, hashes=None):
+    cleaned = (name or "").strip()
+    if _is_corrupt_contact_name(cleaned, hashes):
+        return ""
+    return cleaned
+
+
 def _resolve_contact_name(existing, name=None, custom_name=False):
     """Pick stored contact name; user-chosen names always win over discovery."""
     entry = normalize_contact(existing or {})
     hashes = _contact_hashes(entry)
-    incoming = str(name).strip() if name is not None and str(name).strip() else ""
+    incoming = _sanitize_contact_name(name, hashes) if name is not None else ""
     if custom_name and incoming:
         return incoming
     if entry.get("custom_name"):
-        return (entry.get("name") or "").strip() or incoming
+        saved_custom = _sanitize_contact_name(entry.get("name"), hashes)
+        return saved_custom or incoming
     if incoming and not _name_is_hash_like(incoming, hashes):
         return incoming
-    saved = (entry.get("name") or "").strip()
+    saved = _sanitize_contact_name(entry.get("name"), hashes)
     if saved and not _name_is_hash_like(saved, hashes):
         return saved
     return incoming or saved

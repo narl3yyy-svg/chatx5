@@ -8,7 +8,11 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from chatx5.core.contacts import (
+    _is_corrupt_contact_name,
+    _resolve_contact_name,
+    _sanitize_contact_name,
     find_contact_by_hash,
+    normalize_contact,
     save_contact,
     update_contact_endpoint,
 )
@@ -79,6 +83,42 @@ class ContactNamePersistenceTests(unittest.TestCase):
         })
         self.assertEqual(row.get("lan_hash"), "aaaa")
         self.assertNotIn("serial_hash", row)
+
+    def test_corrupt_discovery_name_is_rejected(self):
+        garbage = "238e575a12a97fc8\nLAN\n55069751ff8b0f1b8555e9b7ad02e3bc287ms"
+        self.assertTrue(_is_corrupt_contact_name(garbage))
+        self.assertEqual(_sanitize_contact_name(garbage), "")
+
+    def test_custom_name_survives_corrupt_discovery_update(self):
+        save_contact(
+            self.tmp,
+            "5386ea6054eaaa291518c47732e85127",
+            name="330s",
+            ip="10.0.30.101",
+            via="lan",
+            custom_name=True,
+        )
+        update_contact_endpoint(
+            self.tmp,
+            "5386ea6054eaaa291518c47732e85127",
+            ip="10.0.30.101",
+            name="238e575a12a97fc8\nLAN\n287ms",
+        )
+        contact = find_contact_by_hash(self.tmp, "5386ea6054eaaa291518c47732e85127")
+        self.assertEqual(contact.get("name"), "330s")
+
+    def test_resolve_contact_name_prefers_clean_saved_name(self):
+        entry = normalize_contact({
+            "hash": "5386ea6054eaaa291518c47732e85127",
+            "lan_hash": "5386ea6054eaaa291518c47732e85127",
+            "name": "330s",
+            "custom_name": True,
+        })
+        resolved = _resolve_contact_name(
+            entry,
+            "238e575a12a97fc8\nLAN\n287ms",
+        )
+        self.assertEqual(resolved, "330s")
 
     def test_save_serial_then_lan_keeps_distinct_hashes(self):
         save_contact(

@@ -105,6 +105,8 @@ from chatx5.utils.system import get_cpu_percent, get_cpu_temperature_detail
 from chatx5._version import __version__ as APP_VERSION
 from chatx5.web.discovery_bridge import DiscoveryBridgeMixin
 from chatx5.web.hub_runtime import HubRuntimeMixin
+from chatx5.web.share_browser import ShareBrowserMixin
+from chatx5.core.messaging.constants import MESSAGE_TYPE_SHARE_BROWSE
 
 CONFIG_DIR = get_config_dir()
 DATA_DIR = get_data_dir()
@@ -453,7 +455,7 @@ def _pick_directory_tkinter(start):
         return None
 
 
-class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin):
+class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin, ShareBrowserMixin):
     def __init__(self, host="127.0.0.1", port=8742, verbose=False, debug=False, force=False, embedded=False):
         self.host = host
         self.port = port
@@ -494,6 +496,7 @@ class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin):
         self._progress_throttle_ms = 250
         self._ui_state = {"viewing_peer": None, "hidden": False}
         self._live_scope_ip = None
+        self._init_share_sessions()
 
     @staticmethod
     def _clean_hash(h):
@@ -949,6 +952,16 @@ class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin):
             url = self._file_url(enriched["content"])
             if url:
                 enriched["file_url"] = url
+        if enriched.get("type") == MESSAGE_TYPE_SHARE_BROWSE:
+            share = enriched.get("share")
+            if not share and enriched.get("content"):
+                try:
+                    share = json.loads(enriched["content"])
+                    enriched["share"] = share
+                except Exception:
+                    share = None
+            if share and not enriched.get("file_name"):
+                enriched["file_name"] = share.get("root_name") or "Shared folder"
         sender = enriched.get("sender")
         if sender and sender != "system":
             sender_name = self._peer_display_name(sender)
@@ -1608,13 +1621,28 @@ class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin):
             )
 
     def _contact_name_for(self, peer_hash):
-        for contact in list_contacts(self.config_dir):
-            if self._peers_equivalent(contact.get("hash"), peer_hash):
-                return contact.get("name") or ""
+        from chatx5.core.contacts import (
+            _contact_hashes,
+            _is_corrupt_contact_name,
+            _sanitize_contact_name,
+            find_contact_by_hash,
+        )
+        contact = find_contact_by_hash(self.config_dir, peer_hash)
+        if contact:
+            hashes = _contact_hashes(contact)
+            name = _sanitize_contact_name(contact.get("name"), hashes)
+            if name and not _is_corrupt_contact_name(name, hashes):
+                return name
+        for row in list_contacts(self.config_dir):
+            if self._peers_equivalent(row.get("hash"), peer_hash):
+                hashes = _contact_hashes(row)
+                name = _sanitize_contact_name(row.get("name"), hashes)
+                if name and not _is_corrupt_contact_name(name, hashes):
+                    return name
         if self.discovery:
             for peer in self.discovery.get_peers():
                 if self._peers_equivalent(peer.get("hash"), peer_hash):
-                    name = (peer.get("name") or "").strip()
+                    name = _sanitize_contact_name(peer.get("name"))
                     if name and name != peer_hash[:8]:
                         return name
         settings = self.load_settings()
@@ -5045,6 +5073,13 @@ class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin):
         app.router.add_post("/api/settings", self.handle_settings_post)
         app.router.add_get("/api/browse-dir", self.handle_browse_dir)
         app.router.add_post("/api/browse-dir", self.handle_browse_dir)
+        app.router.add_post("/api/share/start", self.handle_share_start)
+        app.router.add_get("/api/share/{session_id}/list", self.handle_share_list)
+        app.router.add_get("/api/share/{session_id}/download", self.handle_share_download)
+        app.router.add_post("/api/share/{session_id}/upload", self.handle_share_upload)
+        app.router.add_get("/api/share/remote/list", self.handle_share_remote_list)
+        app.router.add_get("/api/share/remote/download", self.handle_share_remote_download)
+        app.router.add_post("/api/share/remote/upload", self.handle_share_remote_upload)
         app.router.add_post("/api/transfer/cancel", self.handle_transfer_cancel)
         app.router.add_get("/api/file/{filepath:.*}", self.handle_serve_file)
         app.router.add_get("/api/queue", self.handle_queue)

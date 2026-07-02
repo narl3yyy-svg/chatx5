@@ -95,12 +95,13 @@ Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
 |------|--------|--------|----------|
 | 8c | `web/hub_runtime.py` | **done** | `HubRuntimeMixin` — hub settings, TCP hot-add, host resolve, server hash |
 | 8d | `web/discovery_bridge.py` | **done** | `DiscoveryBridgeMixin` — scope, peer callbacks, contact sync, supersede |
+| 8g | `web/share_browser.py` | **done** | `ShareBrowserMixin` — shared folder sessions, remote proxy, P2P + hub group |
 | 8a | `web/routes/` | planned | HTTP route table + thin handlers |
 | 8b | `web/ws/` | planned | WebSocket connect, broadcast, message fan-out |
 | 8e | `web/rns_lifecycle.py` | planned | RNS startup, interface config, announce scheduling |
 | 8f | `web/server.py` | in progress | Slim orchestrator (~5,260 lines after 8c+8d; target ~800) |
 
-`ChatWebServer` now inherits `HubRuntimeMixin` and `DiscoveryBridgeMixin`. Public API unchanged.
+`ChatWebServer` now inherits `HubRuntimeMixin`, `DiscoveryBridgeMixin`, and `ShareBrowserMixin`. Public API unchanged.
 
 Each step ships with tests green and no API changes to `run.sh` / Android.
 
