@@ -154,6 +154,7 @@ class HubMixin:
                     continue
             except Exception:
                 pass
+            self._register_peer_link(link, peer, transport="tcp")
             return link
         return None
 

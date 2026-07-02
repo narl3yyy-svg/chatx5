@@ -502,6 +502,12 @@ body::before {
   font-size: 11px;
 }
 
+.dock-version {
+  font-size: 11px; color: var(--text3); cursor: pointer; padding: 2px 8px;
+  border-radius: 6px; border: 1px solid var(--border);
+}
+.dock-version:hover { color: var(--text); border-color: var(--border-strong); }
+
 /* Bottom dock */
 #bottom-dock {
   flex-shrink: 0;
@@ -1658,6 +1664,7 @@ body.android-shell.sidebar-open #sidebar-backdrop {
         <span class="status-pill"><span id="link-dot"></span><span id="link-label">Link</span></span>
       </span>
       <span id="peer-count">0 peers</span>
+      <span id="app-version-dock" class="dock-version" onclick="openReleaseNotesPage()" title="Release notes">v—</span>
       <span id="queue-count" style="display:none" title="Click to clear queue" onclick="clearQueue()"></span>
     </div>
     <div id="transfer-dock">
@@ -5221,6 +5228,8 @@ function trackAppVersion(settings) {
   if (!version) return;
   const verEl = document.getElementById('settings-app-version');
   if (verEl) verEl.textContent = 'v' + version;
+  const dockVer = document.getElementById('app-version-dock');
+  if (dockVer) dockVer.textContent = 'v' + version;
   const seen = settings?.last_release_notes_seen || '';
   if (seen !== version) {
     fetch('/api/settings', {

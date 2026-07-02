@@ -1458,6 +1458,29 @@ class MessagingBackend(
             )
             return
 
+        if self._inbound_link_is_hub_tcp(link):
+            if not peer_hash or peer_hash == "unknown":
+                resolved = self._resolve_remote_peer(link, fallback=peer_hash)
+                if resolved and resolved != "unknown":
+                    peer_hash = resolved
+                    self._cache_link_peer(link, peer_hash)
+            print(
+                f"[messaging] Incoming hub TCP link: {link.link_id.hex()[:12]} "
+                f"({peer_hash[:16] if peer_hash and peer_hash != 'unknown' else 'unknown'}...)"
+            )
+            self._setup_link(link)
+            if peer_hash and peer_hash != "unknown":
+                self._register_peer_link(link, peer_hash, transport="tcp")
+                role, _ = self._load_hub_settings()
+                if role == "server":
+                    n = len(self._hub_tcp_linked_peers())
+                    print(f"[hub] Hub server: {n} TCP client(s) linked")
+                self._notify_link_established(
+                    link, peer_hash, promote_active=False, background=True,
+                )
+                self._schedule_hub_queue_drain()
+            return
+
         incoming_fam = interface_family(self._link_attached_interface(link))
         expected = self._peer_expected_transport_families(peer_hash)
         if expected and incoming_fam != "serial":

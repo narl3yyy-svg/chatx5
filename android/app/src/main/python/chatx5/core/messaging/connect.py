@@ -438,7 +438,7 @@ class ConnectMixin:
 
     def _establish_outbound_link(self, destination, dest_hex, clean, old_link=None,
                                  timeout_s=LINK_CONNECT_TIMEOUT_S, promote_active=None,
-                                 serial=False):
+                                 serial=False, hub_tcp_only=False):
         """Try to open an outbound RNS link within timeout_s."""
         link = None
         try:
@@ -458,7 +458,16 @@ class ConnectMixin:
                 if serial:
                     ensure_serial_path_pinned(dest_hex, request=False)
                 time.sleep(LINK_CONNECT_POLL_S)
-                if self._peer_link_active(dest_hex, clean):
+                if hub_tcp_only:
+                    existing = self._hub_link_for_peer(dest_hex)
+                    if existing:
+                        self._notify_link_established(
+                            existing, dest_hex,
+                            promote_active=False, background=True,
+                        )
+                        self._teardown_outbound_attempt(link)
+                        return True
+                elif self._peer_link_active(dest_hex, clean):
                     existing = self._link_for_peer(dest_hex) or self._link_for_peer(clean)
                     if existing:
                         self._notify_link_established(
@@ -999,15 +1008,13 @@ class ConnectMixin:
                 if self._establish_outbound_link(
                     destination, dest_hex, clean, old_link=old_link,
                     timeout_s=QUICK_OUTBOUND_TIMEOUT_S,
+                    hub_tcp_only=True,
                 ):
-                    adopt = (
-                        self._hub_link_for_peer(dest_hex)
-                        or self._link_for_peer(dest_hex, transport="tcp")
-                        or self.active_link
-                    )
-                    return self._finish_connect(
-                        dest_hex, link=adopt, transport="tcp",
-                    )
+                    adopt = self._hub_link_for_peer(dest_hex)
+                    if adopt:
+                        return self._finish_connect(
+                            dest_hex, link=adopt, transport="tcp",
+                        )
                 adopt = self._hub_link_for_peer(dest_hex)
                 if adopt:
                     return self._finish_connect(
