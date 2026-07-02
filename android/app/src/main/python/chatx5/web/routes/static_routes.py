@@ -13,27 +13,44 @@ from chatx5.utils.platform import (
 
 class StaticRoutesMixin:
     def _static_dir(self):
+        routes_dir = Path(__file__).resolve().parent
+        web_dir = routes_dir.parent
         candidates = []
         if getattr(sys, "frozen", False):
             meipass = getattr(sys, "_MEIPASS", None)
             if meipass:
                 candidates.append(Path(meipass) / "chatx5" / "web" / "static")
+        try:
+            import chatx5 as chatx5_pkg
+
+            pkg_root = Path(chatx5_pkg.__file__).resolve().parent
+            candidates.append(pkg_root / "web" / "static")
+        except Exception:
+            pass
         candidates.extend([
-            Path(__file__).parent / "static",
+            web_dir / "static",
+            routes_dir / "static",
             Path.cwd() / "chatx5" / "web" / "static",
             Path.cwd() / "static",
         ])
         if is_android():
-            candidates.append(Path(__file__).resolve().parent / "static")
+            candidates.append(web_dir / "static")
+        seen = set()
         for p in candidates:
+            key = str(p)
+            if key in seen:
+                continue
+            seen.add(key)
             if p.exists() and (p / "index.html").exists():
                 return p
-        return candidates[0]
+        return web_dir / "static"
 
     async def handle_index(self, request):
         static_dir = self._static_dir()
         index_path = static_dir / "index.html"
         if not index_path.exists():
+            tried = ", ".join(str(static_dir))
+            print(f"[web] Frontend not found — looked in {tried}")
             return web.Response(text="Frontend not found", status=500)
         resp = web.FileResponse(index_path)
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -50,4 +67,3 @@ class StaticRoutesMixin:
         if ct:
             resp.headers['Content-Type'] = ct
         return resp
-

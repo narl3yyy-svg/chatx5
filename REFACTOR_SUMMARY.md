@@ -63,7 +63,16 @@ chatx5/web/
   share_browser.py       # shared-folder browse sessions
 ```
 
-**282 tests pass** (1 skipped). Public API unchanged.
+**299 tests pass** (1 skipped). Public API unchanged.
+
+## v0.6.12 — Android UI + hub session hardening (done)
+
+| Issue | Fix |
+|-------|-----|
+| Android “Frontend not found” | `static_routes.py` resolves `chatx5/web/static` via package root (not `web/routes/static`) |
+| Group chat dies after P2P switch | Hub TCP links protected in `_consolidate_peer_links`; `/api/hub/ensure` on Group Chat open |
+| “Ignored group message” on LAN | `_hub_message_receivable` accepts hub payloads on any transport for display |
+| Android group notifications | `_should_android_notify` treats `__hub_group__` as its own viewing peer |
 
 ## Phase 9 — Tooling, Android build sync, import hygiene (done)
 

@@ -574,6 +574,9 @@ class PeerLinkMixin:
         for link in list(self._links_for_peer(peer)):
             if keep_id and link.link_id == keep_id:
                 continue
+            if self._link_is_hub_tcp(link):
+                if not (keep_link and self._link_is_hub_tcp(keep_link)):
+                    continue
             if parallel and keep_fam:
                 fam = interface_family(self._link_attached_interface(link))
                 if fam != keep_fam:

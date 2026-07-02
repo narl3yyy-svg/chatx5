@@ -337,8 +337,7 @@ class InboundCallbacksMixin:
                                 pass
                     return
 
-                if not self._hub_message_acceptable(chat_msg, link):
-                    print("[hub] Ignored group message (hub transport only)")
+                if not self._hub_message_receivable(chat_msg, link):
                     return
 
                 chat_msg.sender = remote_hash

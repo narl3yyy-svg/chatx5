@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.12": [
+        "Fix: Android app loads the web UI again (static assets resolved from chatx5/web/static, not web/routes/static).",
+        "Fix: Group chat survives P2P transport switches — hub TCP relay links are protected and reopen via /api/hub/ensure when you return to Group Chat.",
+        "Fix: Group messages display even when they arrive on a LAN/serial link; Android notifications fire for group chat when you are in another chat.",
+    ],
     "0.6.11": [
         "Fix: Hub group chat overhaul — clients fetch and register the hub server identity (pubkey) from network-status before opening the TCP link.",
         "Fix: Hub TCP inbound links register once remote identity is available (server sees connected clients; group relay works).",

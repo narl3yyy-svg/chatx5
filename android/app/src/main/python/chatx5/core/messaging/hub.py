@@ -199,6 +199,13 @@ class HubMixin:
             out.append(peer)
         return out
 
+    def _hub_message_receivable(self, chat_msg, link=None):
+        """Inbound hub group messages may arrive on any transport; UI still shows them."""
+        if not getattr(chat_msg, "hub_group", False):
+            return True
+        role, _ = self._load_hub_settings()
+        return role != "off"
+
     def _hub_message_acceptable(self, chat_msg, link):
         if not getattr(chat_msg, "hub_group", False):
             return True
@@ -225,6 +232,8 @@ class HubMixin:
                 )
                 if match:
                     return [match]
+            if tcp_peers:
+                return [tcp_peers[0]]
             return []
         return tcp_peers[:1]
 
@@ -283,10 +292,14 @@ class HubMixin:
             ident_hex = identity_hex
             if dest and ident_hex:
                 self.register_peer_mapping(dest, ident_hex)
-            print(
-                f"[hub] Registered hub server identity from {hub_host or 'peer'}: "
-                f"{dest[:16] if dest else identity_hex[:16]}..."
-            )
+            now = time.time()
+            last = float(getattr(self, "_last_hub_identity_log", 0) or 0)
+            if now - last >= 30.0:
+                self._last_hub_identity_log = now
+                print(
+                    f"[hub] Registered hub server identity from {hub_host or 'peer'}: "
+                    f"{dest[:16] if dest else identity_hex[:16]}..."
+                )
             return dest or hub_hash
         return hub_hash if len(hub_hash) == 32 else ""
 
@@ -493,8 +506,10 @@ class HubMixin:
     def send_hub_message(self, text, receipt_callback=None, msg_id=None,
                          hub_server_hash=None, hub_server_mode=False):
         role, _ = self._load_hub_settings()
-        if role == "client" and not self._hub_tcp_linked_peers():
-            self.ensure_hub_link(background=True)
+        if role == "off":
+            return False
+        if not self._hub_tcp_linked_peers():
+            self.ensure_hub_link(background=(role == "server"))
         msg = ChatMessage(MESSAGE_TYPE_TEXT, text, msg_id=msg_id)
         msg.hub_group = True
         data = msg.to_json().encode("utf-8")

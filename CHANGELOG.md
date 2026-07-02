@@ -2,6 +2,13 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.12] — 2026-07-02
+
+### Fixed
+- **Android UI** — static asset lookup uses `chatx5/web/static` (package root), fixing “Frontend not found” after the web layer was split into `routes/`.
+- **Hub group chat after P2P switch** — hub TCP relay links are no longer torn down when consolidating LAN/serial sessions; opening Group Chat calls `/api/hub/ensure` to reconnect; clients fall back to any active hub TCP peer when hash aliases differ.
+- **Group message display** — hub group messages are accepted on any transport for display/relay (not only hub TCP); Android notifications fire for group chat when viewing another peer.
+
 ## [0.6.11] — 2026-07-02
 
 ### Fixed

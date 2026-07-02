@@ -5495,6 +5495,14 @@ function openChat(hash, tryConnect, meta) {
   updateAndroidShellLayout();
   syncUiState();
   updateHubUi();
+  if (viewingPeer === HUB_GROUP_PEER && window._hubRole && window._hubRole !== 'off') {
+    fetch('/api/hub/ensure', {method: 'POST'}).then(r => r.json()).then(d => {
+      if (d.hub_group_linked) {
+        window._hubGroupLinked = true;
+        updatePeerHeader();
+      }
+    }).catch(() => {});
+  }
   loadHistoryForPeer(viewingPeer);
   pollQueue();
   renderContacts(allContacts);
