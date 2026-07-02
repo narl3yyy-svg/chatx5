@@ -711,6 +711,25 @@ class ChatWebServer:
             return candidates[0][1]
         return host
 
+    def _ensure_hub_host_in_scope(self, settings, persist=True):
+        """Resolve hub_host to an in-scope peer IP and optionally persist it."""
+        settings = dict(settings or {})
+        if (settings.get("hub_role") or "off") != "client":
+            return settings
+        host = (settings.get("hub_host") or "").strip()
+        if not host:
+            return settings
+        if not getattr(self, "discovery", None) or not getattr(self, "config_dir", None):
+            return settings
+        resolved = self._resolve_hub_host_in_scope(host, settings)
+        if not resolved or resolved == host:
+            return settings
+        settings["hub_host"] = resolved
+        if persist:
+            self.save_settings(settings)
+            print(f"[hub] Updated hub host {host} → {resolved} (pinned LAN scope)")
+        return settings
+
     def _peer_in_discovery_scope(self, peer_hash, link=None):
         from chatx5.core.discovery import normalize_hash, serial_discovery_active
         from chatx5.core.lan_rns import interface_family, peer_path_on_family
@@ -719,6 +738,8 @@ class ChatWebServer:
         if link and self.messaging:
             iface = self.messaging._link_attached_interface(link)
             if interface_family(iface) == "serial":
+                return True
+            if self.messaging._inbound_link_is_hub_tcp(link):
                 return True
             if not iface and self.messaging._serial_inbound_scope_ok(peer_hash, link):
                 return True
@@ -1238,6 +1259,7 @@ class ChatWebServer:
         )
 
     def _apply_hub_settings(self, settings):
+        settings = self._ensure_hub_host_in_scope(settings, persist=bool(getattr(self, "discovery", None)))
         hub_role = settings.get("hub_role", "off")
         hub_host = (settings.get("hub_host") or "").strip()
         hub_port = int(settings.get("hub_port") or 4242)
@@ -1357,16 +1379,8 @@ class ChatWebServer:
                         f"{settings.get('hub_port', 4242)} — check hub role and restart"
                     )
             elif hub_role == "client":
+                settings = self._ensure_hub_host_in_scope(settings, persist=True)
                 host = (settings.get("hub_host") or "").strip()
-                resolved_host = self._resolve_hub_host_in_scope(host, settings)
-                if resolved_host and resolved_host != host:
-                    print(
-                        f"[hub] Hub host {host} outside pinned LAN — "
-                        f"using in-scope peer {resolved_host}"
-                    )
-                    host = resolved_host
-                    settings = dict(settings)
-                    settings["hub_host"] = host
                 port = int(settings.get("hub_port") or 4242)
                 if hub_tcp_client_active(settings):
                     iface = ensure_runtime_tcp_client(settings, self.config_dir)
@@ -2468,10 +2482,14 @@ class ChatWebServer:
             peer_hash, name=name, via=via, ip=peer_ip,
         )
 
-    def _maybe_update_hub_server_hash(self, peer_hash):
+    def _maybe_update_hub_server_hash(self, peer_hash, link=None):
         settings = self.load_settings()
         if settings.get("hub_role") != "client":
             return
+        if self.messaging and link:
+            iface = self.messaging._link_attached_interface(link)
+            if not self.messaging._link_is_hub_transport(iface):
+                return
         clean = self._peer_dest_hash(peer_hash)
         if not clean or self._is_self_hash(clean):
             return
@@ -2495,8 +2513,11 @@ class ChatWebServer:
         hub_tcp_link = (
             self.messaging
             and link
-            and self.messaging._link_is_hub_transport(
-                self.messaging._link_attached_interface(link)
+            and (
+                self.messaging._link_is_hub_transport(
+                    self.messaging._link_attached_interface(link)
+                )
+                or self.messaging._inbound_link_is_hub_tcp(link)
             )
         )
         if (
@@ -2536,7 +2557,7 @@ class ChatWebServer:
                 self._schedule_peers_broadcast()
             elif self.discovery.clear_peer_rtt(resolved):
                 self._schedule_peers_broadcast()
-        self._maybe_update_hub_server_hash(resolved)
+        self._maybe_update_hub_server_hash(resolved, link=link)
         user_disconnected = bool(
             self.messaging and self.messaging.is_user_disconnected(resolved)
         )
@@ -3622,6 +3643,20 @@ class ChatWebServer:
         tcp_client_online = bool(
             hub_role == "client" and tcp_client_interface_online()
         )
+        hub_group_linked = False
+        if hub_role != "off" and self.messaging:
+            if hub_role == "server":
+                hub_group_linked = bool(self.messaging._hub_tcp_linked_peers())
+            else:
+                from chatx5.core.discovery import normalize_hash
+
+                hub_hex = normalize_hash(settings.get("hub_server_hash") or "")
+                if hub_hex:
+                    dest = self.messaging.dest_hash_for(hub_hex)
+                    if dest and dest != "unknown":
+                        hub_group_linked = self.messaging._peer_link_active(dest)
+                if not hub_group_linked:
+                    hub_group_linked = tcp_client_online
         lan_discovery = lan_discovery_configured(configured)
         refresh_ifaces = request.query.get("refresh", "").lower() in ("1", "true", "yes")
         if lan_discovery and sys.platform in ("win32", "darwin"):
@@ -3694,6 +3729,7 @@ class ChatWebServer:
             "hub_server_hash": settings.get("hub_server_hash") or "",
             "tcp_hub_online": tcp_hub_online,
             "tcp_client_online": tcp_client_online,
+            "hub_group_linked": hub_group_linked,
         })
 
     async def handle_path_wake(self, request):

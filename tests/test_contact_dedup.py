@@ -35,6 +35,19 @@ class ContactDedupTests(unittest.TestCase):
         self.assertEqual(merged.get("name"), "330ss")
         self.assertFalse(os.path.isfile(_contact_path(self.tmp, serial)))
 
+    def test_list_contacts_merges_serial_orphan_with_lan_dual_contact(self):
+        lan = "f4b541432b50d2fb8b60a9dcdbec8ae8"
+        serial = "55069751ff8b0f1b14ms00000000000"[:32]
+        serial = "55069751ff8b0f1b0000000000000000"
+        save_contact(self.tmp, lan, name="330s", ip="10.0.30.101", via="lan", custom_name=True)
+        with open(_contact_path(self.tmp, serial), "w") as fh:
+            json.dump({"hash": serial, "name": serial[:8], "via": "serial"}, fh)
+        contacts = list_contacts(self.tmp)
+        self.assertEqual(len(contacts), 1)
+        self.assertEqual(contacts[0].get("lan_hash"), lan)
+        self.assertEqual(contacts[0].get("serial_hash"), serial)
+        self.assertFalse(os.path.isfile(_contact_path(self.tmp, serial)))
+
     def test_list_contacts_merges_orphan_files_by_related_name(self):
         lan = "3428352734b6dcc09472039c449e65b1"
         serial = "b9033de66c42b63e98d7a18f74db63aa"

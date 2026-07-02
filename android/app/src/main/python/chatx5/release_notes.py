@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.20": [
+        "Hub TCP inbound links from remote clients are accepted on the hub server even before RNS attaches an interface (fixes unknown/outside LAN scope rejections).",
+        "Hub clients persist an auto-resolved in-scope hub host when the saved IP is on another subnet; hub_server_hash is only recorded from hub TCP links, not LAN P2P.",
+        "Group chat shows Connected/Listening from hub_group_linked status; Android skips duplicate WS notifications, keeps keyboard open after send, and uses native logo picker.",
+        "Orphan serial-hash contact files merge into dual LAN+USB saved contacts.",
+    ],
     "0.5.19": [
         "Serial USB inbound links no longer rejected as outside LAN scope when the peer hash is a serial-only endpoint (distinct from LAN hash).",
         "Connect to a serial discovery hash uses the USB path instead of attempting LAN when dual identities use separate hashes.",

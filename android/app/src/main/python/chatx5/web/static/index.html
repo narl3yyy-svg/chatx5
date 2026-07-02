@@ -1600,7 +1600,7 @@ body.android-shell.sidebar-open #sidebar-backdrop {
             <button class="input-btn desktop-only" id="folder-btn" onclick="pickSendFolder()" title="Attach folder">📁</button>
             <input type="file" id="file-input" style="display:none" multiple onchange="uploadFiles(this.files);this.value=''">
             <input type="file" id="folder-input" style="display:none" webkitdirectory multiple onchange="uploadFolder(this.files);this.value=''">
-            <button class="input-btn" id="send-btn" onclick="sendMessage()" title="Send">➤</button>
+            <button class="input-btn" id="send-btn" onclick="sendMessage()" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault()" title="Send">➤</button>
           </div>
         </div>
         <div id="attach-submenu" class="attach-submenu">
@@ -2096,12 +2096,7 @@ function showMessageNotification(peerHash, preview) {
   const body = (preview || 'New message').substring(0, 120);
   const viewingThis = viewingPeer && peersMatch(viewingPeer, peerHash);
   if (viewingThis && !document.hidden) return;
-  if (window.chatx5Android?.showNotification && appPlatform === 'android') {
-    const peer = peerKey(peerHash);
-    if (peer) window.chatx5Android.showNotification(name, body, peer);
-    else window.chatx5Android.showNotification(name, body);
-    return;
-  }
+  if (appPlatform === 'android') return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try {
     const n = new Notification(name, { body, tag: 'chatx5-' + peerKey(peerHash) });
@@ -2646,6 +2641,10 @@ function pollLinkStatus() {
   fetch('/api/network-status')
     .then(r => r.json())
     .then(d => {
+      window._tcpHubOnline = !!d.tcp_hub_online;
+      window._tcpClientOnline = !!d.tcp_client_online;
+      window._hubGroupLinked = !!d.hub_group_linked;
+      if (viewingPeer === HUB_GROUP_PEER) updatePeerHeader();
       if (d.linked_peers && d.linked_peers.length) {
         syncLinkedPeers(d.linked_peers);
         updatePeerHeader();
@@ -2758,17 +2757,19 @@ function peerInterfaceLabel(via) {
 
 function updatePeerHeader() {
   if (!viewingPeer) return;
+  const isHubChat = viewingPeer === HUB_GROUP_PEER;
   const name = contactNameFor(viewingPeer) || truncateHash(viewingPeer);
   const linked = isPeerLinked(viewingPeer, viewingVia);
-  const rtt = linked ? rttForViewingPeer() : '';
+  const rtt = linked && !isHubChat ? rttForViewingPeer() : '';
   const rttBadge = rtt ? ` · <span class="peer-rtt">${escapeHtml(rtt)}</span>` : '';
   document.getElementById('peer-name').textContent = name;
-  linkPeer = linked ? linkKey(viewingPeer, viewingVia) : null;
-  const fullHash = peerKey(viewingPeer) || '';
-  const iface = peerInterfaceLabel(viewingVia);
+  linkPeer = linked && !isHubChat ? linkKey(viewingPeer, viewingVia) : null;
+  const fullHash = isHubChat ? 'Group relay' : (peerKey(viewingPeer) || '');
+  const iface = isHubChat ? 'Hub' : peerInterfaceLabel(viewingVia);
   const statusEl = document.getElementById('peer-status');
   if (statusEl) {
-    const conn = linked ? 'Connected' : 'Not connected';
+    let conn = linked ? 'Connected' : 'Not connected';
+    if (isHubChat && !linked && window._tcpHubOnline) conn = 'Listening';
     statusEl.innerHTML = `${escapeHtml(fullHash)} · ${escapeHtml(iface)} · ${conn}${rttBadge}`;
   }
   document.getElementById('disconnect-btn').style.display = linked ? 'block' : 'none';
@@ -3586,13 +3587,19 @@ function viaForLinkedPeer(hash) {
 function isDiscoveredPeerSaved(peer) {
   const peerH = peerKey(peer.hash);
   const peerIdent = peerKey(peer.identity_hash);
+  const isSerial = (peer.via || peer.transport || '') === 'serial';
   return allContacts.some(c => {
     if (contactMatchesDiscoveryPeer(c, peer)) return true;
     const hashes = contactSavedHashes(c);
-    return hashes.some(h =>
+    if (hashes.some(h =>
       (peerH && (h === peerH || peersMatch(h, peer.hash)))
       || (peerIdent && (h === peerIdent || peersMatch(h, peer.identity_hash)))
-    );
+    )) return true;
+    const serialH = contactSerialHash(c);
+    const lanH = contactLanHash(c);
+    if (peerH && serialH && (peerH === serialH || peersMatch(peerH, serialH))) return true;
+    if (peerH && lanH && !isSerial && (peerH === lanH || peersMatch(peerH, lanH))) return true;
+    return false;
   });
 }
 
@@ -3632,7 +3639,35 @@ function dedupeContacts(contacts) {
     byKey[primary] = merged;
     keys.forEach(k => { keyToPrimary[k] = primary; });
   });
-  return Object.values(byKey);
+  const merged = Object.values(byKey);
+  const out = [];
+  const used = new Set();
+  merged.forEach((a, i) => {
+    if (used.has(i)) return;
+    let current = {...a};
+    merged.forEach((b, j) => {
+      if (j <= i || used.has(j)) return;
+      const aLan = peerKey(current.lan_hash || current.hash);
+      const aSerial = peerKey(current.serial_hash);
+      const bLan = peerKey(b.lan_hash || b.hash);
+      const bSerial = peerKey(b.serial_hash);
+      const complementary = (
+        (aLan && bSerial && !aSerial && !bLan)
+        || (aSerial && bLan && !aLan && !bSerial)
+        || (aSerial && (aSerial === bLan || aSerial === peerKey(b.hash)))
+        || (bSerial && (bSerial === aLan || bSerial === peerKey(a.hash)))
+      );
+      if (!complementary) return;
+      ['hash', 'lan_hash', 'serial_hash', 'identity_hash', 'lan_identity_hash',
+        'serial_identity_hash', 'ip', 'port', 'name'].forEach(field => {
+        if (!current[field] && b[field]) current[field] = b[field];
+      });
+      if (b.custom_name) current.custom_name = true;
+      used.add(j);
+    });
+    out.push(current);
+  });
+  return out.length ? out : merged;
 }
 
 function renderContacts(contacts) {
@@ -4973,6 +5008,10 @@ function refreshNetworkStatus(silent) {
         `<div class="net-row"><span class="net-label">${label}</span><span class="net-value ${ok === undefined ? '' : netClass(ok)}">${escapeHtml(String(value ?? '—'))}</span></div>`;
       const platform = (window.chatx5Android?.isAndroid?.() ? 'android' : null) || d.platform;
       if (platform) appPlatform = platform;
+      window._tcpHubOnline = !!d.tcp_hub_online;
+      window._tcpClientOnline = !!d.tcp_client_online;
+      window._hubGroupLinked = !!d.hub_group_linked;
+      if (viewingPeer === HUB_GROUP_PEER) updatePeerHeader();
       if (d.lan_ip && d.lan_ip !== 'not configured') window._localLanIp = d.lan_ip;
       html += row('Platform', platform);
       html += row('HTTP bind', d.http_webview ? `${d.http_bind} (WebView ${d.http_webview})` : d.http_bind);
@@ -5378,6 +5417,12 @@ function sendMessage() {
   input.value = '';
   autoResize(input);
   document.getElementById('emoji-picker')?.classList.remove('open');
+  if (isAndroidShell()) {
+    requestAnimationFrame(() => {
+      input.focus();
+      try { input.setSelectionRange(0, 0); } catch (_) {}
+    });
+  }
   const isHubChat = viewingPeer === HUB_GROUP_PEER;
   const hubActive = window._hubRole && window._hubRole !== 'off';
   if (!linked && !(isHubChat && hubActive)) {
@@ -5532,7 +5577,18 @@ function discoveredPeerForHash(hash) {
   );
 }
 
+function isHubGroupLinked() {
+  const role = window._hubRole || 'off';
+  if (role === 'off') return false;
+  if (window._hubGroupLinked) return true;
+  if (role === 'server') return !!window._tcpHubOnline;
+  return !!window._tcpClientOnline;
+}
+
 function isPeerLinked(hash, via) {
+  if (hash === HUB_GROUP_PEER || peerKey(hash) === HUB_GROUP_PEER) {
+    return isHubGroupLinked();
+  }
   const h = peerKey(hash);
   if (!h) return false;
   const explicit = via ? normalizeVia(via) : (viewingVia ? normalizeVia(viewingVia) : null);
@@ -6430,6 +6486,10 @@ function loadBrandLogo() {
 }
 
 function pickBrandLogo() {
+  if (window.chatx5Android?.pickBrandLogo) {
+    window.chatx5Android.pickBrandLogo();
+    return;
+  }
   const input = document.getElementById('brand-logo-input');
   if (!input) return;
   input.onchange = () => {

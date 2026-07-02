@@ -330,6 +330,91 @@ class HubClientLinkTests(unittest.TestCase):
         self.assertEqual(saved.get("hub_server_hash"), hub_hash)
 
 
+class HubInboundScopeTests(unittest.TestCase):
+    def _backend(self, hub_role="server"):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": hub_role, "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+        backend.peer_scope_checker = lambda *_a, **_k: False
+        return backend
+
+    def test_inbound_hub_tcp_unknown_peer_allowed_when_server_online(self):
+        backend = self._backend(hub_role="server")
+
+        class _HubLink:
+            link_id = "hub1"
+            attached_interface = None
+
+        link = _HubLink()
+        self.assertTrue(backend._inbound_link_is_hub_tcp(link))
+        self.assertTrue(backend._peer_allowed_by_scope("unknown", link=link))
+
+    def test_inbound_hub_tcp_not_allowed_when_hub_off(self):
+        backend = self._backend(hub_role="off")
+        link = MagicMock()
+        link.attached_interface = None
+        self.assertFalse(backend._inbound_link_is_hub_tcp(link))
+        self.assertFalse(backend._peer_allowed_by_scope("unknown", link=link))
+
+
+class HubServerHashUpdateTests(unittest.TestCase):
+    def test_maybe_update_hub_hash_only_on_hub_tcp_link(self):
+        from chatx5.web.server import ChatWebServer
+
+        server = ChatWebServer.__new__(ChatWebServer)
+        server.config_dir = tempfile.mkdtemp()
+        settings = {
+            "hub_role": "client",
+            "hub_server_hash": "",
+            "hub_host": "10.0.30.112",
+            "hub_port": 4242,
+        }
+        server.save_settings = MagicMock()
+        server.load_settings = MagicMock(return_value=settings)
+        server._peer_dest_hash = lambda h: (h or "").replace(":", "")
+        server._is_self_hash = lambda h: False
+
+        lan_link = MagicMock()
+        lan_link.attached_interface = MagicMock()
+        server.messaging = MagicMock()
+        server.messaging._link_attached_interface.return_value = lan_link.attached_interface
+        server.messaging._link_is_hub_transport.return_value = False
+
+        server._maybe_update_hub_server_hash("b" * 32, link=lan_link)
+        server.save_settings.assert_not_called()
+
+        hub_link = MagicMock()
+        server.messaging._link_is_hub_transport.return_value = True
+        server._maybe_update_hub_server_hash("b" * 32, link=hub_link)
+        server.save_settings.assert_called_once()
+
+
+class HubHostPersistTests(unittest.TestCase):
+    def test_ensure_hub_host_persists_in_scope_resolution(self):
+        from chatx5.web.server import ChatWebServer
+
+        server = ChatWebServer.__new__(ChatWebServer)
+        server.config_dir = tempfile.mkdtemp()
+        server.discovery = MagicMock()
+        server._resolve_hub_host_in_scope = MagicMock(return_value="10.0.30.112")
+        saved = {}
+
+        def _save(s):
+            saved.update(s)
+
+        server.save_settings = _save
+        out = server._ensure_hub_host_in_scope(
+            {"hub_role": "client", "hub_host": "10.0.5.37", "hub_port": 4242},
+            persist=True,
+        )
+        self.assertEqual(out["hub_host"], "10.0.30.112")
+        self.assertEqual(saved.get("hub_host"), "10.0.30.112")
+
+
 class HubHeadlessSpecTests(unittest.TestCase):
     """Specification tests for planned dedicated headless hub mode (not yet implemented)."""
 

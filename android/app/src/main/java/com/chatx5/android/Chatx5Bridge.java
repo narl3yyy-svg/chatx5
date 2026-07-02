@@ -24,6 +24,11 @@ public class Chatx5Bridge {
     }
 
     @JavascriptInterface
+    public void pickBrandLogo() {
+        activity.runOnUiThread(activity::openBrandLogoPicker);
+    }
+
+    @JavascriptInterface
     public boolean isAndroid() {
         return true;
     }

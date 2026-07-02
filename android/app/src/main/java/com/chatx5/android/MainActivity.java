@@ -61,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQ_FOLDER = 1003;
     private static final int REQ_FILE = 1004;
     private static final int REQ_SEND_FOLDER = 1005;
+    private static final int REQ_BRAND_LOGO = 1006;
     private static final String MSG_CHANNEL_ID = "chatx5_messages";
     private static int notificationId = 2000;
 
@@ -628,6 +629,70 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void openBrandLogoPicker() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        try {
+            startActivityForResult(Intent.createChooser(intent, "Choose sidebar logo"), REQ_BRAND_LOGO);
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not open image picker", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void uploadBrandLogo(Uri uri) {
+        new Thread(() -> {
+            try {
+                byte[] data;
+                try (InputStream in = getContentResolver().openInputStream(uri)) {
+                    if (in == null) {
+                        throw new IllegalStateException("Could not read image");
+                    }
+                    data = readStreamBytes(in);
+                }
+                if (data == null || data.length == 0 || data.length > 2 * 1024 * 1024) {
+                    throw new IllegalStateException("Invalid image size");
+                }
+                String boundary = "----Chatx5Boundary" + System.currentTimeMillis();
+                URL url = new URL(serverUrl + "/api/brand-logo");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setDoOutput(true);
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                try (OutputStream out = conn.getOutputStream()) {
+                    String header = "--" + boundary + "\r\n"
+                        + "Content-Disposition: form-data; name=\"logo\"; filename=\"logo.png\"\r\n"
+                        + "Content-Type: image/png\r\n\r\n";
+                    out.write(header.getBytes());
+                    out.write(data);
+                    out.write(("\r\n--" + boundary + "--\r\n").getBytes());
+                }
+                int code = conn.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    throw new IllegalStateException("Upload failed (HTTP " + code + ")");
+                }
+                conn.disconnect();
+                runOnUiThread(() -> webView.evaluateJavascript(
+                    "if(typeof loadBrandLogo==='function')loadBrandLogo();"
+                        + "if(typeof toast==='function')toast('Sidebar logo updated');",
+                    null));
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(
+                    MainActivity.this, "Logo upload failed", Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    private byte[] readStreamBytes(InputStream in) throws Exception {
+        byte[] buf = new byte[8192];
+        int n;
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        while ((n = in.read(buf)) > 0) {
+            bos.write(buf, 0, n);
+        }
+        return bos.toByteArray();
+    }
+
     private void uploadZipToServer(File zipFile, String filename) throws Exception {
         String boundary = "----Chatx5Boundary" + System.currentTimeMillis();
         URL url = new URL(serverUrl + "/api/file");
@@ -686,6 +751,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_BRAND_LOGO) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                uploadBrandLogo(data.getData());
+            }
+            return;
+        }
         if (requestCode == REQ_FILE) {
             if (filePathCallback == null) {
                 return;

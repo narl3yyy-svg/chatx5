@@ -48,6 +48,17 @@ class HubMixin:
             print(f"[hub] Fetch hub server hash from {hub_host}:{port} failed: {exc}")
         return ""
 
+    def _inbound_link_is_hub_tcp(self, link):
+        """True when an inbound link arrived on the hub TCP relay (iface may be unset)."""
+        if not link or not self._hub_transport_active():
+            return False
+        for attr in ("attached_interface", "parent_interface"):
+            iface = getattr(link, attr, None)
+            if iface:
+                return self._link_is_hub_transport(iface)
+        role, _ = self._load_hub_settings()
+        return role == "server"
+
     def _hub_tcp_transport_online(self):
         from chatx5.core.rns_interfaces import (
             hub_tcp_client_active,
