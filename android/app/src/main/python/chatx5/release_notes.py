@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.5": [
+        "Fix: Hub client host/port field no longer disappears while you type — it now follows the Hub-mode dropdown instead of the saved role.",
+        "Hub runtime apply is hardened against a background timer firing during startup/teardown.",
+        "Phase 10 refactor: transport failover + session reconnect moved to messaging/failover.py; backend.py trimmed to ~1,100 lines.",
+        "CI now runs ruff + mypy + tests + Android-sync verification on every push and PR.",
+    ],
     "0.6.4": [
         "Phase 9: pre-commit + mandatory ruff/mypy in check.sh; setup.py delegates to pyproject.toml.",
         "Gradle auto-syncs Python sources before Android builds; web module imports trimmed.",
