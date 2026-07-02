@@ -144,6 +144,20 @@ class ConnectMixin:
             return self._peer_lan_ip_usable(peer_ip)
         return self._peer_has_path_on_family(dest_hex, "tcp")
 
+    def _hub_path_connect_ready(self, dest_hex):
+        """True when dest is the configured hub server and hub TCP transport is up."""
+        if not self._hub_transport_active():
+            return False
+        role, hub_hash = self._load_hub_settings()
+        if role != "client":
+            return False
+        target = self.dest_hash_for(hub_hash)
+        if not target or target == "unknown":
+            return False
+        if not self.hashes_equivalent(dest_hex, target):
+            return False
+        return self._hub_tcp_transport_online()
+
     def _mark_peer_lan_unreachable(self, peer_ip):
         peer_ip = (peer_ip or "").strip()
         if peer_ip:
@@ -891,6 +905,19 @@ class ConnectMixin:
                 )
                 prune_serial_path_for_peer(dest_hex)
                 clear_peer_path_unless_lan_families(dest_hex)
+            elif requested_transport == "tcp":
+                prefer_serial = False
+                peer_ip = None
+                from chatx5.core.lan_rns import (
+                    clear_peer_path_unless_family,
+                    prune_lan_path_for_peer,
+                )
+                prune_lan_path_for_peer(dest_hex)
+                clear_peer_path_unless_family(dest_hex, "tcp")
+            hub_tcp_only = (
+                requested_transport == "tcp"
+                or self._hub_path_connect_ready(dest_hex)
+            )
             serial_only = serial_ready and (prefer_serial or not lan_ready or peer_lan_down)
             prune_stale_lan_paths()
             bridged = prune_bridged_lan_paths()
@@ -926,7 +953,38 @@ class ConnectMixin:
                 print("[connect] Peer not reachable (serial)")
                 return False
 
-            if self._tcp_connect_ready(dest_hex, peer_ip, peer_lan_down, prefer_serial=prefer_serial):
+            if hub_tcp_only and self._hub_tcp_transport_online():
+                request_paths_for_hash(dest_hex, family="tcp")
+                wait_for_peer_path_families(
+                    dest_hex, families=("tcp",), timeout_s=8.0,
+                    should_stop=self._interrupted,
+                )
+                print(
+                    f"[hub] Hub TCP RNS link to {dest_hex[:16]}... "
+                    f"({QUICK_OUTBOUND_TIMEOUT_S}s)"
+                )
+                if self._establish_outbound_link(
+                    destination, dest_hex, clean, old_link=old_link,
+                    timeout_s=QUICK_OUTBOUND_TIMEOUT_S,
+                ):
+                    adopt = (
+                        self._hub_link_for_peer(dest_hex)
+                        or self._link_for_peer(dest_hex, transport="tcp")
+                        or self.active_link
+                    )
+                    return self._finish_connect(
+                        dest_hex, link=adopt, transport="tcp",
+                    )
+                adopt = self._hub_link_for_peer(dest_hex)
+                if adopt:
+                    return self._finish_connect(
+                        dest_hex, link=adopt, transport="tcp",
+                    )
+
+            if (
+                not hub_tcp_only
+                and self._tcp_connect_ready(dest_hex, peer_ip, peer_lan_down, prefer_serial=prefer_serial)
+            ):
                 if peer_ip:
                     self._prime_tcp_path(dest_hex, peer_ip=peer_ip, timeout_s=2.5)
                 print(f"[connect] LAN/TCP path ready — quick connect ({QUICK_OUTBOUND_TIMEOUT_S}s)")
@@ -939,7 +997,10 @@ class ConnectMixin:
                     adopt = self._link_for_peer(dest_hex) or self._find_active_link_for_peer(dest_hex, clean)
                     return self._finish_connect(dest_hex, link=adopt)
 
-            if self._udp_connect_ready(dest_hex, peer_ip, peer_lan_down, prefer_serial=prefer_serial):
+            if (
+                not hub_tcp_only
+                and self._udp_connect_ready(dest_hex, peer_ip, peer_lan_down, prefer_serial=prefer_serial)
+            ):
                 if peer_ip:
                     self._prime_udp_path(dest_hex, peer_ip=peer_ip, timeout_s=2.5)
                 print(f"[connect] LAN/UDP path ready — quick connect ({QUICK_OUTBOUND_TIMEOUT_S}s)")

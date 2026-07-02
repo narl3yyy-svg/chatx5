@@ -323,11 +323,70 @@ class HubClientLinkTests(unittest.TestCase):
         hub_hash = "c" * 32
         with patch.object(backend, "_hub_tcp_transport_online", return_value=True):
             with patch.object(backend, "_fetch_hub_server_hash_from_peer", return_value=hub_hash):
-                with patch.object(backend, "_peer_link_active", return_value=True):
+                with patch.object(backend, "_hub_link_for_peer", return_value=MagicMock()):
                     self.assertTrue(backend.ensure_hub_link())
         with open(settings_path, encoding="utf-8") as fh:
             saved = json.load(fh)
         self.assertEqual(saved.get("hub_server_hash"), hub_hash)
+
+
+class HubTcpLinkSelectionTests(unittest.TestCase):
+    def _backend(self, hub_role="client", hub_host="10.0.30.112"):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({
+                "hub_role": hub_role,
+                "hub_host": hub_host,
+                "hub_port": 4242,
+                "hub_server_hash": "b" * 32,
+            }, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+
+        class UDPInterface:
+            pass
+
+        class TCPClientInterface:
+            target_host = hub_host
+            target_port = 4242
+
+        udp_link = MagicMock()
+        udp_link.link_id = "udp1"
+        udp_link.mtu = 500
+        udp_link.attached_interface = UDPInterface()
+        hub_link = MagicMock()
+        hub_link.link_id = "hub1"
+        hub_link.mtu = 500
+        hub_link.attached_interface = TCPClientInterface()
+        backend.peer_links = {
+            "b" * 32: udp_link,
+            "b" * 32 + ":tcp": hub_link,
+        }
+        backend.links = {"udp1": udp_link, "hub1": hub_link}
+        backend._link_peer_hashes = {"udp1": "b" * 32, "hub1": "b" * 32}
+        return backend, udp_link, hub_link
+
+    def test_hub_link_for_peer_prefers_tcp_over_udp(self):
+        backend, udp_link, hub_link = self._backend()
+        got = backend._hub_link_for_peer("b" * 32)
+        self.assertIs(got, hub_link)
+        self.assertIsNot(got, udp_link)
+
+    def test_send_hub_message_uses_hub_tcp_link_not_udp(self):
+        backend, udp_link, hub_link = self._backend(hub_role="client")
+        with patch("chatx5.core.messaging.hub.RNS.Packet") as pkt:
+            backend.send_hub_message("hello hub")
+            self.assertEqual(pkt.call_count, 1)
+            self.assertIs(pkt.call_args.args[0], hub_link)
+            self.assertIsNot(pkt.call_args.args[0], udp_link)
+
+    def test_hub_path_connect_ready_for_configured_server(self):
+        backend, _, _ = self._backend()
+        with patch.object(backend, "_hub_tcp_transport_online", return_value=True):
+            self.assertTrue(backend._hub_path_connect_ready("b" * 32))
+            self.assertFalse(backend._hub_path_connect_ready("c" * 32))
 
 
 class HubInboundScopeTests(unittest.TestCase):
