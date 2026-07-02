@@ -49,6 +49,8 @@ class PeerLinkMixin:
         v = (via or "lan").strip().lower()
         if v in ("serial", "usb"):
             return "serial"
+        if v in ("tcp", "tcp_hub", "hub"):
+            return "tcp"
         return "lan"
 
     def _link_map_key(self, peer_hash, transport=None):
@@ -70,6 +72,8 @@ class PeerLinkMixin:
         fam = interface_family(self._link_attached_interface(link))
         if fam == "serial":
             return "serial"
+        if fam == "tcp":
+            return "tcp"
         return "lan"
 
     def _link_transport_matches(self, link, transport):

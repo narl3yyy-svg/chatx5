@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.22": [
+        "Hub group chat: hub clients open RNS links over hub TCP (port 4242) instead of falling back to LAN/UDP P2P.",
+        "Hub send/relay uses hub TCP links only; server counts inbound hub TCP clients correctly.",
+        "LAN HTTP fast transfers: offer is sent over encrypted RNS; file bytes use plain HTTP on LAN with a one-time token (--share required).",
+        "Phase 7 refactor: announce loops moved to messaging/announce.py.",
+    ],
     "0.5.21": [
         "LAN file transfers use HTTP fast-path again while hub mode is on (hub blocked LAN HTTP for all P2P in v0.5.20).",
         "Large LAN files: 512KB+ threshold, 1MB HTTP chunks, MTU tuned before send — much faster on gigabit Ethernet.",

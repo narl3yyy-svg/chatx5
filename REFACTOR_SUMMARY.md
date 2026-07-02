@@ -24,9 +24,10 @@ chatx5/core/messaging/
   links.py         # PeerLinkMixin — link map, transport zones, selection
   connect.py       # ConnectMixin — wake, path prime, connect_to
   hub.py           # HubMixin — hub TCP link ensure, hash fetch
+  announce.py      # AnnounceMixin — LAN/serial announce loops
   queue.py         # QueueMixin — enqueue, drain, retry
   transfer.py      # TransferMixin — files, resources, LAN HTTP fallback
-  backend.py       # MessagingBackend (announce/hub relay remain)
+  backend.py       # MessagingBackend (core lifecycle, callbacks)
 ```
 
 Imports like `from chatx5.core.messaging import MessagingBackend` are unchanged.
@@ -76,6 +77,16 @@ Expanded `HubMixin` in `hub.py` (~400 lines) with full hub relay logic moved fro
 
 `backend.py` is ~2,200 lines after Phase 6.
 
+## Phase 7 — announce.py extraction (done)
+
+Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
+
+- `_announce_payload`, `_announce_on_interface`, `_fallback_announce`
+- `_burst_serial_announce`, `_silent_announce`, `_announce`, `_announce_loop`
+- `_lan_transport_ready`, `_serial_transport_ready`, `_peer_lan_ip_usable`
+
+`MessagingBackend` now inherits `AnnounceMixin` before `ConnectMixin` (connect uses transport-ready helpers). `backend.py` is ~1,900 lines.
+
 ## Planned phases
 
 | Phase | Target | Notes |
@@ -85,7 +96,7 @@ Expanded `HubMixin` in `hub.py` (~400 lines) with full hub relay logic moved fro
 | 4 | `queue.py` | Done — see above |
 | 5 | `transfer.py` | Done — see above |
 | 6 | `hub.py` | Done — see above |
-| 7 | `announce.py` | Announce loops, serial burst |
+| 7 | `announce.py` | Done — see above |
 | 8 | `web/server.py` split | Routes vs WS vs discovery helpers |
 | 9 | Android | Stop committing bundle; sync-only at build (optional) |
 | 10 | Perf | Peer hash index sets, probe cache, WS debounce |
@@ -105,7 +116,7 @@ bash scripts/sync-android.sh   # after editing chatx5/
 
 ## Remaining technical debt
 
-- `backend.py` still ~2,200 lines — next extraction is `announce.py` (Phase 7).
+- `backend.py` still ~1,900 lines — next extraction is `web/server.py` routes (Phase 8).
 - `web/server.py` still ~5,700 lines.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.

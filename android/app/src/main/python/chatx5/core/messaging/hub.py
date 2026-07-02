@@ -68,7 +68,14 @@ class HubMixin:
             )
             return bool(hub_host) and target == hub_host and port == hub_port
         if role == "server":
-            return type(iface).__name__ == "TCPServerInterface"
+            if type(iface).__name__ != "TCPServerInterface":
+                return False
+            port = int(
+                getattr(iface, "listen_port", None)
+                or getattr(iface, "port", None)
+                or 4242
+            )
+            return port == int(hub_port or 4242)
         return False
 
     def _link_is_hub_tcp(self, link):
@@ -104,23 +111,58 @@ class HubMixin:
         role, _ = self._load_hub_settings()
         return role != "off"
 
+    def _hub_link_for_peer(self, peer_hash):
+        """Active RNS link over hub TCP for a peer (not LAN/UDP P2P)."""
+        peer = self.dest_hash_for(peer_hash)
+        if not peer or peer == "unknown":
+            return None
+        for _key, link in list(self.peer_links.items()):
+            if not link or not self._link_matches_peer(link, peer):
+                continue
+            if not self._link_is_hub_tcp(link):
+                continue
+            try:
+                if getattr(link, "status", None) == RNS.Link.CLOSED:
+                    continue
+            except Exception:
+                pass
+            return link
+        for link in list(self.links.values()):
+            if not link or not self._link_matches_peer(link, peer):
+                continue
+            if not self._link_is_hub_tcp(link):
+                continue
+            try:
+                if getattr(link, "status", None) == RNS.Link.CLOSED:
+                    continue
+            except Exception:
+                pass
+            return link
+        return None
+
     def _hub_tcp_linked_peers(self):
         """Peers on hub TCP transport only (not TCP LAN P2P dials)."""
         role, _ = self._load_hub_settings()
         if role == "off":
             return []
-        hub_host, hub_port = self._hub_endpoint_from_settings()
         out = []
         seen = set()
         for key, link in list(self.peer_links.items()):
             peer = self._peer_from_link_key(key)
             if not peer or is_hub_peer_hash(peer) or peer in seen:
                 continue
-            if not link:
+            if not link or not self._link_is_hub_tcp(link):
                 continue
-            if self._link_is_hub_tcp(link):
-                seen.add(peer)
-                out.append(peer)
+            seen.add(peer)
+            out.append(peer)
+        for link in list(self.links.values()):
+            peer = self._peer_hash_from_link_identity(link)
+            if not peer or peer == "unknown" or is_hub_peer_hash(peer) or peer in seen:
+                continue
+            if not self._link_is_hub_tcp(link):
+                continue
+            seen.add(peer)
+            out.append(peer)
         return out
 
     def _hub_message_acceptable(self, chat_msg, link):
@@ -229,7 +271,11 @@ class HubMixin:
             peers = self._hub_tcp_linked_peers()
             if peers:
                 return True
-            print("[hub] Hub server waiting for client TCP link(s)...")
+            now = time.time()
+            last = float(getattr(self, "_last_hub_wait_log", 0) or 0)
+            if now - last >= 15.0:
+                self._last_hub_wait_log = now
+                print("[hub] Hub server waiting for client TCP link(s)...")
             return False
         hub_host, _ = self._hub_endpoint_from_settings()
         if not hub_hash and hub_host:
@@ -244,17 +290,22 @@ class HubMixin:
         peer = self.dest_hash_for(hub_hash)
         if not peer or peer == "unknown":
             return False
-        if self._peer_link_active(peer):
+        if self._hub_link_for_peer(peer):
             return True
         if self._connect_in_progress:
             return False
+        from chatx5.core.lan_rns import clear_peer_path_unless_family, prune_lan_path_for_peer
+
+        prune_lan_path_for_peer(peer)
+        clear_peer_path_unless_family(peer, "tcp")
         request_paths_for_hash(peer, family="tcp")
         print(f"[hub] Opening hub link to {peer[:16]}... (TCP)")
         return self.connect_to(
             peer,
-            peer_ip=hub_host or None,
+            peer_ip=None,
             user_initiated=not background,
             respond_to_wake=background,
+            prefer_transport="tcp",
         )
 
     def send_hub_message(self, text, receipt_callback=None, msg_id=None,
@@ -273,7 +324,7 @@ class HubMixin:
         for peer in targets:
             if not peer or is_hub_peer_hash(peer):
                 continue
-            link = self._link_for_peer(peer)
+            link = self._hub_link_for_peer(peer)
             if not link:
                 continue
             try:
@@ -305,7 +356,7 @@ class HubMixin:
         for peer in self._hub_tcp_linked_peers():
             if is_hub_peer_hash(peer) or self.hashes_equivalent(peer, sender_hash):
                 continue
-            link = self._link_for_peer(peer)
+            link = self._hub_link_for_peer(peer)
             if not link:
                 continue
             try:
@@ -324,7 +375,7 @@ class HubMixin:
         else:
             self.ensure_hub_link(background=True)
         targets = self._hub_send_targets(hub_server_hash, hub_server_mode)
-        if not targets or not any(self._peer_link_active(t) for t in targets):
+        if not targets or not any(self._hub_link_for_peer(t) for t in targets):
             return 0
         remaining = []
         sent = 0
