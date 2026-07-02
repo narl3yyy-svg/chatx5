@@ -1,6 +1,7 @@
 """Auto-extracted from web/server.py — RNSLifecycle layer."""
 
 import asyncio
+import base64
 import os
 import sys
 import threading
@@ -831,13 +832,44 @@ class RNSLifecycleMixin:
                     except Exception:
                         pass
             if not link_active:
-                for p in linked_peers:
-                    if not self.messaging._peer_link_active(p):
+                session_peer = getattr(self.messaging, "_session_peer_hash", None)
+                session_transport = getattr(self.messaging, "_session_transport", None)
+                if session_peer:
+                    session_dest = self.messaging.dest_hash_for(session_peer)
+                    if self.messaging._peer_link_active(
+                        session_dest, transport=session_transport,
+                    ):
+                        link = self.messaging._link_for_peer(
+                            session_dest, transport=session_transport,
+                        )
+                        if link and self.messaging._link_interface_healthy(link):
+                            link_active = True
+                            active_peer = (
+                                self.active_peer
+                                or session_dest
+                                or self.messaging.active_peer_hash
+                            )
+                            try:
+                                iface = self.messaging._link_attached_interface(link)
+                                if iface:
+                                    link_rns_interface = type(iface).__name__
+                            except Exception:
+                                pass
+            if not link_active:
+                for entry in linked_peers:
+                    peer = self.messaging._peer_from_link_key(entry)
+                    transport = None
+                    text = str(entry or "")
+                    if ":" in text:
+                        transport = text.rsplit(":", 1)[-1]
+                    if not self.messaging._peer_link_active(
+                        peer, transport=transport,
+                    ):
                         continue
-                    link = self.messaging._link_for_peer(p)
+                    link = self.messaging._link_for_peer(peer, transport=transport)
                     if link and self.messaging._link_interface_healthy(link):
                         link_active = True
-                        active_peer = p
+                        active_peer = peer
                         try:
                             iface = self.messaging._link_attached_interface(link)
                             if iface:
@@ -873,11 +905,11 @@ class RNSLifecycleMixin:
                 if hub_hex:
                     dest = self.messaging.dest_hash_for(hub_hex)
                     if dest and dest != "unknown":
-                        hub_group_linked = self.messaging._peer_link_active(dest)
+                        hub_group_linked = bool(
+                            self.messaging._hub_link_for_peer(dest)
+                        )
                 if not hub_group_linked:
-                    hub_group_linked = bool(
-                        tcp_client_online and self.messaging._hub_tcp_transport_online()
-                    )
+                    hub_group_linked = bool(self.messaging._hub_tcp_linked_peers())
         lan_discovery = lan_discovery_configured(configured)
         refresh_ifaces = request.query.get("refresh", "").lower() in ("1", "true", "yes")
         if lan_discovery and sys.platform in ("win32", "darwin"):
@@ -892,6 +924,20 @@ class RNSLifecycleMixin:
         avail_ifaces = await asyncio.to_thread(
             lambda: self._interfaces_for_picker(refresh=refresh_ifaces)
         )
+        identity_hash = ""
+        identity_pubkey = ""
+        destination_hash = ""
+        if getattr(self, "identity_mgr", None):
+            identity_hash = (self.identity_mgr.get_hex_hash() or "").replace(":", "")
+        if self.messaging and getattr(self.messaging, "my_dest_hash", None):
+            destination_hash = (self.messaging.my_dest_hash or "").replace(":", "")
+        if getattr(self, "identity", None):
+            try:
+                identity_pubkey = base64.b64encode(
+                    self.identity.get_public_key()
+                ).decode("ascii")
+            except Exception:
+                identity_pubkey = ""
         return web.json_response({
             "platform": self._platform_name(),
             "embedded": self.embedded,
@@ -948,6 +994,9 @@ class RNSLifecycleMixin:
             "hub_host": settings.get("hub_host") or "",
             "hub_port": hub_port,
             "hub_server_hash": settings.get("hub_server_hash") or "",
+            "destination_hash": destination_hash,
+            "identity_hash": identity_hash,
+            "identity_pubkey": identity_pubkey,
             "tcp_hub_online": tcp_hub_online,
             "tcp_client_online": tcp_client_online,
             "hub_group_linked": hub_group_linked,

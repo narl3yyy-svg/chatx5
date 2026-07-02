@@ -1,6 +1,7 @@
 """Inbound RNS link and packet callbacks for MessagingBackend."""
 
 import json
+import threading
 import time
 
 from chatx5.core.lan_rns import (
@@ -62,15 +63,25 @@ class InboundCallbacksMixin:
             )
             self._setup_link(link)
             if peer_hash and peer_hash != "unknown":
-                self._register_peer_link(link, peer_hash, transport="tcp")
-                role, _ = self._load_hub_settings()
-                if role == "server":
-                    n = len(self._hub_tcp_linked_peers())
-                    print(f"[hub] Hub server: {n} TCP client(s) linked")
-                self._notify_link_established(
-                    link, peer_hash, promote_active=False, background=True,
-                )
-                self._schedule_hub_queue_drain()
+                self._finalize_hub_tcp_inbound(link, initial_peer=peer_hash)
+            else:
+                def _deferred_hub_finalize():
+                    try:
+                        if self.running:
+                            finalized = self._finalize_hub_tcp_inbound(
+                                link, initial_peer="unknown",
+                            )
+                            if not finalized:
+                                print(
+                                    "[hub] Hub TCP link still has unknown peer "
+                                    "— waiting for remote identity"
+                                )
+                    except Exception as exc:
+                        print(f"[hub] Hub TCP finalize error: {exc}")
+
+                timer = threading.Timer(0.5, _deferred_hub_finalize)
+                timer.daemon = True
+                timer.start()
             return
 
         incoming_fam = interface_family(self._link_attached_interface(link))

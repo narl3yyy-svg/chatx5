@@ -2,6 +2,13 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.11] — 2026-07-02
+
+### Fixed
+- **Hub group chat** — hub clients fetch `identity_hash` + `identity_pubkey` from the hub server's `/api/network-status` and register the RNS identity before dialing TCP port 4242 (fixes "Hub server identity unknown" and `send_hub_message: no active link`).
+- **Hub TCP inbound** — server and client finalize hub relay links once remote identity is available, so the server counts connected TCP clients and group relay works.
+- **Serial link UI** — `link_active` in network-status respects transport-suffixed peer keys (`peer:serial`) and the UI session transport.
+
 ## [0.6.10] — 2026-07-02
 
 ### Fixed

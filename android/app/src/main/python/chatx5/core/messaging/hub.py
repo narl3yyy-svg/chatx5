@@ -245,6 +245,51 @@ class HubMixin:
         except Exception as exc:
             print(f"[hub] Could not save hub server hash: {exc}")
 
+    def _register_hub_server_identity(self, data, hub_host=""):
+        """Register hub server RNS identity from network-status or beacon fields."""
+        if not data:
+            return ""
+        from chatx5.core.discovery import register_identity_from_peer
+        from chatx5.core.peer_identity import register_beacon_identity
+
+        identity_hex = normalize_hash(
+            data.get("identity_hash") or data.get("identity") or ""
+        )
+        pubkey = (
+            (data.get("identity_pubkey") or data.get("pubkey") or "").strip()
+        )
+        hub_hash = normalize_hash(
+            data.get("hub_server_hash")
+            or data.get("destination_hash")
+            or data.get("hash")
+            or ""
+        )
+        if not identity_hex or not pubkey:
+            return hub_hash if len(hub_hash) == 32 else ""
+        peer_record = {
+            "hash": hub_hash or identity_hex,
+            "identity_hash": identity_hex,
+            "pubkey": pubkey,
+        }
+        if hub_host:
+            peer_record["ip"] = hub_host.strip()
+        registered = (
+            register_beacon_identity(peer_record)
+            or register_identity_from_peer(peer_record)
+            or ""
+        )
+        if registered:
+            dest = normalize_hash(registered)
+            ident_hex = identity_hex
+            if dest and ident_hex:
+                self.register_peer_mapping(dest, ident_hex)
+            print(
+                f"[hub] Registered hub server identity from {hub_host or 'peer'}: "
+                f"{dest[:16] if dest else identity_hex[:16]}..."
+            )
+            return dest or hub_hash
+        return hub_hash if len(hub_hash) == 32 else ""
+
     def _fetch_hub_server_hash_from_peer(self, hub_host, http_port=None):
         hub_host = (hub_host or "").strip()
         if not hub_host:
@@ -255,12 +300,83 @@ class HubMixin:
             req = urlrequest.Request(url, method="GET")
             with urlrequest.urlopen(req, timeout=4) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-            hub_hash = normalize_hash(data.get("hub_server_hash") or "")
+            if (data.get("hub_role") or "").strip().lower() != "server":
+                print(
+                    f"[hub] {hub_host}:{port} is not a hub server "
+                    f"(hub_role={data.get('hub_role')!r})"
+                )
+                return ""
+            registered = self._register_hub_server_identity(data, hub_host=hub_host)
+            hub_hash = normalize_hash(
+                registered
+                or data.get("hub_server_hash")
+                or data.get("destination_hash")
+                or ""
+            )
             if len(hub_hash) == 32:
                 return hub_hash
         except Exception as exc:
             print(f"[hub] Fetch hub server hash from {hub_host}:{port} failed: {exc}")
         return ""
+
+    def _learn_hub_server_from_link(self, link):
+        """Persist hub server hash and identity from an established hub TCP link."""
+        if not link:
+            return ""
+        role, configured_hash = self._load_hub_settings()
+        if role != "client":
+            return ""
+        peer = self._peer_hash_from_link_identity(link)
+        if not peer or peer == "unknown" or self._is_self_hash(peer):
+            return ""
+        hub_host, _ = self._hub_endpoint_from_settings()
+        configured = normalize_hash(configured_hash or "")
+        if configured and not self.hashes_equivalent(peer, self.dest_hash_for(configured)):
+            return peer
+        try:
+            ident = link.get_remote_identity()
+            if ident and getattr(ident, "hash", None):
+                ident_hex = normalize_hash(RNS.hexrep(ident.hash))
+                dest = self._dest_hash_from_identity(ident)
+                if dest and ident_hex:
+                    self.register_peer_mapping(dest, ident_hex)
+                if dest:
+                    peer = dest
+        except Exception:
+            pass
+        self._persist_hub_server_hash(peer)
+        return peer
+
+    def _finalize_hub_tcp_inbound(self, link, initial_peer="unknown"):
+        """Register hub TCP links once the remote identity is available."""
+        peer = initial_peer
+        if not peer or peer == "unknown":
+            peer = self._peer_hash_from_link_identity(link)
+        if not peer or peer == "unknown":
+            for _ in range(8):
+                time.sleep(0.25)
+                peer = self._peer_hash_from_link_identity(link)
+                if peer and peer != "unknown":
+                    break
+        if not peer or peer == "unknown":
+            resolved = self._resolve_remote_peer(link, fallback=peer)
+            if resolved and resolved != "unknown":
+                peer = self.dest_hash_for(resolved)
+        if not peer or peer == "unknown":
+            return ""
+        self._cache_link_peer(link, peer)
+        self._register_peer_link(link, peer, transport="tcp")
+        role, _ = self._load_hub_settings()
+        if role == "client":
+            self._learn_hub_server_from_link(link)
+        if role == "server":
+            n = len(self._hub_tcp_linked_peers())
+            print(f"[hub] Hub server: {n} TCP client(s) linked")
+        self._notify_link_established(
+            link, peer, promote_active=False, background=True,
+        )
+        self._schedule_hub_queue_drain()
+        return peer
 
     def _inbound_link_is_hub_tcp(self, link):
         """True when an inbound link arrived on the hub TCP relay (iface may be unset)."""
@@ -326,17 +442,19 @@ class HubMixin:
                 print("[hub] Hub server waiting for client TCP link(s)...")
             return False
         hub_host, _ = self._hub_endpoint_from_settings()
-        if not hub_hash and hub_host:
-            hub_hash = self._fetch_hub_server_hash_from_peer(
+        if hub_host:
+            fetched = self._fetch_hub_server_hash_from_peer(
                 hub_host, getattr(self, "http_port", 8742),
             )
-            if hub_hash:
+            if fetched:
+                hub_hash = fetched
                 self._persist_hub_server_hash(hub_hash)
         if not hub_hash:
             print("[hub] Hub server identity unknown — ensure hub server is running with --share")
             return False
         peer = self.dest_hash_for(hub_hash)
         if not peer or peer == "unknown":
+            print(f"[hub] Hub server hash {hub_hash[:16]}... not mapped to a destination")
             return False
         existing = self._hub_link_for_peer(peer)
         if existing:
@@ -348,6 +466,16 @@ class HubMixin:
         self._last_hub_open_attempt = now
         if self._connect_in_progress:
             return False
+        if not self._identity_for_hash(peer) and hub_host:
+            print(
+                f"[hub] Hub server identity not cached yet — "
+                f"retrying fetch from {hub_host}"
+            )
+            refetched = self._fetch_hub_server_hash_from_peer(
+                hub_host, getattr(self, "http_port", 8742),
+            )
+            if refetched:
+                peer = self.dest_hash_for(refetched) or peer
         from chatx5.core.lan_rns import clear_peer_path_unless_family, prune_lan_path_for_peer
 
         prune_lan_path_for_peer(peer)
@@ -356,7 +484,7 @@ class HubMixin:
         print(f"[hub] Opening hub link to {peer[:16]}... (TCP)")
         return self.connect_to(
             peer,
-            peer_ip=None,
+            peer_ip=hub_host or None,
             user_initiated=not background,
             respond_to_wake=background,
             prefer_transport="tcp",

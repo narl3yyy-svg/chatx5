@@ -290,7 +290,10 @@ class HubClientLinkTests(unittest.TestCase):
         ident = MagicMock()
         ident.hash = bytes.fromhex("a" * 32)
         backend = MessagingBackend(identity=ident, config_dir=tempfile.mkdtemp())
-        payload = json.dumps({"hub_server_hash": "b" * 32}).encode()
+        payload = json.dumps({
+            "hub_role": "server",
+            "hub_server_hash": "b" * 32,
+        }).encode()
 
         class FakeResp:
             def read(self):
@@ -305,6 +308,46 @@ class HubClientLinkTests(unittest.TestCase):
         with patch("chatx5.core.messaging.hub.urlrequest.urlopen", return_value=FakeResp()):
             got = backend._fetch_hub_server_hash_from_peer("10.0.30.112", 8742)
         self.assertEqual(got, "b" * 32)
+
+    def test_fetch_hub_server_registers_identity_from_status(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        backend = MessagingBackend(identity=ident, config_dir=tempfile.mkdtemp())
+        dest_hash = "d" * 32
+        identity_hash = "e" * 32
+        payload = json.dumps({
+            "hub_role": "server",
+            "hub_server_hash": dest_hash,
+            "identity_hash": identity_hash,
+            "identity_pubkey": "cHVibGljS2V5",
+        }).encode()
+
+        class FakeResp:
+            def read(self):
+                return payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch(
+            "chatx5.core.messaging.hub.register_beacon_identity",
+            return_value=dest_hash,
+            create=True,
+        ):
+            with patch(
+                "chatx5.core.peer_identity.register_beacon_identity",
+                return_value=dest_hash,
+            ):
+                with patch(
+                    "chatx5.core.messaging.hub.urlrequest.urlopen",
+                    return_value=FakeResp(),
+                ):
+                    got = backend._fetch_hub_server_hash_from_peer("10.0.30.112", 8742)
+        self.assertEqual(got, dest_hash)
+        self.assertTrue(backend._identity_for_hash(dest_hash) or backend.dest_hash_for(dest_hash))
 
     def test_ensure_hub_link_fetches_hash_when_missing(self):
         ident = MagicMock()
@@ -506,6 +549,34 @@ class HubInboundScopeTests(unittest.TestCase):
         link.attached_interface = None
         self.assertFalse(backend._inbound_link_is_hub_tcp(link))
         self.assertFalse(backend._peer_allowed_by_scope("unknown", link=link))
+
+
+class HubFinalizeInboundTests(unittest.TestCase):
+    def test_finalize_hub_tcp_inbound_registers_unknown_peer(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "server", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+        backend.running = True
+        backend.peer_scope_checker = lambda *_a, **_k: True
+        peer = "f" * 32
+
+        link = MagicMock()
+        link.link_id = b"\x03" * 16
+        link.attached_interface = None
+        link.get_remote_identity.return_value = None
+        backend._peer_hash_from_link_identity = MagicMock(return_value=peer)
+        backend._notify_link_established = MagicMock()
+        backend._schedule_hub_queue_drain = MagicMock()
+
+        got = backend._finalize_hub_tcp_inbound(link, initial_peer="unknown")
+        self.assertEqual(got, peer)
+        tcp_key = f"{peer}:tcp"
+        self.assertIn(tcp_key, backend.peer_links)
+        backend._notify_link_established.assert_called_once()
 
 
 class HubInboundParallelTests(unittest.TestCase):
