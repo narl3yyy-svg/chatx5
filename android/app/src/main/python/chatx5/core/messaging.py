@@ -2163,10 +2163,18 @@ class MessagingBackend:
             return True
         return False
 
-    def _queue_send_link(self, peer_hash, link_hint=None):
+    def _queue_send_link(self, peer_hash, link_hint=None, prefer_transport=None):
         peer = self.dest_hash_for(peer_hash)
         if not peer or peer == "unknown":
             return None
+        transport = self._normalize_transport(prefer_transport) if prefer_transport else None
+        if not transport and self._session_peer_hash and self.hashes_equivalent(peer, self._session_peer_hash):
+            transport = self._session_transport
+        if transport:
+            preferred = self._link_for_peer(peer, transport=transport)
+            if preferred and self._link_interface_healthy(preferred) and self._link_matches_peer(preferred, peer):
+                if self._link_acceptable_for_peer(preferred, peer):
+                    return preferred
         if link_hint and self._link_matches_peer(link_hint, peer):
             if self._link_acceptable_for_peer(link_hint, peer):
                 return link_hint
@@ -3524,17 +3532,21 @@ class MessagingBackend:
             self._consolidate_peer_links(peer, keep_link=link)
             session_peer = self.dest_hash_for(self._session_peer_hash or "")
             parallel = self._parallel_sessions_allowed()
-            adopt_session = (
-                not parallel
-                or not session_peer
-                or self.hashes_equivalent(peer, session_peer)
-                or not self.active_link
-            )
+            link_transport = self._transport_from_link(link)
+            adopt_session = not parallel
+            if parallel:
+                adopt_session = (
+                    not session_peer
+                    or not self.active_link
+                    or self.hashes_equivalent(peer, session_peer)
+                    or link_transport == self._session_transport
+                )
             old_active = self.active_peer_hash
             if adopt_session:
                 self.active_link = link
                 self.active_peer_hash = peer
                 self._session_peer_hash = peer
+                self._session_transport = link_transport
                 self._send_link = link
                 if not old_active or self.hashes_equivalent(peer, old_active):
                     self._pending_sends.clear()
@@ -4354,6 +4366,8 @@ class MessagingBackend:
     def resume_session_peer(self, peer_ip=None, peer_port=None, peer_lookup=None,
                             caller_ip=None, caller_port=8742):
         """Reconnect to the saved session peer after link drop or UI resume."""
+        if self.dual_identity_mode:
+            return False
         peer = self.dest_hash_for(self._session_peer_hash or self.active_peer_hash or "")
         if not peer or peer == "unknown":
             return False
@@ -4373,6 +4387,8 @@ class MessagingBackend:
 
     def reconnect_active_peer(self, peer_ip=None, peer_port=None, peer_lookup=None,
                               caller_ip=None, caller_port=8742, reason=""):
+        if self.dual_identity_mode:
+            return False
         now = time.time()
         if self._connect_in_progress:
             return False
@@ -4537,10 +4553,23 @@ class MessagingBackend:
             if user_initiated:
                 self.clear_user_disconnected(clean)
                 session_hash = self.dest_hash_for(clean) or clean
-                self._session_peer_hash = session_hash
-                self.active_peer_hash = session_hash
                 if requested_transport:
                     self._session_transport = requested_transport
+                self._session_peer_hash = session_hash
+                if self._parallel_sessions_allowed():
+                    if (
+                        not self.active_link
+                        or not self.active_peer_hash
+                        or self.hashes_equivalent(session_hash, self.active_peer_hash)
+                        or (
+                            requested_transport
+                            and self.active_link
+                            and self._transport_from_link(self.active_link) == requested_transport
+                        )
+                    ):
+                        self.active_peer_hash = session_hash
+                else:
+                    self.active_peer_hash = session_hash
                 self._teardown_other_peer_links(session_hash)
                 if (
                     peer_ip
@@ -4923,15 +4952,16 @@ class MessagingBackend:
             except Exception as e:
                 print(f"[hub] relay failed to {peer[:16]}: {e}")
 
-    def peer_send_ready(self, target_peer=None):
+    def peer_send_ready(self, target_peer=None, prefer_transport=None):
         peer = self.dest_hash_for(
             target_peer or self.active_peer_hash or self._session_peer_hash or ""
         )
         if not peer or peer == "unknown":
             return False
-        if not self._peer_link_active(peer):
+        transport = self._normalize_transport(prefer_transport) if prefer_transport else None
+        if not self._peer_link_active(peer, transport=transport):
             return False
-        link = self._queue_send_link(peer)
+        link = self._queue_send_link(peer, prefer_transport=transport)
         return bool(
             link
             and self._link_matches_peer(link, peer)
@@ -4939,17 +4969,18 @@ class MessagingBackend:
         )
 
     def send_message(self, text, receipt_callback=None, msg_id=None, target_peer=None,
-                     link=None):
+                     link=None, prefer_transport=None):
         peer = self.dest_hash_for(
             target_peer or self.active_peer_hash or self._session_peer_hash or ""
         )
         if not peer or peer == "unknown":
             print("[messaging] send_message: no target peer")
             return False
-        if not self._peer_link_active(peer):
+        transport = self._normalize_transport(prefer_transport) if prefer_transport else None
+        if not self._peer_link_active(peer, transport=transport):
             print(f"[messaging] send_message: no active link to {peer[:16]}")
             return False
-        link = self._queue_send_link(peer, link_hint=link)
+        link = self._queue_send_link(peer, link_hint=link, prefer_transport=transport)
         if not link or not self._link_matches_peer(link, peer):
             print(f"[messaging] send_message: no transport-safe link to {peer[:16]}")
             return False

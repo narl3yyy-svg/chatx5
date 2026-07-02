@@ -366,6 +366,8 @@ class PeerDiscovery:
             peer = self.peers.get(key) or {}
             if (peer.get("via") or "").strip() != "serial":
                 continue
+            if peer.get("serial_rns"):
+                continue
             hash_hex = normalize_hash(peer.get("hash") or key)
             try:
                 dest = bytes.fromhex(hash_hex)
@@ -694,10 +696,11 @@ class PeerDiscovery:
         scope = self._scope_ip()
         via = "rns"
         if packet_fam == "serial":
-            if announce_ip or not serial_discovery_active():
+            if not serial_discovery_active():
                 return
+            if announce_ip:
+                announce_ip = ""
             via = "serial"
-            announce_ip = ""
         elif packet_fam in ("udp", "lan", "tcp"):
             if not announce_ip:
                 return

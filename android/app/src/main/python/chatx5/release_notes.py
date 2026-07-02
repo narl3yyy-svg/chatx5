@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.14": [
+        "Serial discovery rows from genuine USB announces are no longer purged when LAN rebroadcast updates the path table.",
+        "LAN and USB sessions stay independent: switching transport in the UI keeps the correct link, send path, and connection state.",
+        "Automatic cross-transport failover reconnect is disabled — use separate LAN and USB chat rows instead.",
+    ],
     "0.5.13": [
         "Dual-hash contact save no longer copies the LAN hash into the USB row when both transports are discovered.",
         "Phantom serial discovery rows (same hash as LAN) are filtered client-side; duplicate serial_hash is dropped when it matches lan_hash.",

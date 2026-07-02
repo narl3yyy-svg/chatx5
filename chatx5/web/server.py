@@ -2697,9 +2697,7 @@ class ChatWebServer:
         if requested in ("lan", "rns", "beacon"):
             return by_rns or by_hash
         if by_serial and by_rns:
-            from chatx5.core.discovery import serial_discovery_active
             from chatx5.utils.lan_scope import peer_in_scope
-            from chatx5.core.transport_isolation import dual_transport_isolation_enabled
 
             rns_ip = (by_rns.get("ip") or "").strip()
             scope = self._discovery_scope_ip()
@@ -2708,19 +2706,9 @@ class ChatWebServer:
                 return by_rns
             if peer_ip and rns_ip and peer_ip != rns_ip:
                 return by_serial
-            if not in_scope or not serial_discovery_active():
+            if not in_scope:
                 return by_serial
-            s_rtt = by_serial.get("rtt_avg_ms")
-            r_rtt = by_rns.get("rtt_avg_ms")
-            if s_rtt is not None and r_rtt is not None:
-                return by_serial if s_rtt <= r_rtt else by_rns
-            if s_rtt is not None:
-                return by_serial
-            if r_rtt is not None:
-                return by_rns
-            if dual_transport_isolation_enabled():
-                return by_serial
-            return by_rns
+            return by_rns or by_hash
         if by_serial:
             return by_serial
         if by_rns:
@@ -3377,6 +3365,9 @@ class ChatWebServer:
                                 serial_peers.append(h)
             if serial_peers:
                 await self._run_blocking(prune_cross_zone_paths, serial_peers)
+            if self.messaging.dual_identity_mode:
+                continue
+
             peer = self._peer_dest_hash(
                 getattr(self.messaging, "_session_peer_hash", None)
                 or self.messaging.active_peer_hash
@@ -5235,6 +5226,7 @@ class ChatWebServer:
                         qsize = self.messaging.queue_size()
                         await ws.send_str(json.dumps({"type": "info", "data": f"Message queued ({qsize} pending)"}))
                     return
+                prefer_via = (data.get("via") or "").strip() or None
                 target_hash = self._peer_dest_hash(peer_hint) if peer_hint else (
                     self._queue_target_hash()
                 )
@@ -5248,14 +5240,20 @@ class ChatWebServer:
                         }))
                         return
                     peer_ip = None
-                    meta = self._discovery_peer_for_connect(None, target_hash)
+                    meta = self._discovery_peer_for_connect(
+                        None, target_hash, via=prefer_via,
+                    )
                     if meta:
                         peer_ip = meta.get("ip")
-                    target_hash = self._resolve_current_peer_hash(target_hash, peer_ip)
+                    target_hash = self._resolve_current_peer_hash(
+                        target_hash, peer_ip, prefer_via=prefer_via,
+                    )
                     if (
                         self.discovery
                         and not self._peer_is_current(target_hash)
-                        and not self.messaging.peer_send_ready(target_hash)
+                        and not self.messaging.peer_send_ready(
+                            target_hash, prefer_transport=prefer_via,
+                        )
                     ):
                         await ws.send_str(json.dumps({
                             "type": "info",
@@ -5263,7 +5261,10 @@ class ChatWebServer:
                         }))
                         return
                 linked_to_target = bool(
-                    target_hash and self.messaging.peer_send_ready(target_hash)
+                    target_hash
+                    and self.messaging.peer_send_ready(
+                        target_hash, prefer_transport=prefer_via,
+                    )
                 )
                 if linked_to_target:
                     def on_receipt(status, receipt):
@@ -5273,7 +5274,10 @@ class ChatWebServer:
                                 self._loop
                             )
                     result = self.messaging.send_message(
-                        text, receipt_callback=on_receipt, target_peer=target_hash,
+                        text,
+                        receipt_callback=on_receipt,
+                        target_peer=target_hash,
+                        prefer_transport=prefer_via,
                     )
                     if result:
                         my_hash = self._my_sender_hash()
