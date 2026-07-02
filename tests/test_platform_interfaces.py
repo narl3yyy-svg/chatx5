@@ -84,15 +84,19 @@ class LinuxInterfaceHelpers(unittest.TestCase):
         plat.set_lan_interface_preference("enp2s0|10.0.5.37")
         try:
             addr_map = {"enp2s0": ["10.0.30.112", "10.0.5.37", "10.10.10.37"]}
-            entries = [
-                plat._linux_iface_entry("enp2s0", ip=ip, addr_map=addr_map)
-                for ip in addr_map["enp2s0"]
-            ]
-            with patch.object(plat, "_linux_enumerate_interfaces", return_value=entries):
-                self.assertEqual(plat.lan_ip(), "10.0.5.37")
-                filtered = plat._filter_interfaces_for_lan(entries)
-                self.assertEqual(len(filtered), 1)
-                self.assertEqual(filtered[0]["ip"], "10.0.5.37")
+            # Force enp2s0 usable so the entries carry their IPs on any host —
+            # the CI runner has no enp2s0, so the real link-up probe would mark
+            # every entry "disconnected" and break the pinned-IP filter.
+            with patch.object(plat, "_linux_iface_usable", return_value=True):
+                entries = [
+                    plat._linux_iface_entry("enp2s0", ip=ip, addr_map=addr_map)
+                    for ip in addr_map["enp2s0"]
+                ]
+                with patch.object(plat, "_linux_enumerate_interfaces", return_value=entries):
+                    self.assertEqual(plat.lan_ip(), "10.0.5.37")
+                    filtered = plat._filter_interfaces_for_lan(entries)
+                    self.assertEqual(len(filtered), 1)
+                    self.assertEqual(filtered[0]["ip"], "10.0.5.37")
         finally:
             plat.set_lan_interface_preference(None)
 

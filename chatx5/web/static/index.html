@@ -2866,26 +2866,28 @@ function currentHubRole() {
 }
 
 function updateHubUi() {
-  const role = window._hubRole || 'off';
+  // Sidebar Hub Group entry reflects the *saved* role — group chat only works
+  // once the setting is persisted and the runtime applies it.
+  const savedRole = window._hubRole || 'off';
   const section = document.getElementById('hub-group-section');
   const hubEntry = document.getElementById('hub-group-entry');
-  if (section) section.style.display = role !== 'off' ? 'block' : 'none';
+  if (section) section.style.display = savedRole !== 'off' ? 'block' : 'none';
   if (hubEntry && viewingPeer === HUB_GROUP_PEER) hubEntry.classList.add('active');
   else if (hubEntry) hubEntry.classList.remove('active');
+  // The client IP / port fields and server hint follow the *dropdown
+  // selection*, not the saved role, so they stay visible while the user is
+  // editing — a background poll of /api/network-status can refresh the saved
+  // role before the new value is saved, and must not hide the input mid-edit.
+  const selectedRole = currentHubRole();
   const clientFields = document.getElementById('hub-client-fields');
-  if (clientFields) clientFields.style.display = role === 'client' ? 'block' : 'none';
+  if (clientFields) clientFields.style.display = selectedRole === 'client' ? 'block' : 'none';
   const serverHint = document.getElementById('hub-server-hint');
-  if (serverHint) serverHint.style.display = role === 'server' ? 'block' : 'none';
+  if (serverHint) serverHint.style.display = selectedRole === 'server' ? 'block' : 'none';
   updateLanTransportHubHint();
 }
 
 function onHubRoleChange() {
-  const role = document.getElementById('settings-hub-role')?.value || 'off';
-  const clientFields = document.getElementById('hub-client-fields');
-  if (clientFields) clientFields.style.display = role === 'client' ? 'block' : 'none';
-  const serverHint = document.getElementById('hub-server-hint');
-  if (serverHint) serverHint.style.display = role === 'server' ? 'block' : 'none';
-  updateLanTransportHubHint();
+  updateHubUi();
 }
 
 function updateLanTransportHubHint(policy) {
