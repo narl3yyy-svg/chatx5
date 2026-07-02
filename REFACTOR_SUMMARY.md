@@ -9,7 +9,7 @@ Baseline cleanliness score (pre-refactor): **4.5 / 10** — working dual-transpo
 - Added `ruff` + `mypy` config stubs in `pyproject.toml`.
 - Updated `scripts/check.sh` to verify Android sync and optionally run ruff.
 
-## Phase 1 — Messaging package split (started)
+## Phase 1 — Messaging package split (done)
 
 **Before:** single `chatx5/core/messaging.py` (~5,464 lines).
 
@@ -21,18 +21,30 @@ chatx5/core/messaging/
   constants.py     # timeouts, message types
   models.py        # ChatMessage
   peers.py         # is_hub_peer_hash()
-  backend.py       # MessagingBackend (monolith, to be split further)
+  links.py         # PeerLinkMixin — link map, transport zones, selection
+  backend.py       # MessagingBackend (still large; connect/queue/transfer remain)
 ```
 
 Imports like `from chatx5.core.messaging import MessagingBackend` are unchanged.
 
-Tests that mock internals now patch `chatx5.core.messaging.backend.<symbol>`.
+Tests that mock internals patch `chatx5.core.messaging.backend.<symbol>` (links.py delegates patched symbols through backend for compatibility).
+
+## Phase 2 — links.py extraction (done)
+
+Extracted ~840 lines into `PeerLinkMixin` in `links.py`:
+
+- Transport normalization and link map keys
+- Per-peer link registry, consolidation, teardown helpers
+- `linked_peers()`, `_best_outgoing_link()`, `_peer_link_active()`, `_peer_link_usable()`
+- Inbound link adoption helpers (`_find_active_link_for_peer`, `_handoff_to_link`, etc.)
+
+`MessagingBackend` now inherits `PeerLinkMixin`. `backend.py` is ~4,600 lines.
 
 ## Planned phases
 
 | Phase | Target | Notes |
 |-------|--------|-------|
-| 2 | `links.py` | Link map, transport matching, consolidate/teardown (~800 lines) |
+| 2 | `links.py` | Done — see above |
 | 3 | `connect.py` | `_connect_to_locked`, path priming, wake (~1,200 lines) |
 | 4 | `queue.py` | Queue load/save/drain/retry |
 | 5 | `transfer.py` | Files, resources, LAN HTTP fallback |
@@ -57,7 +69,7 @@ bash scripts/sync-android.sh   # after editing chatx5/
 
 ## Remaining technical debt
 
-- `backend.py` still ~5,300 lines — next extraction is `links.py`.
+- `backend.py` still ~4,600 lines — next extraction is `connect.py` (Phase 3).
 - `web/server.py` still ~5,700 lines.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.
