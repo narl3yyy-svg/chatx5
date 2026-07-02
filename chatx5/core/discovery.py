@@ -271,7 +271,24 @@ class PeerDiscovery:
         for peer in self.peers.values():
             peer.pop("last_rtt_probe_at", None)
 
-    def clear_peer_rtt(self, hash_hex):
+    @staticmethod
+    def _probe_via_matches(peer, via):
+        """True when a peer row belongs to the transport a probe measured.
+
+        LAN and serial reach the same peer over distinct links with distinct
+        latencies, so an RTT measured on one transport must only be written to
+        that transport's row — otherwise a LAN ping overwrites the serial row's
+        RTT (and vice versa) and the UI shows the wrong latency per sub-row.
+        """
+        want = (via or "").strip().lower()
+        if not want:
+            return True
+        if want == "usb":
+            want = "serial"
+        prow = "serial" if (peer.get("via") or "").strip() == "serial" else "lan"
+        return prow == want
+
+    def clear_peer_rtt(self, hash_hex, via=None):
         """Drop cached latency for a peer (link down or probe failed)."""
         clean = normalize_hash(hash_hex)
         if not clean:
@@ -280,13 +297,15 @@ class PeerDiscovery:
         for peer in self.peers.values():
             if normalize_hash(peer.get("hash")) != clean:
                 continue
+            if not self._probe_via_matches(peer, via):
+                continue
             for key in ("rtt_ms", "rtt_avg_ms", "rtt_samples"):
                 if key in peer:
                     peer.pop(key, None)
                     changed = True
         return changed
 
-    def update_peer_probe(self, hash_hex, rtt_ms=None, ok=True):
+    def update_peer_probe(self, hash_hex, rtt_ms=None, ok=True, via=None):
         """Record optional probe RTT; never overrides fresh announce liveness."""
         clean = normalize_hash(hash_hex)
         if not clean:
@@ -294,6 +313,8 @@ class PeerDiscovery:
         now = time.time()
         for peer in self.peers.values():
             if normalize_hash(peer.get("hash")) != clean:
+                continue
+            if not self._probe_via_matches(peer, via):
                 continue
             last_seen = float(peer.get("last_seen") or 0)
             if last_seen and (now - last_seen) < 12:
@@ -707,10 +728,27 @@ class PeerDiscovery:
             via = "serial"
         elif packet_fam in ("udp", "lan", "tcp"):
             if not announce_ip:
+                # An ip-less announce that resolves to a LAN-family interface is
+                # almost always a serial announce surfaced through a rebroadcast
+                # / path-table artifact: when both ends run as RNS transport
+                # nodes (auto-enabled with a SerialInterface), a peer's serial
+                # announce gets rebroadcast onto the LAN and its announce-table
+                # entry is popped, so the receiving interface later classifies
+                # as LAN. Genuine LAN peers always embed their IP in the announce
+                # payload, so treat a bare announce as serial when local USB is
+                # up (guarded, mirroring the packet_fam == "" branch below)
+                # instead of dropping it. This is what made serial discovery
+                # asymmetric — one node saw the peer's serial row, the other did
+                # not, purely by which side's path table had gone stale first.
+                if serial_discovery_active():
+                    via = "serial"
+                    announce_ip = ""
+                else:
+                    return
+            elif scope and not peer_in_scope(announce_ip, scope):
                 return
-            if scope and not peer_in_scope(announce_ip, scope):
-                return
-            via = "rns"
+            else:
+                via = "rns"
         elif announce_ip:
             if scope and not peer_in_scope(announce_ip, scope):
                 return
