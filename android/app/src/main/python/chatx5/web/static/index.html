@@ -185,6 +185,16 @@ body::before {
   background: rgba(255,255,255,0.04); padding: 2px 8px;
   border-radius: 99px;
 }
+.section-header-actions {
+  display: flex; align-items: center; gap: 6px;
+}
+.section-refresh-btn {
+  border: none; background: rgba(255,255,255,0.06); color: var(--text2);
+  width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+  font-size: 14px; line-height: 1; padding: 0;
+}
+.section-refresh-btn:hover { background: rgba(255,255,255,0.12); color: var(--text1); }
+.section-refresh-btn.spinning { opacity: 0.6; pointer-events: none; }
 .search-box {
   position: relative; margin-bottom: 12px;
 }
@@ -1473,7 +1483,11 @@ body.android-shell.sidebar-open #sidebar-backdrop {
 
         <div class="section-header" style="margin-top:16px">
           <h3>Discovered</h3>
-          <span class="section-count" id="discovered-count">0</span>
+          <div class="section-header-actions">
+            <button type="button" class="section-refresh-btn" id="discovered-refresh-btn"
+              onclick="refreshDiscoveredPeers()" title="Refresh discovered peers (re-announce + rescan)">↻</button>
+            <span class="section-count" id="discovered-count">0</span>
+          </div>
         </div>
         <div id="discovered-list"></div>
       </div>
@@ -1815,9 +1829,15 @@ body.android-shell.sidebar-open #sidebar-backdrop {
               <option value="client">Hub client — connect to hub IP</option>
             </select>
           </div>
+          <p class="field-hint" id="hub-server-hint" style="display:none;margin:8px 0 0">
+            Hub server listens on <strong>0.0.0.0:4242</strong> on this machine (all interfaces).
+            P2P LAN discovery and 1:1 chat still use your configured LAN transport (UDP is correct).
+            This is separate from the LAN discovery IPv4 pin below.
+          </p>
           <div id="hub-client-fields" class="settings-section" style="display:none">
             <label>Hub host (IP)</label>
-            <input id="settings-hub-host" placeholder="10.10.100.1" spellcheck="false">
+            <input id="settings-hub-host" placeholder="10.0.5.37" spellcheck="false">
+            <p class="field-hint" style="margin:6px 0 0">IP of the hub server machine — not your LAN discovery pin. P2P peers still use UDP.</p>
             <label style="margin-top:12px">Hub port</label>
             <input id="settings-hub-port" type="number" min="1" max="65535" value="4242">
           </div>
@@ -2787,6 +2807,8 @@ function updateHubUi() {
   else if (hubEntry) hubEntry.classList.remove('active');
   const clientFields = document.getElementById('hub-client-fields');
   if (clientFields) clientFields.style.display = role === 'client' ? 'block' : 'none';
+  const serverHint = document.getElementById('hub-server-hint');
+  if (serverHint) serverHint.style.display = role === 'server' ? 'block' : 'none';
   updateLanTransportHubHint();
 }
 
@@ -2794,6 +2816,8 @@ function onHubRoleChange() {
   const role = document.getElementById('settings-hub-role')?.value || 'off';
   const clientFields = document.getElementById('hub-client-fields');
   if (clientFields) clientFields.style.display = role === 'client' ? 'block' : 'none';
+  const serverHint = document.getElementById('hub-server-hint');
+  if (serverHint) serverHint.style.display = role === 'server' ? 'block' : 'none';
   updateLanTransportHubHint();
 }
 
@@ -4051,6 +4075,31 @@ function announceSelf(transport) {
     })
     .catch(() => toast('Announce failed — server not reachable'))
     .finally(() => { announceInFlight = false; });
+}
+
+let discoverRefreshInFlight = false;
+
+function refreshDiscoveredPeers() {
+  if (discoverRefreshInFlight) return;
+  discoverRefreshInFlight = true;
+  const btn = document.getElementById('discovered-refresh-btn');
+  if (btn) btn.classList.add('spinning');
+  fetch('/api/discover/refresh', { method: 'POST' })
+    .then(async r => {
+      const d = await r.json();
+      if (!r.ok || d.error) {
+        toast('Refresh failed: ' + (d.error || 'unknown'));
+        return;
+      }
+      renderDiscovered(d.peers || [], { authoritative: true });
+      const n = d.count != null ? d.count : (d.peers || []).length;
+      toast(n ? ('Refreshed — ' + n + ' peer(s)') : 'Refreshed — no peers found');
+    })
+    .catch(() => toast('Refresh failed — server not reachable'))
+    .finally(() => {
+      discoverRefreshInFlight = false;
+      if (btn) btn.classList.remove('spinning');
+    });
 }
 
 window.onChatx5FolderPicked = function(path) {

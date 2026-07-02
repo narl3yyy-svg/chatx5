@@ -5190,6 +5190,35 @@ class ChatWebServer:
             })
         return web.json_response({"peers": peers})
 
+    async def handle_discover_refresh(self, request):
+        """Re-announce, purge stale discovery rows, and return an authoritative peer list."""
+        ok, err = await self._wait_for_rns()
+        if not ok:
+            return web.json_response({"error": err or "not ready"}, status=400)
+        if self.discovery:
+            self.discovery.purge_misclassified_serial()
+            self.discovery.purge_ipless_non_serial()
+            self.discovery.purge_stale_probes()
+        settings = self.load_settings()
+        configured = settings.get("rns_interfaces")
+        try:
+            if self.messaging:
+                if lan_discovery_configured(configured) and lan_ip_reachable():
+                    await asyncio.to_thread(
+                        self.messaging._silent_announce, also_serial=False,
+                    )
+                if configured_serial_enabled(configured) and serial_interface_online():
+                    await asyncio.to_thread(
+                        self.messaging._burst_serial_announce, 1, force=True,
+                    )
+            if self.lan_beacon and lan_ip_reachable():
+                await asyncio.to_thread(self.lan_beacon.send, 1, is_android())
+        except Exception as exc:
+            return web.json_response({"error": str(exc)}, status=500)
+        peers = await self._broadcast_peers(authoritative=True)
+        print(f"[discovery] Manual refresh — {len(peers)} peer(s)")
+        return web.json_response({"peers": peers, "count": len(peers)})
+
     async def _handle_ws_message(self, ws, data):
         msg_type = data.get("type")
         if msg_type == "send":
@@ -5498,6 +5527,7 @@ class ChatWebServer:
         app.router.add_post("/api/history/clear", self.handle_history_clear)
         app.router.add_delete("/api/history/{msg_id}", self.handle_delete_message)
         app.router.add_get("/api/discover", self.handle_discover)
+        app.router.add_post("/api/discover/refresh", self.handle_discover_refresh)
         app.router.add_get("/api/debug", self.handle_debug)
         app.router.add_post("/api/debug/export", self.handle_debug_export)
         app.router.add_get("/api/settings", self.handle_settings_get)

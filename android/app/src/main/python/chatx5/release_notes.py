@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.17": [
+        "Discovered peers: ↻ refresh button re-announces and rescans the peer list without a full restart.",
+        "Hub settings: clearer hints — hub server uses 0.0.0.0:4242; hub client host is separate from LAN discovery IP; UDP LAN is correct for P2P while hub is on.",
+        "Internal refactor: connect flow moved to messaging/connect.py (no user-visible API changes).",
+    ],
     "0.5.16": [
         "LAN connect from the initiator works when the peer web UI is localhost-only — HTTP wake failure no longer marks the peer unreachable or skips UDP/inbound connect.",
         "Initiator waits for inbound links after a failed quick UDP connect instead of jumping straight to a short outbound timeout.",
