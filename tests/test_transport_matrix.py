@@ -338,7 +338,10 @@ class IdentityDisplayMatrixTests(unittest.TestCase):
                 }
                 if via != "serial":
                     entry["ip"] = "10.0.30.101"
-                with patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
+                # Unscoped so the LAN/beacon IP is accepted regardless of the
+                # host's real LAN scope (the CI runner is not on 10.0.30.0/24).
+                with patch("chatx5.utils.platform.discovery_scope_ip", return_value=None), \
+                     patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
                     disc._store_peer(dict(entry))
                 stored = disc.peers.get(PeerDiscovery._peer_storage_key(entry))
                 self.assertIsNotNone(stored)

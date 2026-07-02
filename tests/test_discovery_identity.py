@@ -32,16 +32,19 @@ class DiscoveryIdentityTests(unittest.TestCase):
             "last_seen": time.time(),
             "via": "beacon",
         }
-        disc._store_peer({
-            "hash": "newhash123456789012345678901234",
-            "name": "ubuntu",
-            "ip": "10.0.30.101",
-            "port": 8742,
-            "last_seen": time.time(),
-            "via": "beacon",
-        })
-        self.assertEqual(len(disc.peers), 1)
-        self.assertTrue(disc.has_peer_hash("newhash123456789012345678901234"))
+        # Unscoped so the test peer's IP is accepted regardless of the host's
+        # real LAN scope (the CI runner is not on 10.0.30.0/24).
+        with patch("chatx5.utils.platform.discovery_scope_ip", return_value=None):
+            disc._store_peer({
+                "hash": "newhash123456789012345678901234",
+                "name": "ubuntu",
+                "ip": "10.0.30.101",
+                "port": 8742,
+                "last_seen": time.time(),
+                "via": "beacon",
+            })
+            self.assertEqual(len(disc.peers), 1)
+            self.assertTrue(disc.has_peer_hash("newhash123456789012345678901234"))
 
     def test_purge_hashes_removes_matching_entries(self):
         disc = PeerDiscovery()

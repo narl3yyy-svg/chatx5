@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatx5"
-version = "0.6.4"
+version = "0.6.5"
 description = "Decentralized chat over Reticulum Network Stack"
 readme = "README.md"
 license = {text = "GPL-3.0-only"}
@@ -46,7 +46,6 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E731", "E741"]
-"chatx5/core/messaging/backend.py" = ["E402"]
 "chatx5/core/messaging/__init__.py" = ["E402", "F401"]
 
 [tool.mypy]

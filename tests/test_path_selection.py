@@ -134,7 +134,11 @@ class PathSelectionTests(unittest.TestCase):
             "ip": "10.0.30.101",
             "last_seen": now,
         }
-        with patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
+        # Unscoped ambient scope so _store_peer accepts the LAN IP on any host
+        # (the CI runner is not on 10.0.30.0/24); get_peers still filters by the
+        # explicit scope_ip argument below.
+        with patch("chatx5.utils.platform.discovery_scope_ip", return_value=None), \
+             patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
             self.assertTrue(disc._store_peer(serial))
             self.assertTrue(disc._store_peer(lan))
             peers = disc.get_peers(scope_ip="10.0.30.101")
