@@ -3,6 +3,13 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.1": [
+        "Saved contacts show USB serial rows when serial discovery finds the peer (even before serial_hash is stored).",
+        "Serial discovery sync matches saved LAN contacts by display name (fixes Arch not seeing Ubuntu USB).",
+        "Hub group tab stays visible when hub mode is on (role synced from live network status).",
+        "Release notes page in Settings → System → About (no more pop-up on every update).",
+        "Contacts directory is always created at startup; discovery contact sync is more reliable.",
+    ],
     "0.6.0": [
         "Voice, video, image, and file messages show the trash icon; delete removes immediately with no confirm dialog.",
         "Shared folder browse: share a folder with a peer (or hub group) to browse, download, and upload files for 2 hours.",
@@ -343,3 +350,16 @@ def release_notes_payload(version=None):
         "notes": notes_for_version(version),
         "has_notes": bool(notes_for_version(version)),
     }
+
+
+def _version_sort_key(version):
+    try:
+        return tuple(int(part) for part in (version or "").split("."))
+    except ValueError:
+        return (0, 0, 0)
+
+
+def all_release_notes():
+    """All release notes, newest version first."""
+    versions = sorted(RELEASE_NOTES.keys(), key=_version_sort_key, reverse=True)
+    return [{"version": ver, "notes": RELEASE_NOTES[ver]} for ver in versions]
