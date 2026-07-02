@@ -728,6 +728,14 @@ class ChatWebServer:
         if persist:
             self.save_settings(settings)
             print(f"[hub] Updated hub host {host} → {resolved} (pinned LAN scope)")
+            try:
+                import threading
+                threading.Timer(
+                    0.3,
+                    lambda: self._apply_hub_runtime(dict(settings)),
+                ).start()
+            except Exception:
+                pass
         return settings
 
     def _peer_in_discovery_scope(self, peer_hash, link=None):
@@ -1423,6 +1431,26 @@ class ChatWebServer:
         except Exception as exc:
             print(f"[hub] Runtime hub apply failed: {exc}")
 
+    def _schedule_hub_bootstrap_retries(self):
+        """Retry hub TCP client bring-up after discovery populates in-scope hub host."""
+        settings = self.load_settings()
+        if settings.get("hub_role") != "client":
+            return
+        import threading
+
+        def attempt(label):
+            if self._shutting_down:
+                return
+            try:
+                self._apply_hub_runtime(self.load_settings())
+            except Exception as exc:
+                print(f"[hub] Bootstrap retry ({label}) failed: {exc}")
+
+        for delay, label in ((3.0, "3s"), (8.0, "8s"), (20.0, "20s")):
+            timer = threading.Timer(delay, attempt, args=(label,))
+            timer.daemon = True
+            timer.start()
+
     def load_settings(self):
         defaults = {
             "name": "",
@@ -1823,6 +1851,8 @@ class ChatWebServer:
             if tcp_srv:
                 print(f"[tcp-lan] TCP LAN server listening on 0.0.0.0:{getattr(tcp_srv, 'listen_port', 4242)}")
         self._apply_hub_runtime(settings)
+        if settings.get("hub_role") == "client":
+            self._schedule_hub_bootstrap_retries()
         if is_android() and lan_discovery_configured(interfaces):
             self._schedule_android_lan_announce_retries()
         if settings.get("hub_role") == "server":
@@ -2558,6 +2588,9 @@ class ChatWebServer:
             elif self.discovery.clear_peer_rtt(resolved):
                 self._schedule_peers_broadcast()
         self._maybe_update_hub_server_hash(resolved, link=link)
+        if hub_tcp_link and self.messaging:
+            self.messaging._schedule_hub_queue_drain(delay=0.5)
+            self.messaging._schedule_hub_link_ensure(delay=1.0)
         user_disconnected = bool(
             self.messaging and self.messaging.is_user_disconnected(resolved)
         )
@@ -3643,10 +3676,12 @@ class ChatWebServer:
         tcp_client_online = bool(
             hub_role == "client" and tcp_client_interface_online()
         )
+        hub_clients = 0
         hub_group_linked = False
         if hub_role != "off" and self.messaging:
+            hub_clients = len(self.messaging._hub_tcp_linked_peers())
             if hub_role == "server":
-                hub_group_linked = bool(self.messaging._hub_tcp_linked_peers())
+                hub_group_linked = hub_clients > 0 or tcp_hub_online
             else:
                 from chatx5.core.discovery import normalize_hash
 
@@ -3656,7 +3691,9 @@ class ChatWebServer:
                     if dest and dest != "unknown":
                         hub_group_linked = self.messaging._peer_link_active(dest)
                 if not hub_group_linked:
-                    hub_group_linked = tcp_client_online
+                    hub_group_linked = bool(
+                        tcp_client_online and self.messaging._hub_tcp_transport_online()
+                    )
         lan_discovery = lan_discovery_configured(configured)
         refresh_ifaces = request.query.get("refresh", "").lower() in ("1", "true", "yes")
         if lan_discovery and sys.platform in ("win32", "darwin"):
@@ -3730,6 +3767,7 @@ class ChatWebServer:
             "tcp_hub_online": tcp_hub_online,
             "tcp_client_online": tcp_client_online,
             "hub_group_linked": hub_group_linked,
+            "hub_clients_linked": hub_clients,
         })
 
     async def handle_path_wake(self, request):

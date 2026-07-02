@@ -2644,6 +2644,7 @@ function pollLinkStatus() {
       window._tcpHubOnline = !!d.tcp_hub_online;
       window._tcpClientOnline = !!d.tcp_client_online;
       window._hubGroupLinked = !!d.hub_group_linked;
+      window._hubClientsLinked = d.hub_clients_linked || 0;
       if (viewingPeer === HUB_GROUP_PEER) updatePeerHeader();
       if (d.linked_peers && d.linked_peers.length) {
         syncLinkedPeers(d.linked_peers);
@@ -2768,8 +2769,7 @@ function updatePeerHeader() {
   const iface = isHubChat ? 'Hub' : peerInterfaceLabel(viewingVia);
   const statusEl = document.getElementById('peer-status');
   if (statusEl) {
-    let conn = linked ? 'Connected' : 'Not connected';
-    if (isHubChat && !linked && window._tcpHubOnline) conn = 'Listening';
+    let conn = isHubChat ? hubGroupStatusLabel() : (linked ? 'Connected' : 'Not connected');
     statusEl.innerHTML = `${escapeHtml(fullHash)} · ${escapeHtml(iface)} · ${conn}${rttBadge}`;
   }
   document.getElementById('disconnect-btn').style.display = linked ? 'block' : 'none';
@@ -5011,6 +5011,7 @@ function refreshNetworkStatus(silent) {
       window._tcpHubOnline = !!d.tcp_hub_online;
       window._tcpClientOnline = !!d.tcp_client_online;
       window._hubGroupLinked = !!d.hub_group_linked;
+      window._hubClientsLinked = d.hub_clients_linked || 0;
       if (viewingPeer === HUB_GROUP_PEER) updatePeerHeader();
       if (d.lan_ip && d.lan_ip !== 'not configured') window._localLanIp = d.lan_ip;
       html += row('Platform', platform);
@@ -5583,6 +5584,20 @@ function isHubGroupLinked() {
   if (window._hubGroupLinked) return true;
   if (role === 'server') return !!window._tcpHubOnline;
   return !!window._tcpClientOnline;
+}
+
+function hubGroupStatusLabel() {
+  const role = window._hubRole || 'off';
+  if (role === 'off') return 'Not connected';
+  if (isHubGroupLinked()) {
+    const n = window._hubClientsLinked || 0;
+    if (role === 'server' && n > 0) return `Connected (${n} client${n === 1 ? '' : 's'})`;
+    if (role === 'server') return 'Listening';
+    return 'Connected';
+  }
+  if (role === 'server' && window._tcpHubOnline) return 'Listening';
+  if (role === 'client' && window._tcpClientOnline) return 'Connecting…';
+  return 'Not connected';
 }
 
 function isPeerLinked(hash, via) {
