@@ -197,8 +197,18 @@ class HubMixin:
             return tcp_peers
         if hub_server_hash:
             peer = self.dest_hash_for(hub_server_hash)
-            if peer and peer != "unknown" and peer in tcp_peers:
-                return [peer]
+            if peer and peer != "unknown":
+                # Match by hash equivalence, not exact string: the linked peer
+                # may be keyed under its message-dest hash while hub_server_hash
+                # is the server's identity/announce hash (the same peer). Exact
+                # `in` left the client's queued group messages stuck with "no
+                # active link".
+                match = next(
+                    (p for p in tcp_peers if self.hashes_equivalent(p, peer)),
+                    None,
+                )
+                if match:
+                    return [match]
             return []
         return tcp_peers[:1]
 

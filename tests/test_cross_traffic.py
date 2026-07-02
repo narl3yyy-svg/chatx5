@@ -248,6 +248,26 @@ class CrossTrafficRoutingTests(unittest.TestCase):
             backend._register_peer_link(windows_udp, UBUNTU)
         self.assertNotIn(UBUNTU, backend.peer_links)
 
+    def test_register_peer_link_reconciles_alias_to_proven_remote(self):
+        # Regression (hub group chat): a hub TCP link whose caller-supplied hash
+        # is an alias (discovery identity hash) that differs from the link's
+        # proven message-dest identity must be registered under the proven
+        # remote, not dropped. Dropping it left the hub server counting 0 clients
+        # so group messages were never relayed.
+        backend = self._backend()
+        tcp_iface = _iface("tcp")
+        link = _FakeLink("33" * 16, tcp_iface, WINDOWS)  # proven remote -> WINDOWS
+        backend.links[link.link_id] = link
+        with patch.object(
+            backend,
+            "_dest_hash_from_identity",
+            side_effect=lambda ident: WINDOWS,
+        ):
+            backend._register_peer_link(link, ARCH, transport="tcp")  # ARCH is an alias
+        # Registered under the proven remote, and not under the alias.
+        self.assertIs(backend.peer_links.get(backend._link_map_key(WINDOWS, "tcp")), link)
+        self.assertNotIn(backend._link_map_key(ARCH, "tcp"), backend.peer_links)
+
     def test_beacon_does_not_pollute_serial_peer_with_lan_ip(self):
         from chatx5.core.discovery import PeerDiscovery
 

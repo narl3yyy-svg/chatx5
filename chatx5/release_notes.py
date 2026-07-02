@@ -5,7 +5,9 @@ from chatx5._version import __version__ as CURRENT_VERSION
 RELEASE_NOTES = {
     "0.6.5": [
         "Fix: Hub client host/port field no longer disappears while you type — it now follows the Hub-mode dropdown instead of the saved role.",
-        "Hub runtime apply is hardened against a background timer firing during startup/teardown.",
+        "Hub group chat: hub TCP links register under the proven remote hash (fixes relay + client send when identity/message-dest hashes differ).",
+        "Serial discovery: both peers now see each other's USB endpoint reliably (symmetric ip-less serial announces).",
+        "RTT: LAN and serial sub-rows show distinct latencies; bogus ~0 ms serial probe values are gone.",
         "Phase 10 refactor: transport failover + session reconnect moved to messaging/failover.py; backend.py trimmed to ~1,100 lines.",
         "CI now runs ruff + mypy + tests + Android-sync verification on every push and PR.",
     ],

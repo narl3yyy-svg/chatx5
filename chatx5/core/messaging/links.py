@@ -447,11 +447,17 @@ class PeerLinkMixin:
             return
         remote = self._link_remote_peer_hash(link)
         if remote and not self.hashes_equivalent(remote, peer):
-            print(
-                f"[messaging] Rejected link map {peer[:16]}... "
-                f"(remote identity {remote[:16]}...)"
-            )
-            return
+            # The link's cryptographically-proven remote identity is
+            # authoritative. The caller-supplied hash is often just a different
+            # alias for the same peer (discovery identity hash vs message-dest
+            # hash) — this split is what left hub TCP links uncounted, breaking
+            # group chat. Register under the real remote hash instead of
+            # dropping the link. For direct P2P, remote == peer so this branch
+            # never triggers; when the remote is genuinely a different peer we
+            # still avoid mapping the link to the wrong (requested) hash.
+            peer = self.dest_hash_for(remote)
+            if not peer or peer == "unknown":
+                return
         t = transport or self._transport_from_link(link)
         key = self._link_map_key(peer, t)
         self.peer_links[key] = link

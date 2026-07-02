@@ -7,6 +7,11 @@ All notable changes to chatx5 are documented here. The README lists only the lat
 ### Fixed
 - **Hub client IP field** — the Hub host/port input no longer disappears while you type. `updateHubUi()` now derives client-field visibility from the live Hub-mode dropdown selection instead of the saved role, so a background `/api/network-status` poll can't hide the input mid-edit.
 - **Hub runtime apply** — `_apply_hub_runtime` reads `self.messaging` defensively, so a background `threading.Timer` firing during startup/teardown no longer raises `AttributeError`.
+- **Hub group chat relay** — hub TCP links whose caller-supplied hash is a discovery/identity alias (not the link's proven message-dest hash) are now registered under the proven remote instead of dropped, so the hub server counts connected clients and group messages relay correctly.
+- **Hub client send path** — `_hub_tcp_peers_for_send` matches hub-server peers by hash equivalence, not exact string, so queued group messages no longer stall with "no active link".
+- **Serial discovery symmetry** — ip-less serial announces rebroadcast onto LAN are classified as serial when local USB is up, instead of being discarded by `_on_announce`; both peers now see each other's USB endpoint reliably.
+- **RTT per transport** — `update_peer_probe` / `clear_peer_rtt` are transport-aware; LAN UDP probes no longer overwrite serial row latency (and vice versa).
+- **Serial RTT probe** — `probe_serial_path` no longer returns a bogus ~0 ms value from a cached path-table lookup; it keeps the link handshake RTT or shows nothing until a fresh path is measured.
 
 ### Changed
 - **Phase 10 refactor** — transport failover + session-reconnect logic (~550 lines) extracted from `backend.py` into `core/messaging/failover.py` (`FailoverMixin`). `backend.py` is now ~1,108 lines. Public import paths and behaviour unchanged.
