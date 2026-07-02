@@ -88,13 +88,83 @@ class PeerLinkMixin:
                 return None
         return None
 
+    def _peer_discovery_meta_serial(self, peer_hash):
+        peer = self.dest_hash_for(peer_hash)
+        if not peer or peer == "unknown" or not self.peer_transport_resolver:
+            return None
+        try:
+            row = self.peer_transport_resolver(peer, via="serial")
+            if row and (row.get("via") or "").strip() == "serial":
+                if normalize_hash(row.get("hash")) == peer:
+                    return row
+        except TypeError:
+            try:
+                row = self.peer_transport_resolver(peer)
+                if row and (row.get("via") or "").strip() == "serial":
+                    if normalize_hash(row.get("hash")) == peer:
+                        return row
+            except Exception:
+                return None
+        except Exception:
+            return None
+        return None
+
+    def _peer_has_lan_discovery_row(self, peer_hash):
+        peer = self.dest_hash_for(peer_hash)
+        if not peer or peer == "unknown" or not self.peer_transport_resolver:
+            return False
+        for via in ("lan", "rns"):
+            try:
+                row = self.peer_transport_resolver(peer, via=via)
+            except TypeError:
+                return False
+            except Exception:
+                continue
+            if not row:
+                continue
+            if normalize_hash(row.get("hash")) != peer:
+                continue
+            if (row.get("via") or "").strip() != "serial":
+                return True
+        return False
+
+    def _peer_hash_is_serial_endpoint(self, peer_hash):
+        peer = self.dest_hash_for(peer_hash)
+        if not peer or peer == "unknown":
+            return False
+        if self._peer_has_lan_discovery_row(peer):
+            return False
+        return self._peer_discovery_meta_serial(peer) is not None
+
+    def _serial_inbound_scope_ok(self, peer_hash, link=None):
+        """Allow USB serial inbound when RNS has not attached an interface yet."""
+        if not self._serial_transport_ready():
+            return False
+        if link:
+            iface = self._link_attached_interface(link)
+            if iface and not is_serial_interface(iface):
+                return False
+        peer = self.dest_hash_for(peer_hash) if peer_hash and peer_hash != "unknown" else ""
+        if peer and self._peer_has_path_on_family(peer, "serial"):
+            return True
+        row = self._peer_discovery_meta_serial(peer) if peer else None
+        if row:
+            return True
+        if peer and self._peer_hash_is_serial_endpoint(peer):
+            return True
+        if link and (not peer or peer == "unknown"):
+            return True
+        return False
+
     def _peer_expected_transport_families(self, peer_hash):
         """Transport families allowed for a peer (serial vs LAN isolation)."""
         peer = self.dest_hash_for(peer_hash)
         if not peer or peer == "unknown" or is_hub_peer_hash(peer):
             return set()
-        meta = self._peer_discovery_meta(peer)
         serial_ready = self._serial_transport_ready()
+        if serial_ready and self._peer_hash_is_serial_endpoint(peer):
+            return {"serial"}
+        meta = self._peer_discovery_meta(peer)
         if meta:
             via = (meta.get("via") or "").strip()
             ip = (meta.get("ip") or "").strip()
@@ -292,12 +362,16 @@ class PeerLinkMixin:
         if not peer_hash or peer_hash == "unknown":
             if link and is_serial_interface(self._link_attached_interface(link)):
                 return True
+            if link and self._serial_inbound_scope_ok(peer_hash, link):
+                return True
             return not self.peer_scope_checker
         if link:
             iface = self._link_attached_interface(link)
             if is_serial_interface(iface):
                 return True
             if self._link_is_hub_transport(iface):
+                return True
+            if not iface and self._serial_inbound_scope_ok(peer_hash, link):
                 return True
             if iface and not self._link_acceptable_for_peer(link, peer_hash):
                 return False

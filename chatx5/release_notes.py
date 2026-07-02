@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.19": [
+        "Serial USB inbound links no longer rejected as outside LAN scope when the peer hash is a serial-only endpoint (distinct from LAN hash).",
+        "Connect to a serial discovery hash uses the USB path instead of attempting LAN when dual identities use separate hashes.",
+        "Saving a contact merges LAN + USB rows when the peer name matches; hub clients auto-resolve an in-scope hub host when the saved IP is on another subnet.",
+        "Phase 5 refactor: file transfer logic moved to messaging/transfer.py.",
+    ],
     "0.5.18": [
         "Fix connect regression: outbound links no longer fail with _null_context / serial_path_is_pinned NameError (Phase 3 extraction).",
         "Hub group chat: clients auto-fetch hub server identity from /api/network-status, open a TCP RNS link, and drain queued group messages.",

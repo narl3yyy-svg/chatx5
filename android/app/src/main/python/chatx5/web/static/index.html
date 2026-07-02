@@ -3866,14 +3866,37 @@ function doSaveContact() {
     return;
   }
   const disc = discoveredPeerExact(hash) || discoveredPeerForHash(hash);
-  const { lanPeer, serialPeer } = pickLanAndSerialPeers(hash);
+  let { lanPeer, serialPeer } = pickLanAndSerialPeers(hash);
   const meta = peerMetaForHash(hash) || {};
+  const clean = hash.replace(/:/g, '');
+  const existing = (allContacts || []).find(c => {
+    const hashes = contactSavedHashes(c);
+    return hashes.some(h => peersMatch(h, hash) || h === clean);
+  });
+  if (!lanPeer && existing) {
+    const lanH = contactLanHash(existing);
+    if (lanH) lanPeer = (window._discoveredPeers || []).find(p =>
+      peerKey(p.hash) === lanH || peersMatch(p.hash, lanH)
+    ) || { hash: lanH, name: existing.name, ip: existing.ip, port: existing.port, via: 'rns' };
+  }
+  if (!serialPeer && existing) {
+    const serialH = contactSerialHash(existing);
+    if (serialH) serialPeer = (window._discoveredPeers || []).find(p =>
+      (p.via || '') === 'serial' && (peerKey(p.hash) === serialH || peersMatch(p.hash, serialH))
+    ) || { hash: serialH, name: existing.name, via: 'serial' };
+  }
+  if (!lanPeer && !serialPeer && name) {
+    const related = (window._discoveredPeers || []).filter(p =>
+      namesRelated(p.name, name) || namesRelated(p.name, disc?.name)
+    );
+    lanPeer = lanPeer || related.find(p => (p.via || '') !== 'serial') || null;
+    serialPeer = serialPeer || related.find(p => isValidSerialDiscoveredPeer(p, lanPeer)) || null;
+  }
   const discVia = (disc?.via || disc?.transport || meta.via || '').toLowerCase();
   const via = discVia === 'serial' ? 'serial' : (discVia ? 'lan' : undefined);
-  const clean = hash.replace(/:/g, '');
   const dual = !!(lanPeer && serialPeer);
   const body = {
-    name: name || disc?.name || serialPeer?.name || lanPeer?.name || meta.name || clean.substring(0, 12),
+    name: name || disc?.name || serialPeer?.name || lanPeer?.name || existing?.name || meta.name || clean.substring(0, 12),
     port: disc?.port || lanPeer?.port || serialPeer?.port || meta.port || undefined,
     custom_name: !!name,
   };
@@ -3882,7 +3905,10 @@ function doSaveContact() {
     body.hash = body.lan_hash;
     body.ip = lanPeer.ip || undefined;
     body.via = 'lan';
-    if (lanPeer.identity_hash) body.identity_hash = peerKey(lanPeer.identity_hash);
+    if (lanPeer.identity_hash) {
+      body.identity_hash = peerKey(lanPeer.identity_hash);
+      body.lan_identity_hash = body.identity_hash;
+    }
   } else if (via === 'lan') {
     body.lan_hash = clean;
     body.hash = clean;
@@ -3890,13 +3916,16 @@ function doSaveContact() {
     body.via = 'lan';
     if (disc?.identity_hash || meta.identity_hash) {
       body.identity_hash = peerKey(disc?.identity_hash || meta.identity_hash);
+      body.lan_identity_hash = body.identity_hash;
     }
   } else {
     body.hash = clean;
   }
   if (serialPeer) {
     body.serial_hash = peerKey(serialPeer.hash);
-    if (serialPeer.identity_hash) body.serial_identity_hash = peerKey(serialPeer.identity_hash);
+    if (serialPeer.identity_hash) {
+      body.serial_identity_hash = peerKey(serialPeer.identity_hash);
+    }
     if (!dual) {
       body.hash = body.serial_hash;
       body.via = 'serial';
