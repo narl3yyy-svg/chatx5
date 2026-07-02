@@ -87,18 +87,20 @@ Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
 
 `MessagingBackend` now inherits `AnnounceMixin` before `ConnectMixin` (connect uses transport-ready helpers). `backend.py` is ~1,900 lines.
 
-## Phase 8 plan — `web/server.py` split (not started)
+## Phase 8 — `web/server.py` split (in progress)
 
-`ChatWebServer` (~5,700 lines) will be split incrementally without behavior changes:
+`ChatWebServer` was ~5,700 lines; split incrementally without behavior changes.
 
-| Step | Module | Contents |
-|------|--------|------------|
-| 8a | `web/routes/` | HTTP route table + thin handlers delegating to services |
-| 8b | `web/ws/` | WebSocket connect, broadcast, message fan-out |
-| 8c | `web/hub_runtime.py` | Hub settings apply, TCP hot-add, group status |
-| 8d | `web/discovery_bridge.py` | Peer discovery callbacks, scope, contact sync |
-| 8e | `web/rns_lifecycle.py` | RNS startup, interface config, announce scheduling |
-| 8f | `web/server.py` | Slim orchestrator wiring the above (~800 lines target) |
+| Step | Module | Status | Contents |
+|------|--------|--------|----------|
+| 8c | `web/hub_runtime.py` | **done** | `HubRuntimeMixin` — hub settings, TCP hot-add, host resolve, server hash |
+| 8d | `web/discovery_bridge.py` | **done** | `DiscoveryBridgeMixin` — scope, peer callbacks, contact sync, supersede |
+| 8a | `web/routes/` | planned | HTTP route table + thin handlers |
+| 8b | `web/ws/` | planned | WebSocket connect, broadcast, message fan-out |
+| 8e | `web/rns_lifecycle.py` | planned | RNS startup, interface config, announce scheduling |
+| 8f | `web/server.py` | in progress | Slim orchestrator (~5,260 lines after 8c+8d; target ~800) |
+
+`ChatWebServer` now inherits `HubRuntimeMixin` and `DiscoveryBridgeMixin`. Public API unchanged.
 
 Each step ships with tests green and no API changes to `run.sh` / Android.
 
@@ -112,7 +114,7 @@ Each step ships with tests green and no API changes to `run.sh` / Android.
 | 5 | `transfer.py` | Done — see above |
 | 6 | `hub.py` | Done — see above |
 | 7 | `announce.py` | Done — see above |
-| 8 | `web/server.py` split | Planned — see Phase 8 plan above |
+| 8 | `web/server.py` split | In progress — 8c+8d done (hub_runtime, discovery_bridge) |
 | 9 | Android | Stop committing bundle; sync-only at build (optional) |
 | 10 | Perf | Peer hash index sets, probe cache, WS debounce |
 
@@ -131,8 +133,8 @@ bash scripts/sync-android.sh   # after editing chatx5/
 
 ## Remaining technical debt
 
-- `backend.py` still ~1,900 lines — next extraction is `web/server.py` routes (Phase 8).
-- `web/server.py` still ~5,700 lines.
+- `backend.py` still ~1,900 lines.
+- `web/server.py` ~5,260 lines after Phase 8c+8d; routes/ws/rns_lifecycle remain.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.
 

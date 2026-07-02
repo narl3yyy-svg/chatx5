@@ -1,0 +1,273 @@
+"""Hub TCP relay runtime: settings apply, hot-add, and in-scope host resolution."""
+
+import json
+import threading
+from urllib import request as urlrequest
+
+from chatx5.core.rns_interfaces import (
+    add_interface,
+    hub_tcp_client_active,
+    normalize_interface_list,
+)
+
+
+class HubRuntimeMixin:
+    """Hub server/client settings and runtime TCP interface management."""
+
+    @staticmethod
+    def _is_tcp_server_iface(iface):
+        return (
+            iface.get("type") == "TCPServerInterface"
+            or iface.get("preset") in ("tcp_server", "tcp_lan")
+        )
+
+    @staticmethod
+    def _is_tcp_client_iface(iface):
+        return (
+            iface.get("type") == "TCPClientInterface"
+            or iface.get("preset") == "tcp_client"
+        )
+
+    def _resolve_hub_host_in_scope(self, hub_host, settings=None):
+        """Pick a hub host IP on the pinned LAN when the saved host is on another subnet."""
+        from chatx5.utils.lan_scope import peer_in_scope
+        from chatx5.utils.platform import parse_lan_interface_value
+
+        host = (hub_host or "").strip()
+        if not host:
+            return host
+        settings = settings or self.load_settings()
+        pinned = (settings.get("lan_interface") or "").strip()
+        scope = ""
+        if pinned:
+            _, ip = parse_lan_interface_value(pinned)
+            scope = (ip or "").strip()
+        if not scope:
+            scope = self._discovery_scope_ip() or ""
+        if scope and peer_in_scope(host, scope):
+            return host
+        if not scope or not self.discovery:
+            return host
+        saved_hash = (settings.get("hub_server_hash") or "").strip().replace(":", "")
+        candidates = []
+        for peer in self._scoped_peers():
+            ip = (peer.get("ip") or "").strip()
+            if not ip or not peer_in_scope(ip, scope):
+                continue
+            ph = (peer.get("hash") or "").replace(":", "")
+            ih = (peer.get("identity_hash") or "").replace(":", "")
+            if saved_hash and saved_hash in (ph, ih):
+                return ip
+            candidates.append((peer.get("last_seen") or 0, ip, peer.get("name") or ""))
+        if not candidates:
+            return host
+        for _seen, ip, _name in sorted(candidates, reverse=True):
+            try:
+                url = f"http://{ip}:{int(settings.get('http_port') or 8742)}/api/network-status"
+                req = urlrequest.Request(url, method="GET")
+                with urlrequest.urlopen(req, timeout=2) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                if (data.get("hub_role") or "").strip().lower() == "server":
+                    return ip
+            except Exception:
+                continue
+        if len(candidates) == 1:
+            return candidates[0][1]
+        return host
+
+    def _ensure_hub_host_in_scope(self, settings, persist=True):
+        """Resolve hub_host to an in-scope peer IP and optionally persist it."""
+        settings = dict(settings or {})
+        if (settings.get("hub_role") or "off") != "client":
+            return settings
+        host = (settings.get("hub_host") or "").strip()
+        if not host:
+            return settings
+        if not getattr(self, "discovery", None) or not getattr(self, "config_dir", None):
+            return settings
+        resolved = self._resolve_hub_host_in_scope(host, settings)
+        if not resolved or resolved == host:
+            return settings
+        settings["hub_host"] = resolved
+        if persist:
+            self.save_settings(settings)
+            print(f"[hub] Updated hub host {host} → {resolved} (pinned LAN scope)")
+            try:
+                threading.Timer(
+                    0.3,
+                    lambda: self._apply_hub_runtime(dict(settings)),
+                ).start()
+            except Exception:
+                pass
+        return settings
+
+    def _apply_hub_settings(self, settings):
+        settings = self._ensure_hub_host_in_scope(
+            settings, persist=bool(getattr(self, "discovery", None)),
+        )
+        hub_role = settings.get("hub_role", "off")
+        hub_host = (settings.get("hub_host") or "").strip()
+        hub_port = int(settings.get("hub_port") or 4242)
+        interfaces = normalize_interface_list(settings.get("rns_interfaces"))
+        if hub_role == "server":
+            server = None
+            for iface in interfaces:
+                if self._is_tcp_server_iface(iface):
+                    server = iface
+                    break
+            if not server:
+                interfaces = add_interface(interfaces, "tcp_server")
+                interfaces = normalize_interface_list(interfaces)
+                server = next(
+                    i for i in interfaces if self._is_tcp_server_iface(i)
+                )
+            server["enabled"] = True
+            server["type"] = "TCPServerInterface"
+            server["listen_ip"] = (server.get("listen_ip") or "0.0.0.0").strip() or "0.0.0.0"
+            server["listen_port"] = hub_port
+            for iface in interfaces:
+                if self._is_tcp_client_iface(iface):
+                    iface["enabled"] = False
+        elif hub_role == "client":
+            if not hub_host:
+                settings["rns_interfaces"] = normalize_interface_list(interfaces)
+                return settings
+            for iface in interfaces:
+                if iface.get("preset") == "tcp_server":
+                    iface["enabled"] = False
+            hub_tcp_on = hub_tcp_client_active(settings)
+            updated = False
+            for iface in interfaces:
+                if iface.get("preset") != "tcp_client":
+                    continue
+                iface["target_host"] = hub_host
+                iface["target_port"] = hub_port
+                iface["type"] = "TCPClientInterface"
+                iface["enabled"] = hub_tcp_on
+                updated = True
+                break
+            if hub_tcp_on and not updated:
+                interfaces = add_interface(interfaces, "tcp_client")
+                interfaces = normalize_interface_list(interfaces)
+                client = next(
+                    i for i in interfaces if i.get("preset") == "tcp_client"
+                )
+                client["target_host"] = hub_host
+                client["target_port"] = hub_port
+                client["enabled"] = True
+        else:
+            for iface in interfaces:
+                if iface.get("preset") in ("tcp_client", "tcp_server"):
+                    iface["enabled"] = False
+        settings["rns_interfaces"] = normalize_interface_list(interfaces)
+        return settings
+
+    def _apply_hub_runtime(self, settings=None):
+        """Hot-apply hub interfaces on a running RNS instance (Android/desktop)."""
+        settings = settings or self.load_settings()
+        hub_role = settings.get("hub_role", "off")
+        try:
+            from chatx5.core.rns_interfaces import (
+                ensure_runtime_tcp_client,
+                ensure_runtime_tcp_hub,
+                remove_tcp_client_interfaces,
+                remove_tcp_client_to_host,
+                tcp_client_interface_online,
+                tcp_server_interface_online,
+            )
+            if hub_role == "server":
+                remove_tcp_client_interfaces()
+                iface = ensure_runtime_tcp_hub(settings, self.config_dir)
+                if iface and self.messaging:
+                    self.messaging._silent_announce()
+                    self.messaging._schedule_hub_queue_drain()
+                online = tcp_server_interface_online(int(settings.get("hub_port") or 4242))
+                if online:
+                    print(
+                        f"[hub] TCP hub server listening on 0.0.0.0:"
+                        f"{settings.get('hub_port', 4242)}"
+                    )
+                    if self.messaging:
+                        self.messaging._schedule_hub_link_ensure(delay=1.0)
+                else:
+                    print(
+                        f"[hub] TCP hub server not online yet on port "
+                        f"{settings.get('hub_port', 4242)} — check hub role and restart"
+                    )
+            elif hub_role == "client":
+                settings = self._ensure_hub_host_in_scope(settings, persist=True)
+                host = (settings.get("hub_host") or "").strip()
+                port = int(settings.get("hub_port") or 4242)
+                if hub_tcp_client_active(settings):
+                    iface = ensure_runtime_tcp_client(settings, self.config_dir)
+                    if iface and self.messaging:
+                        self.messaging._silent_announce()
+                    online = tcp_client_interface_online()
+                    if online:
+                        print(f"[hub] TCP hub client connected to {host}:{port}")
+                        if self.messaging:
+                            self.messaging._schedule_hub_link_ensure(delay=1.0)
+                            self.messaging._schedule_hub_queue_drain()
+                    elif host:
+                        print(f"[hub] TCP hub client connecting to {host}:{port}...")
+                        if self.messaging:
+                            self.messaging._schedule_hub_link_ensure(delay=4.0)
+                elif host:
+                    remove_tcp_client_to_host(host, port)
+                    pinned = (settings.get("lan_interface") or "").strip()
+                    if pinned:
+                        print(
+                            f"[hub] Hub TCP client paused — {host} is not on your "
+                            f"pinned LAN ({pinned}); P2P on this subnet continues"
+                        )
+                    else:
+                        print(f"[hub] Hub TCP client disabled for {host}:{port}")
+            else:
+                remove_targets = set()
+                host = (settings.get("hub_host") or "").strip()
+                if host:
+                    remove_targets.add((host, int(settings.get("hub_port") or 4242)))
+                for iface in normalize_interface_list(settings.get("rns_interfaces")):
+                    if iface.get("preset") != "tcp_client":
+                        continue
+                    th = (iface.get("target_host") or "").strip()
+                    tp = int(iface.get("target_port") or 4242)
+                    if th:
+                        remove_targets.add((th, tp))
+                for th, tp in remove_targets:
+                    remove_tcp_client_to_host(th, tp)
+        except Exception as exc:
+            print(f"[hub] Runtime hub apply failed: {exc}")
+
+    def _schedule_hub_bootstrap_retries(self):
+        """Retry hub TCP client bring-up after discovery populates in-scope hub host."""
+        settings = self.load_settings()
+        if settings.get("hub_role") != "client":
+            return
+
+        def attempt(label):
+            if self._shutting_down:
+                return
+            try:
+                self._apply_hub_runtime(self.load_settings())
+            except Exception as exc:
+                print(f"[hub] Bootstrap retry ({label}) failed: {exc}")
+
+        for delay, label in ((3.0, "3s"), (8.0, "8s"), (20.0, "20s")):
+            timer = threading.Timer(delay, attempt, args=(label,))
+            timer.daemon = True
+            timer.start()
+
+    def _maybe_update_hub_server_hash(self, peer_hash, link=None):
+        settings = self.load_settings()
+        if settings.get("hub_role") != "client":
+            return
+        if self.messaging and link and not self.messaging._link_is_hub_tcp(link):
+            return
+        clean = self._peer_dest_hash(peer_hash)
+        if not clean or self._is_self_hash(clean):
+            return
+        if settings.get("hub_server_hash") != clean:
+            settings["hub_server_hash"] = clean
+            self.save_settings(settings)
+            print(f"[hub] Recorded hub server hash {clean[:16]}...")
