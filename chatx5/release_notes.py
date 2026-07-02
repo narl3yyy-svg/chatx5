@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.21": [
+        "LAN file transfers use HTTP fast-path again while hub mode is on (hub blocked LAN HTTP for all P2P in v0.5.20).",
+        "Large LAN files: 512KB+ threshold, 1MB HTTP chunks, MTU tuned before send — much faster on gigabit Ethernet.",
+        "Hub clients auto-retry TCP connect after host resolve; group chat shows Listening/Connected with client count.",
+        "Phase 6 refactor: hub relay logic consolidated in messaging/hub.py.",
+    ],
     "0.5.20": [
         "Hub TCP inbound links from remote clients are accepted on the hub server even before RNS attaches an interface (fixes unknown/outside LAN scope rejections).",
         "Hub clients persist an auto-resolved in-scope hub host when the saved IP is on another subnet; hub_server_hash is only recorded from hub TCP links, not LAN P2P.",

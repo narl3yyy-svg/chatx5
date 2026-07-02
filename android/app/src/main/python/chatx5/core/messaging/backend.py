@@ -278,44 +278,6 @@ class MessagingBackend(PeerLinkMixin, ConnectMixin, HubMixin, QueueMixin, Transf
 
 
 
-    def _hub_tcp_linked_peers(self):
-        """Peers on hub TCP transport only (not TCP LAN P2P dials)."""
-        role, _ = self._load_hub_settings()
-        if role == "off":
-            return []
-        hub_host, hub_port = self._hub_endpoint_from_settings()
-        out = []
-        seen = set()
-        for key, link in list(self.peer_links.items()):
-            peer = self._peer_from_link_key(key)
-            if not peer or is_hub_peer_hash(peer) or peer in seen:
-                continue
-            if not link:
-                continue
-            if self._link_is_hub_transport(
-                self._link_attached_interface(link),
-                role=role,
-                hub_host=hub_host,
-                hub_port=hub_port,
-            ):
-                seen.add(peer)
-                out.append(peer)
-        return out
-
-    def _hub_message_acceptable(self, chat_msg, link):
-        if not getattr(chat_msg, "hub_group", False):
-            return True
-        role, _ = self._load_hub_settings()
-        if role == "off":
-            return False
-        hub_host, hub_port = self._hub_endpoint_from_settings()
-        return self._link_is_hub_transport(
-            self._link_attached_interface(link),
-            role=role,
-            hub_host=hub_host,
-            hub_port=hub_port,
-        )
-
     def disconnect_peer(self, peer_hash, user_initiated=False, transport=None):
         peer = self.dest_hash_for(peer_hash)
         transport = self._normalize_transport(transport) if transport else None
@@ -560,76 +522,6 @@ class MessagingBackend(PeerLinkMixin, ConnectMixin, HubMixin, QueueMixin, Transf
         if iface_a is iface_b:
             return True
         return str(iface_a) == str(iface_b)
-
-    def _load_hub_settings(self):
-        try:
-            import json
-            import os
-            from chatx5.utils.helpers import get_config_dir
-            path = os.path.join(self.config_dir or get_config_dir(), "settings.json")
-            with open(path, encoding="utf-8") as fh:
-                settings = json.load(fh)
-            return (
-                settings.get("hub_role") or "off",
-                (settings.get("hub_server_hash") or "").strip(),
-            )
-        except Exception:
-            return "off", ""
-
-    def _hub_endpoint_from_settings(self):
-        try:
-            import json
-            import os
-            from chatx5.utils.helpers import get_config_dir
-            path = os.path.join(self.config_dir or get_config_dir(), "settings.json")
-            with open(path, encoding="utf-8") as fh:
-                settings = json.load(fh)
-            return (
-                (settings.get("hub_host") or "").strip(),
-                int(settings.get("hub_port") or 4242),
-            )
-        except Exception:
-            return "", 4242
-
-    def _link_is_hub_transport(self, iface, role=None, hub_host=None, hub_port=None):
-        if iface is None or interface_family(iface) != "tcp":
-            return False
-        if role is None:
-            role, _ = self._load_hub_settings()
-        if role == "off":
-            return False
-        if hub_host is None or hub_port is None:
-            hub_host, hub_port = self._hub_endpoint_from_settings()
-        if role == "client":
-            target = (getattr(iface, "target_host", None) or "").strip()
-            port = int(
-                getattr(iface, "target_port", None)
-                or getattr(iface, "port", None)
-                or 4242
-            )
-            return bool(hub_host) and target == hub_host and port == hub_port
-        if role == "server":
-            return type(iface).__name__ == "TCPServerInterface"
-        return False
-
-    def _peer_uses_hub_transport(self, peer_hash):
-        """Hub TCP is for group chat and the hub server — not local LAN P2P."""
-        if is_hub_peer_hash(peer_hash):
-            return True
-        role, hub_server_hash = self._load_hub_settings()
-        if role == "off":
-            return False
-        peer = normalize_hash(self.dest_hash_for(peer_hash) or peer_hash or "")
-        if len(peer) != 32:
-            return False
-        hub_hex = normalize_hash(hub_server_hash or "")
-        if hub_hex and self.hashes_equivalent(peer, hub_hex):
-            return True
-        return False
-
-    def _hub_transport_active(self):
-        role, _ = self._load_hub_settings()
-        return role != "off"
 
     def _has_online_family(self, family):
         if family == "tcp":
@@ -1225,79 +1117,6 @@ class MessagingBackend(PeerLinkMixin, ConnectMixin, HubMixin, QueueMixin, Transf
             if link:
                 return link
         return self._send_link or self.active_link
-
-
-    def _hub_send_targets(self, hub_server_hash=None, hub_server_mode=False):
-        tcp_peers = self._hub_tcp_linked_peers()
-        if hub_server_mode:
-            return tcp_peers
-        if hub_server_hash:
-            peer = self.dest_hash_for(hub_server_hash)
-            if peer and peer != "unknown" and peer in tcp_peers:
-                return [peer]
-            return []
-        return tcp_peers[:1]
-
-    def drain_hub_group_queue(self, hub_server_hash=None, hub_server_mode=False):
-        if not any(is_hub_peer_hash(e.get("target_hash")) for e in self.message_queue):
-            return 0
-        targets = self._hub_send_targets(hub_server_hash, hub_server_mode)
-        if not targets or not any(self._peer_link_active(t) for t in targets):
-            return 0
-        remaining = []
-        sent = 0
-        for entry in self.message_queue:
-            if not is_hub_peer_hash(entry.get("target_hash")):
-                remaining.append(entry)
-                continue
-            if entry.get("type") not in ("text", "emoji"):
-                remaining.append(entry)
-                continue
-            msg_id = entry.get("msg_id")
-            result = self.send_hub_message(
-                entry["content"],
-                msg_id=msg_id,
-                hub_server_hash=hub_server_hash,
-                hub_server_mode=hub_server_mode,
-            )
-            if result:
-                sent += 1
-                if self.on_queue_sent:
-                    try:
-                        self.on_queue_sent(result, HUB_GROUP_PEER, entry)
-                    except Exception as e:
-                        print(f"[queue] on_queue_sent error: {e}")
-            else:
-                remaining.append(entry)
-        if sent:
-            print(f"[queue] Drained {sent} hub group item(s)")
-        self.message_queue = remaining
-        self._save_queue()
-        return sent
-
-    def _schedule_hub_queue_drain(self, delay=None):
-        role, hub_hash = self._load_hub_settings()
-        if role == "off":
-            return
-        wait = QUEUE_DRAIN_DELAY_S if delay is None else delay
-
-        def run():
-            try:
-                if not self.running:
-                    return
-                role_now, hub_hash_now = self._load_hub_settings()
-                if role_now == "off":
-                    return
-                self.drain_hub_group_queue(
-                    hub_server_hash=hub_hash_now,
-                    hub_server_mode=(role_now == "server"),
-                )
-            except Exception as e:
-                print(f"[queue] Hub drain error: {e}")
-
-        timer = threading.Timer(wait, run)
-        timer.daemon = True
-        timer.start()
 
 
     def _setup_inbound_destination(self, identity, attr_name):
@@ -2394,62 +2213,6 @@ class MessagingBackend(PeerLinkMixin, ConnectMixin, HubMixin, QueueMixin, Transf
     def _interrupted(self):
         return self.shutdown_requested or not self.running
 
-
-    def send_hub_message(self, text, receipt_callback=None, msg_id=None,
-                       hub_server_hash=None, hub_server_mode=False):
-        role, _ = self._load_hub_settings()
-        if role == "client" and not self._hub_tcp_linked_peers():
-            self.ensure_hub_link(background=True)
-        msg = ChatMessage(MESSAGE_TYPE_TEXT, text, msg_id=msg_id)
-        msg.hub_group = True
-        data = msg.to_json().encode("utf-8")
-        targets = self._hub_send_targets(
-            hub_server_hash=hub_server_hash,
-            hub_server_mode=hub_server_mode,
-        )
-        sent = False
-        for peer in targets:
-            if not peer or is_hub_peer_hash(peer):
-                continue
-            link = self._link_for_peer(peer)
-            if not link:
-                continue
-            try:
-                mtu = getattr(link, "mtu", 500)
-                if len(data) > mtu - 50:
-                    if not self._send_long_text(msg, text, data, receipt_callback, link):
-                        print(f"[hub] send failed to {peer[:16]}: long text transfer failed")
-                        continue
-                else:
-                    packet = RNS.Packet(link, data)
-                    packet.send()
-                sent = True
-            except Exception as e:
-                print(f"[hub] send failed to {peer[:16]}: {e}")
-        if not sent:
-            print("[hub] send_hub_message: no active link")
-            return False
-        print(f"[hub] Sent group message: {text[:50]}...")
-        self._sent_messages[msg.msg_id] = msg
-        self._pending_sends[msg.msg_id] = time.time()
-        if receipt_callback:
-            self._receipt_callbacks[msg.msg_id] = receipt_callback
-        return msg
-
-    def relay_hub_message(self, chat_msg, sender_hash):
-        if not getattr(chat_msg, "hub_group", False):
-            return
-        data = chat_msg.to_json().encode("utf-8")
-        for peer in self._hub_tcp_linked_peers():
-            if is_hub_peer_hash(peer) or self.hashes_equivalent(peer, sender_hash):
-                continue
-            link = self._link_for_peer(peer)
-            if not link:
-                continue
-            try:
-                RNS.Packet(link, data).send()
-            except Exception as e:
-                print(f"[hub] relay failed to {peer[:16]}: {e}")
 
     def peer_send_ready(self, target_peer=None, prefer_transport=None):
         peer = self.dest_hash_for(

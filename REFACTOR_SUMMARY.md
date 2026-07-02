@@ -66,6 +66,16 @@ Extracted ~830 lines into `TransferMixin` in `transfer.py`:
 
 `MessagingBackend` now inherits `TransferMixin`. `backend.py` is ~2,520 lines.
 
+## Phase 6 — hub.py extraction (done)
+
+Expanded `HubMixin` in `hub.py` (~400 lines) with full hub relay logic moved from `backend.py`:
+
+- `_load_hub_settings`, `_hub_endpoint_from_settings`, `_link_is_hub_transport`, `_link_is_hub_tcp`
+- `_hub_tcp_linked_peers`, `_hub_send_targets`, `send_hub_message`, `relay_hub_message`
+- `drain_hub_group_queue`, `ensure_hub_link`, inbound hub TCP scope helpers
+
+`backend.py` is ~2,200 lines after Phase 6.
+
 ## Planned phases
 
 | Phase | Target | Notes |
@@ -74,7 +84,7 @@ Extracted ~830 lines into `TransferMixin` in `transfer.py`:
 | 3 | `connect.py` | Done — see above |
 | 4 | `queue.py` | Done — see above |
 | 5 | `transfer.py` | Done — see above |
-| 6 | `hub.py` | Hub relay and group messaging |
+| 6 | `hub.py` | Done — see above |
 | 7 | `announce.py` | Announce loops, serial burst |
 | 8 | `web/server.py` split | Routes vs WS vs discovery helpers |
 | 9 | Android | Stop committing bundle; sync-only at build (optional) |
@@ -95,7 +105,7 @@ bash scripts/sync-android.sh   # after editing chatx5/
 
 ## Remaining technical debt
 
-- `backend.py` still ~2,520 lines — next extraction is `announce.py` (Phase 7).
+- `backend.py` still ~2,200 lines — next extraction is `announce.py` (Phase 7).
 - `web/server.py` still ~5,700 lines.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.

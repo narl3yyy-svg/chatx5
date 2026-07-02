@@ -732,6 +732,8 @@ class TransferMixin:
                   transfer_id=None, target_peer=None, link=None):
         peer = self.dest_hash_for(target_peer or self.active_peer_hash or "")
         link = link or self._best_transfer_link(peer) or self._outgoing_link(peer)
+        if link:
+            self._optimise_link_mtu(link)
         if not link or not os.path.exists(file_path):
             print(f"[messaging] send_file: no link to {peer[:16] if peer else 'peer'} or missing file")
             return False
@@ -756,7 +758,7 @@ class TransferMixin:
                     self.lan_transfer_enabled
                     and fsize >= LAN_HTTP_MIN_BYTES
                     and physical_lan_reachable()
-                    and not self._hub_transport_active()
+                    and not self._peer_uses_hub_transport(peer)
                 ):
                     lan_msg = self._send_file_lan_http(
                         file_path, msg_type, fname, fsize, transfer_id, link, peer, progress_callback,

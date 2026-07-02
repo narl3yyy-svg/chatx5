@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatx5"
-version = "0.5.20"
+version = "0.5.21"
 description = "Decentralized chat over Reticulum Network Stack"
 readme = "README.md"
 license = {text = "GPL-3.0-only"}
