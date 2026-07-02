@@ -2,6 +2,19 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.5] — 2026-07-02
+
+### Fixed
+- **Hub client IP field** — the Hub host/port input no longer disappears while you type. `updateHubUi()` now derives client-field visibility from the live Hub-mode dropdown selection instead of the saved role, so a background `/api/network-status` poll can't hide the input mid-edit.
+- **Hub runtime apply** — `_apply_hub_runtime` reads `self.messaging` defensively, so a background `threading.Timer` firing during startup/teardown no longer raises `AttributeError`.
+
+### Changed
+- **Phase 10 refactor** — transport failover + session-reconnect logic (~550 lines) extracted from `backend.py` into `core/messaging/failover.py` (`FailoverMixin`). `backend.py` is now ~1,108 lines. Public import paths and behaviour unchanged.
+- Removed dead `_null_context()` from `backend.py` and the now-unneeded `E402` ruff ignore; corrected the README license label to `GPL-3.0-only`.
+
+### CI
+- Added `.github/workflows/checks.yml` — runs `scripts/check.sh` (ruff + mypy + unit tests + Android bundle sync verification) on every push and PR to `main`.
+
 ## [0.6.4] — 2026-07-02
 
 ### Changed
