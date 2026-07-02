@@ -1,0 +1,76 @@
+"""Tests for canonical connect hash resolution."""
+
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from chatx5.core.discovery import message_dest_hash_for_identity, normalize_hash
+
+
+class PeerIdentityTests(unittest.TestCase):
+    def test_connect_hash_differs_from_identity_hex(self):
+        try:
+            import RNS
+        except ImportError:
+            self.skipTest("RNS not installed")
+        ident = RNS.Identity()
+        identity_hex = normalize_hash(RNS.hexrep(ident.hash))
+        connect = message_dest_hash_for_identity(ident)
+        self.assertTrue(connect)
+        self.assertEqual(len(connect), 32)
+        self.assertNotEqual(connect, identity_hex)
+        dest = RNS.Destination(
+            ident, RNS.Destination.OUT, RNS.Destination.SINGLE, "chatx5", "messages"
+        )
+        self.assertEqual(connect, normalize_hash(dest.hash.hex()))
+
+    def test_discovery_dedupe_prefers_rns_over_beacon(self):
+        from chatx5.core.discovery import PeerDiscovery
+        import time
+        disc = PeerDiscovery()
+        disc.accept_peers = True
+        now = time.time()
+        disc.peers["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = {
+            "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "aaaaaaaa",
+            "ip": "10.0.30.101",
+            "last_seen": now,
+            "via": "beacon",
+        }
+        disc.peers["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] = {
+            "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "name": "ubuntu",
+            "ip": "10.0.30.101",
+            "last_seen": now - 1,
+            "via": "rns",
+            "pubkey": "dGVzdA==",
+        }
+        peers = disc.get_peers(scope_ip="10.0.30.112")
+        self.assertEqual(len(peers), 1)
+        self.assertEqual(peers[0]["hash"], "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+
+    def test_purge_stale_known_destinations_removes_wrong_hash(self):
+        try:
+            import RNS
+        except ImportError:
+            self.skipTest("RNS not installed")
+        from chatx5.core.peer_identity import purge_stale_known_destinations
+
+        pubkey = b"\x01" * (RNS.Identity.KEYSIZE // 8)
+        stale_dest = bytes.fromhex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        canonical = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        identity_bytes = bytes.fromhex("cccccccccccccccccccccccccccccccc")
+        with RNS.Identity.known_destinations_lock:
+            RNS.Identity.known_destinations[stale_dest] = (
+                identity_bytes, None, pubkey,
+            )
+        removed = purge_stale_known_destinations(pubkey, canonical, identity_bytes)
+        self.assertEqual(removed, 1)
+        with RNS.Identity.known_destinations_lock:
+            self.assertNotIn(stale_dest, RNS.Identity.known_destinations)
+
+
+if __name__ == "__main__":
+    unittest.main()

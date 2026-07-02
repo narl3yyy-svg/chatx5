@@ -1,0 +1,744 @@
+"""LAN helpers for RNS UDP announces (unicast supplements broadcast on Android/Wi-Fi)."""
+
+import socket
+import time
+
+import RNS
+
+from chatx5.core.lan_targets import directed_broadcasts, efficient_unicast_hosts
+from chatx5.utils.platform import (
+    is_android,
+    lan_connected,
+    lan_ip,
+    list_network_interfaces,
+    physical_lan_reachable,
+)
+
+RNS_PORT = 4242
+
+
+def lan_ip_reachable():
+    """True when a live LAN link exists (carrier up), not a stale unplugged address."""
+    try:
+        return bool(lan_connected())
+    except Exception:
+        return False
+
+
+def unicast_announce_packet(packet, peer_ip=None, port=RNS_PORT, subnet_probe=None):
+    """Send a packed RNS announce directly to peer IP and/or subnet hosts."""
+    if packet is None:
+        return 0
+    if not getattr(packet, "packed", False):
+        packet.pack()
+    data = getattr(packet, "raw", None)
+    if not data:
+        return 0
+
+    if subnet_probe is None:
+        subnet_probe = is_android()
+
+    targets = []
+    if peer_ip:
+        targets.append(peer_ip)
+    if subnet_probe:
+        for host in efficient_unicast_hosts(peer_ip=peer_ip, known_ips=known_udp_peer_ips()):
+            if host not in targets:
+                targets.append(host)
+
+    if not targets:
+        return 0
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    except OSError:
+        pass
+
+    sent = 0
+    for host in targets:
+        try:
+            sock.sendto(data, (host, port))
+            sent += 1
+        except OSError:
+            pass
+    try:
+        sock.close()
+    except OSError:
+        pass
+    return sent
+
+
+def build_announce_packet(destination, app_data):
+    if not destination:
+        return None
+    return destination.announce(app_data=app_data, send=False)
+
+
+def _dest_bytes_for_hash(hash_hex):
+    clean = (hash_hex or "").replace(":", "").strip().lower()
+    if len(clean) != 32:
+        return None
+    try:
+        return bytes.fromhex(clean)
+    except ValueError:
+        return None
+
+
+def request_path_for_hash(hash_hex):
+    dest_bytes = _dest_bytes_for_hash(hash_hex)
+    if dest_bytes is None:
+        return False
+    try:
+        RNS.Transport.request_path(dest_bytes)
+        return True
+    except Exception:
+        return False
+
+
+def interface_family(iface):
+    if iface is None:
+        return ""
+    name = type(iface).__name__.lower()
+    text = str(iface).lower()
+    if "serial" in name or "tty" in text:
+        return "serial"
+    if "tcpclient" in name or "tcpserver" in name or "tcpinterface" in name:
+        return "tcp"
+    if "autointerfacepeer" in name or "auto" in name:
+        return "lan"
+    if "udp" in name:
+        return "udp"
+    return "other"
+
+
+def interface_is_healthy(iface):
+    if iface is None:
+        return False
+    if getattr(iface, "detached", False):
+        return False
+    if hasattr(iface, "online") and not iface.online:
+        return False
+    fam = interface_family(iface)
+    if fam in ("udp", "lan") and not is_android() and not physical_lan_reachable():
+        return False
+    owner = getattr(iface, "owner", None)
+    if owner is not None:
+        if getattr(owner, "detached", False):
+            return False
+        if hasattr(owner, "online") and not owner.online:
+            return False
+        spawned = getattr(owner, "spawned_interfaces", None)
+        addr = getattr(iface, "addr", None)
+        if isinstance(spawned, dict) and addr is not None and addr not in spawned:
+            return False
+        ifname = getattr(iface, "ifname", None)
+        if ifname:
+            timed_out = getattr(owner, "timed_out_interfaces", None)
+            if isinstance(timed_out, dict) and timed_out.get(ifname) is True:
+                return False
+    return True
+
+
+def lan_mesh_has_peer():
+    """True when at least one healthy AutoInterfacePeer exists (real LAN mesh path)."""
+    for iface in iter_transport_interfaces():
+        if type(iface).__name__ != "AutoInterfacePeer":
+            continue
+        if interface_is_healthy(iface):
+            return True
+    return False
+
+
+def serial_interface_online(port=None):
+    for iface in iter_transport_interfaces():
+        if type(iface).__name__ != "SerialInterface":
+            continue
+        if port and getattr(iface, "port", None) != port:
+            continue
+        if interface_is_healthy(iface):
+            return iface
+    return None
+
+
+def udp_interface_online():
+    for iface in iter_transport_interfaces():
+        if type(iface).__name__ != "UDPInterface":
+            continue
+        if interface_is_healthy(iface):
+            return iface
+    return None
+
+
+def iter_transport_interfaces():
+    for iface in getattr(RNS.Transport, "interfaces", []) or []:
+        yield iface
+        spawned = getattr(iface, "spawned_interfaces", None)
+        if isinstance(spawned, dict):
+            for child in spawned.values():
+                yield child
+
+
+def online_interfaces(family=None):
+    out = []
+    for iface in iter_transport_interfaces():
+        if not interface_is_healthy(iface):
+            continue
+        if family and interface_family(iface) != family:
+            continue
+        out.append(iface)
+    return out
+
+
+def peer_path_entry(hash_hex):
+    dest_bytes = _dest_bytes_for_hash(hash_hex)
+    if dest_bytes is None:
+        return None, None
+    try:
+        with RNS.Transport.path_table_lock:
+            entry = RNS.Transport.path_table.get(dest_bytes)
+        if entry and len(entry) > 5:
+            return entry, entry[5]
+    except Exception:
+        pass
+    return None, None
+
+
+def peer_path_hops(hash_hex):
+    """Hop count from the local path table (None when unknown)."""
+    entry, _ = peer_path_entry(hash_hex)
+    if not entry or len(entry) <= 2:
+        return None
+    try:
+        return int(entry[2])
+    except Exception:
+        return None
+
+
+def _dest_key_bytes(destination_hash):
+    if isinstance(destination_hash, bytes):
+        return destination_hash
+    clean = (destination_hash or "").replace(":", "").strip().lower()
+    if len(clean) != 32:
+        return None
+    try:
+        return bytes.fromhex(clean)
+    except ValueError:
+        return None
+
+
+def announce_packet_receiving_interface(destination_hash):
+    """Receiving interface from the stored announce packet (not path_table)."""
+    dest_bytes = _dest_key_bytes(destination_hash)
+    if dest_bytes is None:
+        return None
+    try:
+        with RNS.Transport.announce_table_lock:
+            entry = RNS.Transport.announce_table.get(dest_bytes)
+        if not entry or len(entry) <= 5:
+            return None
+        packet = entry[5]
+        return getattr(packet, "receiving_interface", None)
+    except Exception:
+        return None
+
+
+def announce_receiving_interface(destination_hash):
+    """RNS interface that most recently received an announce for this destination."""
+    dest_bytes = _dest_key_bytes(destination_hash)
+    if dest_bytes is None:
+        return None
+    packet_iface = announce_packet_receiving_interface(destination_hash)
+    if packet_iface is not None and interface_family(packet_iface) == "serial":
+        return packet_iface
+    try:
+        with RNS.Transport.path_table_lock:
+            entry = RNS.Transport.path_table.get(dest_bytes)
+        if entry and len(entry) > 5 and entry[5] is not None:
+            return entry[5]
+    except Exception:
+        pass
+    return packet_iface
+
+
+def restore_serial_path_from_announce(hash_hex):
+    """Repair path_table when a USB announce arrived but LAN rebroadcast stole the route."""
+    clean = _normalize_dest_hex(hash_hex)
+    dest_bytes = _dest_bytes_for_hash(clean)
+    if dest_bytes is None:
+        return None
+    serial_recv = announce_packet_receiving_interface(dest_bytes)
+    if serial_recv is None or interface_family(serial_recv) != "serial":
+        return peer_path_on_family(clean, "serial")
+    if not interface_is_healthy(serial_recv):
+        return peer_path_on_family(clean, "serial")
+    existing = peer_path_on_family(clean, "serial")
+    if existing is not None:
+        pin_serial_path(clean)
+        return existing
+    prune_lan_path_for_peer(clean)
+    clear_peer_path(clean)
+    try:
+        now = time.time()
+        with RNS.Transport.path_table_lock:
+            RNS.Transport.path_table[dest_bytes] = [
+                now, 0, 1, now + 3600, dest_bytes, serial_recv,
+            ]
+    except Exception:
+        return None
+    pin_serial_path(clean)
+    return serial_recv
+
+
+def reinforce_serial_peer_path(hash_hex):
+    """Keep USB peers on SerialInterface and refresh missing paths."""
+    clean = _normalize_dest_hex(hash_hex)
+    if len(clean) != 32:
+        return None
+    restored = restore_serial_path_from_announce(clean)
+    if restored is not None:
+        return restored
+    pin_serial_path(clean)
+    prune_lan_path_for_peer(clean)
+    iface = peer_path_on_family(clean, "serial")
+    if iface is not None:
+        return iface
+    request_paths_for_hash(clean, family="serial")
+    return peer_path_on_family(clean, "serial")
+
+
+def is_lan_transport_family(family):
+    return family in ("udp", "lan", "tcp")
+
+
+def prune_bridged_lan_paths():
+    """Drop multi-hop LAN paths when serial+LAN are both up (rebroadcast bridge artifacts)."""
+    try:
+        from chatx5.core.transport_isolation import dual_transport_isolation_enabled
+        if not dual_transport_isolation_enabled():
+            return 0
+    except Exception:
+        return 0
+    removed = 0
+    try:
+        with RNS.Transport.path_table_lock:
+            for dest_bytes, entry in list(RNS.Transport.path_table.items()):
+                if not entry or len(entry) <= 5:
+                    continue
+                iface = entry[5]
+                fam = interface_family(iface)
+                if fam not in ("udp", "lan", "tcp"):
+                    continue
+                try:
+                    hops = int(entry[2])
+                except Exception:
+                    hops = 0
+                if hops > 1:
+                    RNS.Transport.path_table.pop(dest_bytes, None)
+                    removed += 1
+    except Exception:
+        pass
+    return removed
+
+
+def prune_cross_zone_paths(serial_peer_hashes=None):
+    """Drop LAN paths for serial-only peers and serial paths for in-scope LAN peers."""
+    serial_peers = {
+        (h or "").replace(":", "").strip().lower()
+        for h in (serial_peer_hashes or ())
+        if (h or "").strip()
+    }
+    removed = 0
+    try:
+        with RNS.Transport.path_table_lock:
+            for dest_bytes, entry in list(RNS.Transport.path_table.items()):
+                if not entry or len(entry) <= 5:
+                    continue
+                iface = entry[5]
+                fam = interface_family(iface)
+                dest_hex = dest_bytes.hex()
+                if dest_hex in serial_peers:
+                    if is_lan_transport_family(fam):
+                        RNS.Transport.path_table.pop(dest_bytes, None)
+                        removed += 1
+                elif fam == "serial" and serial_peers:
+                    RNS.Transport.path_table.pop(dest_bytes, None)
+                    removed += 1
+    except Exception:
+        pass
+    return removed
+
+
+_serial_path_pins = set()
+
+
+def _normalize_dest_hex(hash_hex):
+    return (hash_hex or "").replace(":", "").strip().lower()
+
+
+def pin_serial_path(hash_hex):
+    clean = _normalize_dest_hex(hash_hex)
+    if len(clean) == 32:
+        _serial_path_pins.add(clean)
+
+
+def unpin_serial_path(hash_hex):
+    _serial_path_pins.discard(_normalize_dest_hex(hash_hex))
+
+
+def serial_path_is_pinned(hash_hex):
+    return _normalize_dest_hex(hash_hex) in _serial_path_pins
+
+
+def ensure_serial_path_pinned(hash_hex, request=True):
+    """Drop competing LAN paths and keep the peer routed over SerialInterface."""
+    clean = _normalize_dest_hex(hash_hex)
+    if len(clean) != 32:
+        return False
+    pin_serial_path(clean)
+    prune_lan_path_for_peer(clean)
+    _, path_iface = peer_path_entry(clean)
+    if path_iface and interface_family(path_iface) != "serial":
+        clear_peer_path(clean)
+    if request and peer_path_on_family(clean, "serial") is None:
+        request_paths_for_hash(clean, family="serial")
+    return peer_path_on_family(clean, "serial") is not None
+
+
+def prune_lan_path_for_peer(hash_hex):
+    """Remove a cached LAN path for one peer when serial is the active transport."""
+    dest_bytes = _dest_bytes_for_hash(hash_hex)
+    if dest_bytes is None:
+        return False
+    try:
+        with RNS.Transport.path_table_lock:
+            entry = RNS.Transport.path_table.get(dest_bytes)
+            if not entry or len(entry) <= 5:
+                return False
+            if is_lan_transport_family(interface_family(entry[5])):
+                RNS.Transport.path_table.pop(dest_bytes, None)
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def peer_path_on_family(hash_hex, family):
+    """Return path interface for peer when it uses the given transport family."""
+    scrub_peer_path(hash_hex)
+    _, path_iface = peer_path_entry(hash_hex)
+    if path_iface and interface_is_healthy(path_iface):
+        if family is None or interface_family(path_iface) == family:
+            return path_iface
+    return None
+
+
+def clear_peer_path(hash_hex):
+    dest_bytes = _dest_bytes_for_hash(hash_hex)
+    if dest_bytes is None:
+        return False
+    try:
+        with RNS.Transport.path_table_lock:
+            if dest_bytes in RNS.Transport.path_table:
+                RNS.Transport.path_table.pop(dest_bytes, None)
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def scrub_peer_path(hash_hex):
+    """Drop cached path when it points at an offline interface."""
+    _, path_iface = peer_path_entry(hash_hex)
+    if path_iface and not interface_is_healthy(path_iface):
+        return clear_peer_path(hash_hex)
+    return False
+
+
+def clear_peer_path_unless_family(hash_hex, family):
+    """Drop cached path when it points at a different transport family."""
+    scrub_peer_path(hash_hex)
+    _, path_iface = peer_path_entry(hash_hex)
+    if path_iface and interface_family(path_iface) != family:
+        return clear_peer_path(hash_hex)
+    return False
+
+
+def prune_stale_lan_paths():
+    """Drop cached UDP/LAN paths when ethernet/Wi-Fi is not reachable."""
+    removed = 0
+    try:
+        with RNS.Transport.path_table_lock:
+            for dest_bytes, entry in list(RNS.Transport.path_table.items()):
+                if not entry or len(entry) <= 5:
+                    continue
+                iface = entry[5]
+                fam = interface_family(iface)
+                stale_lan = fam in ("udp", "lan") and (
+                    not interface_is_healthy(iface)
+                    or (not is_android() and not physical_lan_reachable())
+                )
+                if stale_lan:
+                    RNS.Transport.path_table.pop(dest_bytes, None)
+                    removed += 1
+    except Exception:
+        pass
+    return removed
+
+
+def clear_paths_on_family(family):
+    """Remove path-table entries tied to a transport family (e.g. unplugged serial)."""
+    removed = 0
+    try:
+        with RNS.Transport.path_table_lock:
+            for dest_bytes, entry in list(RNS.Transport.path_table.items()):
+                if not entry or len(entry) <= 5:
+                    continue
+                iface = entry[5]
+                if interface_family(iface) == family:
+                    RNS.Transport.path_table.pop(dest_bytes, None)
+                    removed += 1
+    except Exception:
+        pass
+    return removed
+
+
+def clear_all_lan_paths():
+    """Drop every cached UDP/LAN path (e.g. after NIC/subnet change)."""
+    return clear_paths_on_family("udp") + clear_paths_on_family("lan")
+
+
+def clear_paths_except_families(keep_families):
+    """Drop path-table entries not on one of the kept transport families."""
+    keep = {f for f in (keep_families or ()) if f}
+    if not keep:
+        return 0
+    removed = 0
+    try:
+        with RNS.Transport.path_table_lock:
+            for dest_bytes, entry in list(RNS.Transport.path_table.items()):
+                if not entry or len(entry) <= 5:
+                    continue
+                iface = entry[5]
+                if interface_family(iface) not in keep:
+                    RNS.Transport.path_table.pop(dest_bytes, None)
+                    removed += 1
+    except Exception:
+        pass
+    return removed
+
+
+def suppress_offline_lan_transports():
+    """Detach UDP/AutoInterface when physical LAN is down (avoids errno 101/99 spam)."""
+    if is_android() or physical_lan_reachable():
+        return 0
+    detached = 0
+    for iface in list(iter_transport_interfaces()):
+        name = type(iface).__name__
+        if name not in ("UDPInterface", "AutoInterface", "AutoInterfacePeer"):
+            continue
+        try:
+            if hasattr(iface, "detach"):
+                iface.detach()
+                detached += 1
+        except Exception:
+            pass
+    return detached
+
+
+def detach_unhealthy_interfaces():
+    detached = 0
+    for iface in list(iter_transport_interfaces()):
+        if interface_is_healthy(iface):
+            continue
+        try:
+            if hasattr(iface, "detach"):
+                iface.detach()
+                detached += 1
+        except Exception:
+            pass
+    detached += suppress_offline_lan_transports()
+    return detached
+
+
+def request_paths_for_hash(hash_hex, family=None):
+    """Request a path to peer on online RNS interfaces (optionally one family)."""
+    dest_bytes = _dest_bytes_for_hash(hash_hex)
+    if dest_bytes is None:
+        return False
+    try:
+        targets = online_interfaces(family=family)
+        if not targets:
+            RNS.Transport.request_path(dest_bytes)
+            return True
+        for iface in targets:
+            try:
+                RNS.Transport.request_path(dest_bytes, on_interface=iface)
+            except Exception:
+                pass
+        return True
+    except Exception:
+        return False
+
+
+def wait_for_peer_path(hash_hex, family=None, timeout_s=12.0, poll_s=0.25):
+    """Wait until path table lists peer on a healthy interface (optional family filter)."""
+    families = (family,) if family is not None else (None,)
+    return wait_for_peer_path_families(hash_hex, families=families, timeout_s=timeout_s, poll_s=poll_s)
+
+
+def wait_for_peer_path_families(hash_hex, families=(None,), timeout_s=12.0, poll_s=0.25,
+                                should_stop=None):
+    """Wait until peer path exists on any of the requested transport families."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if should_stop and should_stop():
+            return None
+        scrub_peer_path(hash_hex)
+        _, path_iface = peer_path_entry(hash_hex)
+        if path_iface and interface_is_healthy(path_iface):
+            fam = interface_family(path_iface)
+            for want in families:
+                if want is None or fam == want:
+                    return path_iface
+        time.sleep(poll_s)
+    return None
+
+
+def udp_interface_targets():
+    """Broadcast targets for patching UDPInterface forward_ip (Android fallback)."""
+    return directed_broadcasts()
+
+
+_udp_patched = False
+_known_peer_ips = set()
+
+
+def register_udp_peer_ip(ip):
+    """Remember a peer LAN IP for Android UDP unicast fan-out."""
+    host = (ip or "").strip()
+    if not host or host.startswith("127.") or host.startswith("169.254."):
+        return
+    _known_peer_ips.add(host)
+
+
+def unregister_udp_peer_ip(ip):
+    host = (ip or "").strip()
+    if host:
+        _known_peer_ips.discard(host)
+
+
+def prune_known_udp_peer_ips(scope_ip=None):
+    """Drop cached UDP targets outside the active LAN scope."""
+    scope = (scope_ip or "").strip()
+    if not scope:
+        return 0
+    removed = 0
+    for host in list(_known_peer_ips):
+        try:
+            from chatx5.utils.lan_scope import peer_in_scope
+            if not peer_in_scope(host, scope):
+                _known_peer_ips.discard(host)
+                removed += 1
+        except Exception:
+            pass
+    return removed
+
+
+def known_udp_peer_ips():
+    return sorted(_known_peer_ips)
+
+
+def register_udp_peer_ips_from_discovery(peers):
+    for peer in peers or []:
+        register_udp_peer_ip(peer.get("ip"))
+
+
+def _udp_unicast_targets(peer_ip=None, subnet_scan=None):
+    targets = []
+    if peer_ip:
+        register_udp_peer_ip(peer_ip)
+    for host in sorted(_known_peer_ips):
+        if host not in targets:
+            targets.append(host)
+    if subnet_scan is None:
+        subnet_scan = is_android()
+    if subnet_scan:
+        for host in efficient_unicast_hosts(peer_ip=peer_ip, known_ips=known_udp_peer_ips()):
+            if host not in targets:
+                targets.append(host)
+    return targets
+
+
+def patch_udp_interface_unicast(force=False):
+    """Prefer directed UDP to known peer IPs; Android falls back to subnet unicast."""
+    global _udp_patched
+    if _udp_patched and not force:
+        return True
+    try:
+        from RNS.Interfaces.UDPInterface import UDPInterface
+    except Exception:
+        return False
+
+    original = UDPInterface.process_outgoing
+
+    def _send_directed(self, data, hosts, port):
+        if not hosts:
+            return False
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        except OSError:
+            pass
+        sent_any = False
+        for host in hosts:
+            try:
+                sock.sendto(data, (host, port))
+                sent_any = True
+            except OSError:
+                pass
+        try:
+            sock.close()
+        except OSError:
+            pass
+        if sent_any:
+            self.txb += len(data)
+        return sent_any
+
+    def process_outgoing(self, data):
+        port = int(getattr(self, "forward_port", None) or RNS_PORT)
+        peer_targets = sorted(_known_peer_ips)
+
+        if peer_targets and _send_directed(self, data, peer_targets, port):
+            return
+
+        if is_android():
+            targets = _udp_unicast_targets(subnet_scan=True)
+            if targets and _send_directed(self, data, targets, port):
+                return
+            forward_ip = getattr(self, "forward_ip", None)
+            if forward_ip and _send_directed(self, data, [forward_ip], port):
+                return
+            RNS.log(
+                "Could not transmit on " + str(self) + " (no UDP targets available)",
+                RNS.LOG_ERROR,
+            )
+            return
+
+        try:
+            original(self, data)
+        except Exception as exc:
+            if peer_targets:
+                if _send_directed(self, data, peer_targets, port):
+                    return
+            RNS.log(
+                "Could not transmit on " + str(self)
+                + ". The contained exception was: " + str(exc),
+                RNS.LOG_ERROR,
+            )
+
+    UDPInterface.process_outgoing = process_outgoing
+    _udp_patched = True
+    label = "Android" if is_android() else "directed"
+    print(f"[network] {label} UDP transmit patch installed (RNS port {RNS_PORT})")
+    return True

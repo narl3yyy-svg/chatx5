@@ -1,0 +1,54 @@
+@echo off
+REM Remove chatx5 install (.venv) and optionally app data on Windows.
+setlocal EnableExtensions EnableDelayedExpansion
+cd /d "%~dp0"
+
+echo.
+echo chatx5 Windows Uninstall
+echo ========================
+echo.
+
+echo [1/4] Stopping chatx5 server and releasing ports...
+call "%~dp0scripts\stop-chatx5.bat"
+echo   Done.
+
+echo [2/4] Removing Python environment...
+if exist ".venv" (
+  rmdir /s /q ".venv"
+  echo   Removed .venv
+) else (
+  echo   No .venv found
+)
+if exist "chatx5.egg-info" (
+  rmdir /s /q "chatx5.egg-info"
+  echo   Removed chatx5.egg-info
+)
+
+echo [3/4] Application data (identity, settings, chat history)...
+set "CONFIG_DIR=%USERPROFILE%\.config\chatx5"
+set "DATA_DIR=%USERPROFILE%\.local\share\chatx5"
+if defined CHATX5_PORTABLE set "PORTABLE_DIR=%CHATX5_PORTABLE%\chatx5-data"
+if not defined PORTABLE_DIR if exist "chatx5-data" set "PORTABLE_DIR=%CD%\chatx5-data"
+
+if exist "%CONFIG_DIR%" (
+  echo   Config: %CONFIG_DIR%
+  set /p RM1=   Remove config? [y/N]:
+  if /I "!RM1!"=="y" rmdir /s /q "%CONFIG_DIR%" && echo   Removed config.
+)
+if exist "%DATA_DIR%" (
+  echo   Data: %DATA_DIR%
+  set /p RM2=   Remove data? [y/N]:
+  if /I "!RM2!"=="y" rmdir /s /q "%DATA_DIR%" && echo   Removed data.
+)
+if defined PORTABLE_DIR if exist "!PORTABLE_DIR!" (
+  echo   Portable: !PORTABLE_DIR!
+  set /p RM3=   Remove portable data? [y/N]:
+  if /I "!RM3!"=="y" rmdir /s /q "!PORTABLE_DIR!" && echo   Removed portable data.
+)
+
+echo [4/4] Cleanup complete.
+echo.
+echo To run again:  run.bat web --share
+echo.
+endlocal
+exit /b 0

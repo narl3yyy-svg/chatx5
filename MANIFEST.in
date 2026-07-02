@@ -1,0 +1,3 @@
+include chatx5/web/static/*
+graft chatx5/web/static
+recursive-include chatx5/web/static *

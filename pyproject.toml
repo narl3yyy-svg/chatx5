@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chatx5"
+version = "0.5.13"
+description = "Decentralized chat over Reticulum Network Stack"
+readme = "README.md"
+license = {text = "GPL-3.0-only"}
+requires-python = ">=3.10"
+dependencies = [
+    "rns>=0.8.0",
+    "aiohttp>=3.9.0",
+]
+
+[project.optional-dependencies]
+voice = ["pyaudio"]
+tui = ["textual>=0.52"]
+full = ["pyaudio", "textual>=0.52"]
+
+[project.scripts]
+chatx5 = "chatx5.app:main"
+chatx5-web = "chatx5.web.server:main"
+
+[tool.setuptools.package-data]
+chatx5 = ["web/static/*"]
