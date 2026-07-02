@@ -2,6 +2,11 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.3] — 2026-07-02
+
+### Changed
+- **Phase 8 refactor (web layer)** — `web/server.py` reduced from ~5,300 lines to a ~500-line orchestrator. HTTP handlers moved to `web/routes/`, WebSocket to `web/ws/`, RNS startup to `web/rns_lifecycle.py`, plus `messaging_bridge`, `peer_connect`, `history_store`, `settings_store`, and `background_tasks` mixins.
+
 ## [0.5.19] — 2026-07-01
 
 ### Fixed

@@ -87,26 +87,42 @@ Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
 
 `MessagingBackend` now inherits `AnnounceMixin` before `ConnectMixin` (connect uses transport-ready helpers). `backend.py` is ~1,900 lines.
 
-## Phase 8 — `web/server.py` split (in progress)
+## Phase 8 — `web/server.py` split (done)
 
-`ChatWebServer` was ~5,700 lines; split incrementally without behavior changes.
+`ChatWebServer` was ~5,300 lines; now a **536-line orchestrator** that wires mixins and lifecycle only.
 
 | Step | Module | Status | Contents |
 |------|--------|--------|----------|
+| 8a | `web/routes/` | **done** | `register.py` route table; handler mixins per domain (`static`, `identity`, `contacts`, `discovery`, `transfers`, `queue`, `debug`, `system`) |
+| 8b | `web/ws/` | **done** | `WebSocketMixin` — connect, broadcast, WS protocol dispatch |
 | 8c | `web/hub_runtime.py` | **done** | `HubRuntimeMixin` — hub settings, TCP hot-add, host resolve, server hash |
 | 8d | `web/discovery_bridge.py` | **done** | `DiscoveryBridgeMixin` — scope, peer callbacks, contact sync, supersede |
+| 8e | `web/rns_lifecycle.py` | **done** | `RNSLifecycleMixin` — `start_rns`, interface config, announce, network API handlers |
+| 8f | `web/server.py` | **done** | Slim orchestrator — `__init__`, peer helpers, lifecycle, `run` / `run_embedded` |
 | 8g | `web/share_browser.py` | **done** | `ShareBrowserMixin` — shared folder sessions, remote proxy, P2P + hub group |
 | 8h | release notes API | **done** | `GET /api/release-notes` — full version history for Settings → About |
 
+**Supporting modules (Phase 8 structural split):**
+
+```
+chatx5/web/
+  server.py              # 536 lines — orchestrator
+  rns_utils.py           # port/process helpers, CONFIG_DIR, detect_lan_ip
+  rns_lifecycle.py       # RNS startup, interfaces, network HTTP handlers
+  messaging_bridge.py    # messaging callbacks, link/progress events
+  peer_connect.py        # connect/request_connect, failover loop
+  history_store.py       # history load/save/prune + history HTTP handlers
+  settings_store.py      # settings load/save + settings HTTP handlers
+  background_tasks.py    # probe loop, discovery broadcaster, queue retry
+  routes/register.py     # single route table (delegates to server handlers)
+  ws/manager.py          # WebSocketMixin
+```
+
 **v0.6.2 hub group fix:** Hub server accepts inbound TCP client links in parallel with LAN/serial P2P; hub client requires dedicated hub-TCP link for `send_hub_message` (no LAN session reuse).
-| 8a | `web/routes/` | planned | HTTP route table + thin handlers |
-| 8b | `web/ws/` | planned | WebSocket connect, broadcast, message fan-out |
-| 8e | `web/rns_lifecycle.py` | planned | RNS startup, interface config, announce scheduling |
-| 8f | `web/server.py` | in progress | Slim orchestrator (~5,260 lines after 8c+8d; target ~800) |
 
-`ChatWebServer` now inherits `HubRuntimeMixin`, `DiscoveryBridgeMixin`, and `ShareBrowserMixin`. Public API unchanged.
+`ChatWebServer` inherits all route/ws/rns mixins plus `HubRuntimeMixin`, `DiscoveryBridgeMixin`, and `ShareBrowserMixin`. Public API unchanged (`from chatx5.web.server import ChatWebServer`, `detect_lan_ip`, etc.).
 
-Each step ships with tests green and no API changes to `run.sh` / Android.
+**282 tests pass** (1 skipped). Android bundle synced via `scripts/sync-android.sh`.
 
 ## Planned phases
 
@@ -118,7 +134,7 @@ Each step ships with tests green and no API changes to `run.sh` / Android.
 | 5 | `transfer.py` | Done — see above |
 | 6 | `hub.py` | Done — see above |
 | 7 | `announce.py` | Done — see above |
-| 8 | `web/server.py` split | In progress — 8c+8d done (hub_runtime, discovery_bridge) |
+| 8 | `web/server.py` split | Done — orchestrator 536 lines; routes/ws/rns_lifecycle extracted |
 | 9 | Android | Stop committing bundle; sync-only at build (optional) |
 | 10 | Perf | Peer hash index sets, probe cache, WS debounce |
 
@@ -138,7 +154,7 @@ bash scripts/sync-android.sh   # after editing chatx5/
 ## Remaining technical debt
 
 - `backend.py` still ~1,900 lines.
-- `web/server.py` ~5,260 lines after Phase 8c+8d; routes/ws/rns_lifecycle remain.
+- Extracted modules still carry broad import headers from the automated split — trim unused imports over time.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.
 
