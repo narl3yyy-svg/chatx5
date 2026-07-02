@@ -78,10 +78,26 @@ class HubMixin:
             return port == int(hub_port or 4242)
         return False
 
+    def _link_registered_as_hub_tcp(self, link):
+        """True when link was registered under a peer:tcp key (hub relay session)."""
+        if not link:
+            return False
+        for key, mapped in self.peer_links.items():
+            if mapped is not link:
+                continue
+            text = str(key)
+            if ":" in text and text.rsplit(":", 1)[-1] == "tcp":
+                return True
+        return False
+
     def _link_is_hub_tcp(self, link):
         """True when a link uses the hub TCP transport (client dial or server listener)."""
         if not link or not self._hub_transport_active():
             return False
+        # Inbound hub relay links may report a UDP/serial attached interface;
+        # trust explicit :tcp registration from _register_peer_link.
+        if self._link_registered_as_hub_tcp(link):
+            return True
         role, _ = self._load_hub_settings()
         hub_host, hub_port = self._hub_endpoint_from_settings()
         iface = self._link_attached_interface(link)

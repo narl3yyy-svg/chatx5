@@ -301,7 +301,8 @@ class DiscoveryBridgeMixin:
                         self.messaging._register_peer_link(link, canon)
                         self.messaging._cache_link_peer(link, canon)
                 elif not same_peer:
-                    self.messaging.disconnect_peer(old)
+                    self.messaging.disconnect_peer(old, transport="lan")
+                    self.messaging.disconnect_peer(old, transport="serial")
                     self.messaging.clear_queue(old)
             new_via = ((new_peer or {}).get("via") or "").strip().lower()
             contact = find_contact_by_hash(self.config_dir, old)

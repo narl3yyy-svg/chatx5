@@ -1987,6 +1987,8 @@ let viewingVia = null;
 let linkPeer = null;
 let linkedPeers = new Set();
 let connectInFlight = false;
+let connectGeneration = 0;
+let chatSwitchGen = 0;
 let progressLastUpdate = 0;
 let lastLinkToastAt = 0;
 const LS_VIEWING_PEER = 'chatx5_viewing_peer';
@@ -2623,7 +2625,12 @@ function syncUiState() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({type: 'visibility', hidden: document.hidden}));
   if (viewingPeer) {
-    ws.send(JSON.stringify({type: 'viewing', peer: viewingPeer}));
+    ws.send(JSON.stringify({
+      type: 'viewing',
+      peer: viewingPeer,
+      via: viewingVia ? normalizeVia(viewingVia) : null,
+      chat_gen: chatSwitchGen,
+    }));
   }
 }
 
@@ -3196,9 +3203,9 @@ function handleWSMessage(msg) {
         connectInFlight = false;
         if (!viewingPeer || peersMatch(viewingPeer, h)) {
           openChat(h, false, {via: linkVia});
+          toast('Connected');
+          lastLinkToastAt = now;
         }
-        toast('Connected');
-        lastLinkToastAt = now;
       } else if (msg.data.path_switch && viewingPeer && peersMatch(viewingPeer, h)) {
         updatePeerHeader();
         if (now - lastLinkToastAt > 45000) {
@@ -4117,9 +4124,9 @@ function clearPeerHistory(peerHash) {
 function connectTo(hash, ip, port, via, opts) {
   opts = opts || {};
   const wake = !!opts.wake;
+  const myGen = ++connectGeneration;
   if (connectInFlight) {
-    toast('Connection already in progress...');
-    return;
+    connectInFlight = false;
   }
   if (isPeerLinked(hash, via) && !wake) {
     openChat(hash, false, {via});
@@ -4129,6 +4136,21 @@ function connectTo(hash, ip, port, via, opts) {
   if (!via) {
     const meta = peerMetaForHash(hash);
     via = meta?.via;
+  }
+  const targetVia = via ? normalizeVia(via) : null;
+  if (
+    viewingPeer && peersMatch(viewingPeer, hash)
+    && viewingVia && targetVia
+    && normalizeVia(viewingVia) !== targetVia
+    && isPeerLinked(hash, viewingVia)
+  ) {
+    const prevVia = normalizeVia(viewingVia);
+    setLinkPeer(hash, false, prevVia);
+    fetch('/api/disconnect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({peer: hash, via: prevVia}),
+    }).catch(() => {});
   }
   if (via === 'serial') {
     ip = undefined;
@@ -4156,6 +4178,7 @@ function connectTo(hash, ip, port, via, opts) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body)
   }).then(r => r.json()).then(d => {
+    if (myGen !== connectGeneration) return;
     if (d.status === 'ok') {
       const connected = d.hash || hash;
       if (connected !== hash) registerPeerAliases(connected, hash);
@@ -4168,9 +4191,12 @@ function connectTo(hash, ip, port, via, opts) {
       toast('Connection failed: ' + (d.error || 'unknown'));
     }
   }).catch(() => {
+    if (myGen !== connectGeneration) return;
     if (!(viewingPeer && isPeerLinked(viewingPeer, via))) toast('Connection failed');
   })
-    .finally(() => { connectInFlight = false; });
+    .finally(() => {
+      if (myGen === connectGeneration) connectInFlight = false;
+    });
 }
 
 let announceInFlight = false;
@@ -4192,6 +4218,13 @@ function announceSelf(transport) {
         let hint = '';
         if (t === 'serial') {
           hint = d.serial_port ? ` on ${d.serial_port}` : ' on USB serial';
+          if (d.serial_announced) {
+            hint += ' — USB RNS sent';
+            if (d.companion_beacon_sent) hint += ` + LAN beacon (${d.companion_beacon_sent})`;
+            else hint += ' (LAN beacon skipped — no LAN)';
+          } else {
+            hint += ' — USB announce failed (check cable/port)';
+          }
         } else if (d.broadcast) {
           hint = ` via ${d.broadcast}`;
         }
@@ -5429,6 +5462,9 @@ function androidHandleBack() {
 }
 
 function openChat(hash, tryConnect, meta) {
+  chatSwitchGen++;
+  connectGeneration++;
+  connectInFlight = false;
   viewingPeer = (hash || '').replace(/:/g, '');
   if (hash === HUB_GROUP_PEER) viewingPeer = HUB_GROUP_PEER;
   const inferred = meta?.via
@@ -5501,8 +5537,15 @@ function sendMessage() {
     return;
   }
   const linked = isPeerLinked(viewingPeer, viewingVia);
-  const payload = {type: 'send', text, peer: viewingPeer};
-  if (viewingVia) payload.via = normalizeVia(viewingVia);
+  const isHubChat = viewingPeer === HUB_GROUP_PEER;
+  const payload = {
+    type: 'send',
+    text,
+    peer: viewingPeer,
+    chat_gen: chatSwitchGen,
+    hub_group: isHubChat,
+  };
+  if (viewingVia && !isHubChat) payload.via = normalizeVia(viewingVia);
   ws.send(JSON.stringify(payload));
   input.value = '';
   autoResize(input);
@@ -5513,7 +5556,6 @@ function sendMessage() {
       try { input.setSelectionRange(0, 0); } catch (_) {}
     });
   }
-  const isHubChat = viewingPeer === HUB_GROUP_PEER;
   const hubActive = window._hubRole && window._hubRole !== 'off';
   if (!linked && !(isHubChat && hubActive)) {
     toast('Message queued — will send when connected');
@@ -5791,7 +5833,9 @@ function peersMatch(a, b) {
 function messageBelongsToPeer(data) {
   if (!viewingPeer) return false;
   const active = peerKey(viewingPeer);
-  if (active === HUB_GROUP_PEER && (data.hub_group || peerKey(data.chat_peer || data.peer) === HUB_GROUP_PEER)) return true;
+  const isHubMsg = !!(data.hub_group || peerKey(data.chat_peer || data.peer) === HUB_GROUP_PEER);
+  if (active === HUB_GROUP_PEER) return isHubMsg;
+  if (isHubMsg) return false;
   const chatPeer = peerKey(data.chat_peer || data.peer);
   if (chatPeer) return peersMatch(chatPeer, active);
   if (data.sender && data.sender !== 'system') return peersMatch(data.sender, active);

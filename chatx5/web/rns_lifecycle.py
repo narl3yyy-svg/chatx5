@@ -1065,11 +1065,12 @@ class RNSLifecycleMixin:
             return {"ok": False, "error": str(e)}
 
         peers = await self._broadcast_peers(authoritative=True)
-        if self.lan_beacon and (debounced or serial_sent):
-            beacon_sent = self.lan_beacon.last_announce_sent
         do_lan = transport in ("lan", "all")
         do_serial = transport in ("serial", "usb", "all")
-        beacon_fired = bool(beacon_sent) and (do_lan or do_serial)
+        companion_beacon = 0
+        if self.lan_beacon and serial_sent and do_serial:
+            companion_beacon = self.lan_beacon.last_announce_sent
+        beacon_fired = bool(beacon_sent) and do_lan
         return {
             "ok": True,
             "debounced": debounced,
@@ -1077,6 +1078,7 @@ class RNSLifecycleMixin:
             "broadcast": lan_broadcast() if do_lan else None,
             "serial_port": serial_port if do_serial else None,
             "serial_announced": bool(serial_sent),
+            "companion_beacon_sent": companion_beacon if do_serial else 0,
             "lan_announced": do_lan,
             "beacon_port": BEACON_PORT if beacon_fired else None,
             "beacon_sent": beacon_sent if beacon_fired else 0,
@@ -1107,6 +1109,7 @@ class RNSLifecycleMixin:
             "broadcast": result.get("broadcast"),
             "serial_port": result.get("serial_port"),
             "serial_announced": result.get("serial_announced", False),
+            "companion_beacon_sent": result.get("companion_beacon_sent", 0),
             "lan_announced": result.get("lan_announced", False),
             "beacon_port": result.get("beacon_port"),
             "beacon_sent": result.get("beacon_sent", 0),

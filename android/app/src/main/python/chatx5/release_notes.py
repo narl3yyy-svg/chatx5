@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.8": [
+        "Fix: Hub group chat — server counts connected TCP clients and relays messages reliably (hub links no longer dropped on hash supersede).",
+        "Fix: Announce LAN no longer also announces on USB serial; Announce Serial toast confirms USB + companion LAN beacon.",
+        "Fix: Fast switching between LAN, USB, and Group Chat no longer sends messages to the wrong chat.",
+        "Uninstall scripts now remove .venv, pip installs, cache, portable data, and RNS temp sockets.",
+    ],
     "0.6.7": [
         "Fix: Announce Serial now also sends a LAN beacon with your USB serial_hash — Arch sees Ubuntu · USB after you tap Announce Serial on Ubuntu.",
         "Serial RNS announces match existing LAN peers by display name (dual LAN/USB identities).",

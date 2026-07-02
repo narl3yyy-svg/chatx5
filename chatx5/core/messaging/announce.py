@@ -177,7 +177,7 @@ class AnnounceMixin:
         udp_lan = configured_udp_lan_enabled(interfaces)
         if not physical_lan_reachable():
             suppress_offline_lan_transports()
-            if self._serial_transport_ready():
+            if also_serial and self._serial_transport_ready():
                 self._burst_serial_announce(count=1)
             return
         prune_dead_serial_interfaces()
@@ -190,7 +190,7 @@ class AnnounceMixin:
             tcp_iface = tcp_server_interface_online() or tcp_client_interface_online()
             if tcp_iface:
                 self._announce_on_interface(tcp_iface, app_data=announce_data)
-            elif self._serial_transport_ready():
+            elif also_serial and self._serial_transport_ready():
                 self._burst_serial_announce(count=1)
                 return
             else:
@@ -199,12 +199,12 @@ class AnnounceMixin:
             udp_iface = udp_interface_online()
             if udp_iface:
                 self._announce_on_interface(udp_iface, app_data=announce_data)
-            elif self._serial_transport_ready():
+            elif also_serial and self._serial_transport_ready():
                 self._burst_serial_announce(count=1)
                 return
             else:
                 self._fallback_announce(announce_data)
-        elif self._serial_transport_ready():
+        elif also_serial and self._serial_transport_ready():
             self._burst_serial_announce(count=1)
             return
         else:

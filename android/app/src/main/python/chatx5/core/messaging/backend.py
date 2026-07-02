@@ -250,6 +250,12 @@ class MessagingBackend(
                 continue
             if transport and not self._link_transport_matches(link, transport):
                 continue
+            if (
+                self._hub_transport_active()
+                and self._link_registered_as_hub_tcp(link)
+                and transport != "tcp"
+            ):
+                continue
             try:
                 link.teardown()
                 closed += 1

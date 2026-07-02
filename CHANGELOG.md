@@ -2,6 +2,18 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.8] — 2026-07-02
+
+### Fixed
+- **Hub group chat** — hub TCP relay links registered under `peer:tcp` are now counted and relayed even when RNS reports a UDP/serial attached interface; discovery supersede no longer tears down hub relay sessions.
+- **Announce LAN isolation** — manual and periodic LAN announces no longer fall back to USB serial when `also_serial=False` (fixes LAN announce also announcing on serial).
+- **Transport routing in web UI** — explicit `hub_group` flag on send; P2P and group chats no longer cross-route; fast peer/transport switching uses generation counters and disconnects the previous transport before reconnecting.
+- **Announce Serial feedback** — toast shows USB RNS success plus companion LAN beacon packet count (or why beacon was skipped).
+- **LAN ↔ Serial switching** — switching between USB and LAN rows disconnects the previous transport path before opening the new one.
+
+### Changed
+- **Uninstall scripts** — `uninstall.sh` and `uninstall.bat` now remove `.venv`, pip/pipx installs, cache, portable `chatx5-data`, build artifacts, and RNS temp sockets in addition to config/data.
+
 ## [0.6.7] — 2026-07-02
 
 ### Fixed

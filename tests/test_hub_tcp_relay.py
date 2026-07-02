@@ -439,6 +439,27 @@ class HubInboundTcpInterfaceTests(unittest.TestCase):
         link.attached_interface = TCPServerInterface()
         self.assertTrue(backend._inbound_link_is_hub_tcp(link))
 
+    def test_registered_tcp_peer_counts_despite_udp_iface(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "server", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+
+        class UDPInterface:
+            pass
+
+        link = MagicMock()
+        link.link_id = "hub1"
+        link.attached_interface = UDPInterface()
+        peer = "c" * 32
+        backend.peer_links = {f"{peer}:tcp": link}
+        backend.links = {"hub1": link}
+        self.assertTrue(backend._link_is_hub_tcp(link))
+        self.assertEqual(backend._hub_tcp_linked_peers(), [peer])
+
     def test_server_inbound_udp_not_hub_tcp(self):
         ident = MagicMock()
         ident.hash = bytes.fromhex("a" * 32)

@@ -8,7 +8,7 @@ import uuid
 from aiohttp import web
 
 from chatx5.core.contacts import list_contacts
-from chatx5.core.messaging import HUB_GROUP_PEER
+from chatx5.core.messaging import HUB_GROUP_PEER, is_hub_peer_hash
 from chatx5.utils.platform import lan_ip as detect_lan_ip
 
 
@@ -123,7 +123,7 @@ class WebSocketMixin:
                 peer_hint = data.get("peer") or data.get("hash") or ""
                 if peer_hint:
                     self._ui_state["viewing_peer"] = self._peer_dest_hash(peer_hint)
-                hub_send = peer_hint in (HUB_GROUP_PEER, "__hub_group__")
+                hub_send = is_hub_peer_hash(peer_hint) or data.get("hub_group") is True
                 settings = self.load_settings()
                 hub_role = settings.get("hub_role", "off")
                 if hub_send:
