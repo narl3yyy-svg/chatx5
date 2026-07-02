@@ -198,11 +198,8 @@ def _contact_matches_discovery_peer(contact, peer, peers_equivalent=None):
     c_name = (c.get("name") or "").strip()
     if peer_ip and _names_related(c_name, peer_name):
         return True
-    if peer_name and _names_related(c_name, peer_name):
-        lan = (c.get("lan_hash") or c.get("hash") or "").replace(":", "")
-        serial = (c.get("serial_hash") or "").replace(":", "")
-        if lan == serial and lan:
-            return True
+    if peer_name and c_name and _names_related(c_name, peer_name):
+        return True
     return False
 
 
@@ -333,6 +330,7 @@ def update_contact_transport_hash(
                 pass
     if name is not None and str(name).strip():
         entry["name"] = _resolve_contact_name(entry, name)
+    contacts_dir(config_dir)
     file_key = contact_primary_hash(entry) or new_clean
     path = _contact_path(config_dir, file_key)
     with open(path, "w") as fh:
@@ -414,6 +412,7 @@ def save_contact(
                 merged = dict(normalize_contact(c))
                 break
 
+    contacts_dir(config_dir)
     existing = merged or load_contact(config_dir, clean) or {"hash": clean, "name": clean or display}
     existing = normalize_contact(existing)
     if user_named:

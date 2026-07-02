@@ -469,6 +469,7 @@ class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin, ShareBrowserMixin):
         os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(os.path.join(self.config_dir, "received"), exist_ok=True)
         os.makedirs(os.path.join(self.config_dir, "sent"), exist_ok=True)
+        os.makedirs(os.path.join(self.config_dir, "contacts"), exist_ok=True)
 
         self.identity_mgr = IdentityManager(self.config_dir)
         self.identity = None
@@ -5091,8 +5092,16 @@ class ChatWebServer(HubRuntimeMixin, DiscoveryBridgeMixin, ShareBrowserMixin):
         app.router.add_post("/api/restart", self.handle_restart)
         app.router.add_get("/api/temperature", self.handle_temperature)
         app.router.add_get("/api/cpu", self.handle_cpu)
+        app.router.add_get("/api/release-notes", self.handle_release_notes)
         app.router.add_get("/api/health", self.handle_health)
         app.router.add_get("/ws", self.handle_websocket)
+
+    async def handle_release_notes(self, request):
+        from chatx5.release_notes import all_release_notes, CURRENT_VERSION
+        return web.json_response({
+            "current_version": CURRENT_VERSION,
+            "releases": all_release_notes(),
+        })
 
     async def handle_health(self, request):
         status = "ok" if not self.rns_init_error else "rns_error"

@@ -1109,6 +1109,12 @@ body.modal-open #save-contact-dialog * { pointer-events: auto; user-select: auto
   align-items: center; justify-content: center;
 }
 #folder-picker-dialog.open { display: flex; }
+.release-notes-page { max-width: min(92vw, 560px); max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+.release-notes-scroll { overflow-y: auto; flex: 1; padding-right: 4px; }
+.release-notes-version { margin: 0 0 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.release-notes-version h3 { margin: 0 0 8px; font-size: 15px; color: var(--text); }
+.release-notes-version ul { margin: 0; padding-left: 18px; line-height: 1.55; font-size: 13px; color: var(--text2); }
+.release-notes-version.current h3 { color: var(--accent); }
 #share-browser-dialog {
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,0.65); z-index: 5000;
@@ -1549,11 +1555,13 @@ body.android-shell.sidebar-open #sidebar-backdrop {
       </div>
     </div>
 
-    <div id="release-notes-overlay" class="setup-overlay" style="display:none">
-      <div class="setup-card" style="max-width:480px">
-        <h2>What&apos;s new in <span id="release-notes-version"></span></h2>
-        <ul id="release-notes-list" style="margin:12px 0 16px;padding-left:20px;line-height:1.55;font-size:13px;color:var(--text2)"></ul>
-        <button type="button" class="btn-block primary" onclick="dismissReleaseNotes()">Got it</button>
+    <div id="release-notes-overlay" class="setup-overlay" style="display:none" onclick="if(event.target===this)closeReleaseNotesPage()">
+      <div class="setup-card release-notes-page" onclick="event.stopPropagation()">
+        <button class="panel-close" onclick="closeReleaseNotesPage()" style="position:absolute;top:16px;right:16px" title="Close">&times;</button>
+        <h2>Release notes</h2>
+        <p class="field-hint" style="margin:0 0 12px">Installed: <strong id="release-notes-current-version">—</strong></p>
+        <div id="release-notes-all" class="release-notes-scroll"></div>
+        <button type="button" class="btn-block" onclick="closeReleaseNotesPage()" style="margin-top:12px">Close</button>
       </div>
     </div>
 
@@ -1881,6 +1889,13 @@ body.android-shell.sidebar-open #sidebar-backdrop {
               <input type="checkbox" id="settings-network-auto-reset" onchange="saveNetworkAutoReset()">
             </div>
           </label>
+        </div>
+        <div class="settings-block">
+          <h3>About</h3>
+          <p class="block-lead">Version <span id="settings-app-version">—</span></p>
+          <div style="display:flex;flex-direction:column;gap:10px;max-width:320px">
+            <button type="button" class="btn-block" onclick="openReleaseNotesPage()">View release notes</button>
+          </div>
         </div>
         <div class="settings-block danger">
           <h3>System</h3>
@@ -2211,9 +2226,8 @@ function init() {
     updateHubUi();
     if (!s.setup_complete) {
       openSetupWizard(s);
-    } else {
-      maybeShowReleaseNotes(s);
     }
+    trackAppVersion(s);
   }).catch(() => {});
   connectWS();
   loadEmojiKeywords();
@@ -2305,6 +2319,7 @@ function applySettingsToForm(s, ifaces) {
   const hubPort = document.getElementById('settings-hub-port');
   if (hubPort) hubPort.value = s.hub_port || 4242;
   applyBrandTitle(s.brand_title);
+  trackAppVersion(s);
   const brandTitleEl = document.getElementById('settings-brand-title');
   if (brandTitleEl) brandTitleEl.value = (s.brand_title || '').slice(0, 18);
   const lanProbeEl = document.getElementById('settings-lan-probe-interval');
@@ -2685,6 +2700,10 @@ function pollLinkStatus() {
       window._tcpClientOnline = !!d.tcp_client_online;
       window._hubGroupLinked = !!d.hub_group_linked;
       window._hubClientsLinked = d.hub_clients_linked || 0;
+      if (d.hub_role) {
+        window._hubRole = d.hub_role;
+        updateHubUi();
+      }
       if (viewingPeer === HUB_GROUP_PEER) updatePeerHeader();
       if (d.linked_peers && d.linked_peers.length) {
         syncLinkedPeers(d.linked_peers);
@@ -3721,7 +3740,8 @@ function renderContacts(contacts) {
     const name = contactDisplayName(c);
     const active = contactViewingActive(c);
     const lanHash = contactLanHash(c);
-    const serialHash = contactSerialHash(c);
+    const serialDisc = discoveredForContactTransport(c, 'serial');
+    const serialHash = contactSerialHash(c) || (serialDisc ? peerKey(serialDisc.hash) : '');
     const unread = Math.max(
       unreadForPeer(lanHash),
       serialHash ? unreadForPeer(serialHash) : 0,
@@ -5052,6 +5072,10 @@ function refreshNetworkStatus(silent) {
       window._tcpClientOnline = !!d.tcp_client_online;
       window._hubGroupLinked = !!d.hub_group_linked;
       window._hubClientsLinked = d.hub_clients_linked || 0;
+      if (d.hub_role) {
+        window._hubRole = d.hub_role;
+        updateHubUi();
+      }
       if (viewingPeer === HUB_GROUP_PEER) updatePeerHeader();
       if (d.lan_ip && d.lan_ip !== 'not configured') window._localLanIp = d.lan_ip;
       html += row('Platform', platform);
@@ -5192,32 +5216,13 @@ function toggleSettings() {
   else openSettings('profile');
 }
 
-function maybeShowReleaseNotes(settings) {
-  if (!settings) return;
-  const version = settings.app_version || settings.version || '';
-  const seen = settings.last_release_notes_seen || '';
-  const notes = settings.notes || settings.release_notes || [];
-  if (!version || !notes.length) return;
-  if (seen === version) return;
-  showReleaseNotesModal(version, notes);
-}
-
-function showReleaseNotesModal(version, notes) {
-  const overlay = document.getElementById('release-notes-overlay');
-  const verEl = document.getElementById('release-notes-version');
-  const listEl = document.getElementById('release-notes-list');
-  if (!overlay || !verEl || !listEl) return;
-  verEl.textContent = 'v' + version;
-  listEl.innerHTML = (notes || []).map(n => `<li>${escapeHtml(n)}</li>`).join('');
-  overlay.style.display = 'flex';
-  window._pendingReleaseNotesVersion = version;
-}
-
-function dismissReleaseNotes() {
-  const overlay = document.getElementById('release-notes-overlay');
-  if (overlay) overlay.style.display = 'none';
-  const version = window._pendingReleaseNotesVersion || '';
-  if (version) {
+function trackAppVersion(settings) {
+  const version = settings?.app_version || settings?.version || '';
+  if (!version) return;
+  const verEl = document.getElementById('settings-app-version');
+  if (verEl) verEl.textContent = 'v' + version;
+  const seen = settings?.last_release_notes_seen || '';
+  if (seen !== version) {
     fetch('/api/settings', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -5226,7 +5231,42 @@ function dismissReleaseNotes() {
       if (d.settings) window._appSettings = d.settings;
     }).catch(() => {});
   }
-  window._pendingReleaseNotesVersion = '';
+}
+
+function renderReleaseNotesPage(data) {
+  const container = document.getElementById('release-notes-all');
+  const currentEl = document.getElementById('release-notes-current-version');
+  if (!container) return;
+  const current = data?.current_version || '';
+  if (currentEl) currentEl.textContent = current ? 'v' + current : '—';
+  const releases = data?.releases || [];
+  container.innerHTML = releases.map(rel => {
+    const isCurrent = rel.version === current;
+    const items = (rel.notes || []).map(n => `<li>${escapeHtml(n)}</li>`).join('');
+    return `<div class="release-notes-version${isCurrent ? ' current' : ''}">
+      <h3>v${escapeHtml(rel.version)}${isCurrent ? ' (installed)' : ''}</h3>
+      <ul>${items}</ul>
+    </div>`;
+  }).join('');
+}
+
+function openReleaseNotesPage() {
+  const overlay = document.getElementById('release-notes-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  const container = document.getElementById('release-notes-all');
+  if (container) container.innerHTML = '<div style="color:var(--text3);font-size:13px">Loading…</div>';
+  fetch('/api/release-notes')
+    .then(r => r.json())
+    .then(renderReleaseNotesPage)
+    .catch(() => {
+      if (container) container.innerHTML = '<div style="color:var(--danger)">Failed to load release notes</div>';
+    });
+}
+
+function closeReleaseNotesPage() {
+  const overlay = document.getElementById('release-notes-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 function toggleConnectPanel() {

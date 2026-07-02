@@ -96,6 +96,7 @@ Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
 | 8c | `web/hub_runtime.py` | **done** | `HubRuntimeMixin` — hub settings, TCP hot-add, host resolve, server hash |
 | 8d | `web/discovery_bridge.py` | **done** | `DiscoveryBridgeMixin` — scope, peer callbacks, contact sync, supersede |
 | 8g | `web/share_browser.py` | **done** | `ShareBrowserMixin` — shared folder sessions, remote proxy, P2P + hub group |
+| 8h | release notes API | **done** | `GET /api/release-notes` — full version history for Settings → About |
 | 8a | `web/routes/` | planned | HTTP route table + thin handlers |
 | 8b | `web/ws/` | planned | WebSocket connect, broadcast, message fan-out |
 | 8e | `web/rns_lifecycle.py` | planned | RNS startup, interface config, announce scheduling |

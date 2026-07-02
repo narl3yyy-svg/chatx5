@@ -8,12 +8,14 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from chatx5.core.contacts import (
+    _contact_matches_discovery_peer,
     _is_corrupt_contact_name,
     _resolve_contact_name,
     _sanitize_contact_name,
     find_contact_by_hash,
     normalize_contact,
     save_contact,
+    sync_contact_from_discovery,
     update_contact_endpoint,
 )
 
@@ -106,6 +108,30 @@ class ContactNamePersistenceTests(unittest.TestCase):
         )
         contact = find_contact_by_hash(self.tmp, "5386ea6054eaaa291518c47732e85127")
         self.assertEqual(contact.get("name"), "330s")
+
+    def test_serial_discovery_matches_saved_contact_by_name(self):
+        save_contact(
+            self.tmp,
+            "f4b541432b50d2fb8b60a9dcdbec8ae8",
+            name="330s",
+            ip="10.0.30.101",
+            via="lan",
+            custom_name=True,
+        )
+        contact = normalize_contact(find_contact_by_hash(
+            self.tmp, "f4b541432b50d2fb8b60a9dcdbec8ae8",
+        ))
+        serial_peer = {
+            "hash": "55069751ff8b0f1b8555e9b7ad02e3bc",
+            "name": "330s",
+            "via": "serial",
+        }
+        self.assertTrue(_contact_matches_discovery_peer(contact, serial_peer))
+        updated = sync_contact_from_discovery(self.tmp, serial_peer)
+        self.assertEqual(
+            (updated or {}).get("serial_hash"),
+            "55069751ff8b0f1b8555e9b7ad02e3bc",
+        )
 
     def test_resolve_contact_name_prefers_clean_saved_name(self):
         entry = normalize_contact({
