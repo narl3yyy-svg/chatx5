@@ -243,6 +243,7 @@ def sync_contact_from_discovery(
         if not changed:
             return entry
 
+        contacts_dir(config_dir)
         file_key = contact_primary_hash(entry) or new_hash
         path = _contact_path(config_dir, file_key)
         with open(path, "w") as fh:

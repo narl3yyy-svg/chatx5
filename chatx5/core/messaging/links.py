@@ -370,7 +370,20 @@ class PeerLinkMixin:
                 return True
             if link and self._inbound_link_is_hub_tcp(link):
                 return True
+            if self._hub_transport_active():
+                role, _ = self._load_hub_settings()
+                if role == "server":
+                    return True
             return not self.peer_scope_checker
+        peer = self.dest_hash_for(peer_hash)
+        if (
+            peer
+            and self._serial_transport_ready()
+            and self._peer_hash_is_serial_endpoint(peer)
+        ):
+            iface = self._link_attached_interface(link) if link else None
+            if not iface or is_serial_interface(iface):
+                return True
         if link:
             iface = self._link_attached_interface(link)
             if is_serial_interface(iface):

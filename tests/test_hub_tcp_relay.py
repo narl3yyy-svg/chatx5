@@ -389,6 +389,40 @@ class HubTcpLinkSelectionTests(unittest.TestCase):
             self.assertFalse(backend._hub_path_connect_ready("c" * 32))
 
 
+class HubInboundTcpInterfaceTests(unittest.TestCase):
+    def test_inbound_tcpserver_on_hub_port_counts_as_hub(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "server", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+
+        class TCPServerInterface:
+            listen_port = 4242
+
+        link = MagicMock()
+        link.attached_interface = TCPServerInterface()
+        self.assertTrue(backend._inbound_link_is_hub_tcp(link))
+
+    def test_inbound_tcpserver_wrong_port_not_hub(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "server", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+
+        class TCPServerInterface:
+            listen_port = 54242
+
+        link = MagicMock()
+        link.attached_interface = TCPServerInterface()
+        self.assertFalse(backend._inbound_link_is_hub_tcp(link))
+
+
 class HubInboundScopeTests(unittest.TestCase):
     def _backend(self, hub_role="server"):
         ident = MagicMock()

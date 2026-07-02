@@ -762,14 +762,31 @@ class ConnectMixin:
                     )
                 return bool(inbound)
 
+            if requested_transport == "tcp":
+                hub_link = self._hub_link_for_peer(clean)
+                if hub_link and self._link_interface_healthy(hub_link):
+                    print(f"[connect] Hub TCP link active to {clean[:16]}...")
+                    return self._finish_connect(
+                        clean, link=hub_link, transport="tcp",
+                    )
+
             old_link = None
             if self.active_link and self.active_peer_hash and self.hashes_equivalent(clean, self.active_peer_hash):
-                link_ok = self._link_interface_healthy(self.active_link) and self._peer_has_path(clean)
                 active_transport = self._transport_from_link(self.active_link)
+                if self._link_is_hub_tcp(self.active_link):
+                    link_ok = self._link_interface_healthy(self.active_link)
+                else:
+                    link_ok = (
+                        self._link_interface_healthy(self.active_link)
+                        and self._peer_has_path(clean)
+                    )
                 transport_ok = (
                     not requested_transport
                     or active_transport == requested_transport
                 )
+                if requested_transport == "tcp" and not self._link_is_hub_tcp(self.active_link):
+                    link_ok = False
+                    transport_ok = False
                 if not replace:
                     if link_ok and transport_ok:
                         print(
@@ -785,8 +802,21 @@ class ConnectMixin:
                             f"opening separate {requested_transport} session..."
                         )
                     elif not link_ok:
-                        print(f"[connect] Stale link to {self.active_peer_hash[:16]}... — reconnecting")
-                        self._teardown_active_link(preserve_peer=True, handoff=True)
+                        if (
+                            requested_transport == "tcp"
+                            and self.active_link
+                            and not self._link_is_hub_tcp(self.active_link)
+                        ):
+                            print(
+                                f"[connect] Active {active_transport} link — "
+                                f"opening separate {requested_transport} session..."
+                            )
+                        else:
+                            print(
+                                f"[connect] Stale link to {self.active_peer_hash[:16]}..."
+                                " — reconnecting"
+                            )
+                            self._teardown_active_link(preserve_peer=True, handoff=True)
                 elif self._link_path_score(self.active_link) >= 90 and link_ok and transport_ok:
                     return self._finish_connect(
                         clean, link=self.active_link, transport=requested_transport,
@@ -908,10 +938,6 @@ class ConnectMixin:
             elif requested_transport == "tcp":
                 prefer_serial = False
                 peer_ip = None
-                from chatx5.core.lan_rns import (
-                    clear_peer_path_unless_family,
-                    prune_lan_path_for_peer,
-                )
                 prune_lan_path_for_peer(dest_hex)
                 clear_peer_path_unless_family(dest_hex, "tcp")
             hub_tcp_only = (
