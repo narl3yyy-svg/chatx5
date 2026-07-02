@@ -46,7 +46,6 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E731", "E741"]
-"chatx5/core/messaging/backend.py" = ["E402"]
 "chatx5/core/messaging/__init__.py" = ["E402", "F401"]
 
 [tool.mypy]
