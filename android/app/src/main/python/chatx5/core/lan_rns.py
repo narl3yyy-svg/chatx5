@@ -258,6 +258,37 @@ def announce_receiving_interface(destination_hash):
     return packet_iface
 
 
+def _announce_packet_hash_for_dest(dest_bytes):
+    """Packet hash from announce_table when a USB announce was received."""
+    try:
+        with RNS.Transport.announce_table_lock:
+            entry = RNS.Transport.announce_table.get(dest_bytes)
+        if entry and len(entry) > 5:
+            packet = entry[5]
+            return getattr(packet, "packet_hash", None)
+    except Exception:
+        pass
+    return None
+
+
+def _serial_path_table_entry(dest_bytes, serial_iface, hops=1):
+    """Build a valid 7-field RNS path_table row for a direct USB peer."""
+    now = time.time()
+    try:
+        expires = now + RNS.Transport.PATHFINDER_E
+    except Exception:
+        expires = now + 3600
+    return [
+        now,
+        dest_bytes,
+        hops,
+        expires,
+        [],
+        serial_iface,
+        _announce_packet_hash_for_dest(dest_bytes),
+    ]
+
+
 def seed_serial_path_for_peer(hash_hex):
     """Install a direct 1-hop serial path when USB is up and the peer is known."""
     clean = _normalize_dest_hex(hash_hex)
@@ -275,11 +306,10 @@ def seed_serial_path_for_peer(hash_hex):
         return None
     prune_lan_path_for_peer(clean)
     try:
-        now = time.time()
         with RNS.Transport.path_table_lock:
-            RNS.Transport.path_table[dest_bytes] = [
-                now, 0, 1, now + 3600, dest_bytes, serial_iface,
-            ]
+            RNS.Transport.path_table[dest_bytes] = _serial_path_table_entry(
+                dest_bytes, serial_iface,
+            )
     except Exception:
         return peer_path_on_family(clean, "serial")
     pin_serial_path(clean)
@@ -307,11 +337,10 @@ def restore_serial_path_from_announce(hash_hex):
     prune_lan_path_for_peer(clean)
     clear_peer_path(clean)
     try:
-        now = time.time()
         with RNS.Transport.path_table_lock:
-            RNS.Transport.path_table[dest_bytes] = [
-                now, 0, 1, now + 3600, dest_bytes, serial_recv,
-            ]
+            RNS.Transport.path_table[dest_bytes] = _serial_path_table_entry(
+                dest_bytes, serial_recv,
+            )
     except Exception:
         return None
     pin_serial_path(clean)

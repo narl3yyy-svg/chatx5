@@ -35,7 +35,10 @@ class SerialPathSeedTests(unittest.TestCase):
         self.assertIs(restored, serial_iface)
         entry = RNS.Transport.path_table.get(dest_bytes)
         self.assertIsNotNone(entry)
+        self.assertEqual(len(entry), 7)
+        self.assertIsInstance(entry[1], bytes)
         self.assertEqual(entry[2], 1)
+        self.assertEqual(entry[4], [])
         self.assertIs(entry[5], serial_iface)
         RNS.Transport.path_table.pop(dest_bytes, None)
 

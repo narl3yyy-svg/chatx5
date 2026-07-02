@@ -592,6 +592,32 @@ class MessagingBackend(
                 self._transport_reconnect_pending = True
                 self._failover_last_attempt = 0
 
+    def _teardown_serial_peer_links(self):
+        """Close active USB links when SerialInterface drops or is replugged."""
+        closed = 0
+        for link in list(self.links.values()):
+            try:
+                if getattr(link, "status", None) != RNS.Link.ACTIVE:
+                    continue
+            except Exception:
+                continue
+            if not is_serial_interface(self._link_attached_interface(link)):
+                continue
+            try:
+                link.teardown()
+                closed += 1
+            except Exception:
+                pass
+        if closed:
+            print(f"[serial] Closed {closed} USB link(s) — serial transport offline")
+        if (
+            self.active_link
+            and not self._link_interface_healthy(self.active_link)
+            and self._session_transport == "serial"
+        ):
+            self._teardown_active_link(preserve_peer=True, handoff=False)
+        return closed
+
     def on_serial_transport_detached(self):
         """USB serial unplugged — drop serial paths and stop serial-only routing."""
 
@@ -601,6 +627,7 @@ class MessagingBackend(
             pass
         for peer_hash in list(self.peer_links.keys()):
             unpin_serial_path(peer_hash)
+        self._teardown_serial_peer_links()
         self._transport_reconnect_pending = False
 
     def _queue_retry_loop(self):
@@ -609,6 +636,14 @@ class MessagingBackend(
                 if not self.running:
                     return
                 time.sleep(1)
+            if (
+                self.dual_identity_mode
+                and self._session_transport == "serial"
+                and self.active_link
+                and not self._link_interface_healthy(self.active_link)
+            ):
+                self._teardown_serial_peer_links()
+                self._transport_reconnect_pending = True
             if self.message_queue:
                 try:
                     self.retry_queue()

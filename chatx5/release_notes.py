@@ -3,6 +3,10 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.10": [
+        "Fix: Serial USB messaging — corrected RNS path table format (fixes serial port crashes and messages stuck awaiting receipt).",
+        "Fix: USB inbound link callback no longer crashes; connect only shows established when the link is on SerialInterface.",
+    ],
     "0.6.9": [
         "Fix: USB serial messaging — connect no longer fails after discovery; serial paths are seeded and inbound links from known USB peers are accepted.",
         "Fix: Serial identity hash from RNS links matches beacon discovery rows (330s · USB connect works both directions).",

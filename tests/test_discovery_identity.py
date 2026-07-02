@@ -335,7 +335,11 @@ class AnnounceReceivingInterfaceTests(unittest.TestCase):
                             with patch.object(RNS.Transport, "announce_table_lock", MagicMock()):
                                 restored = restore_serial_path_from_announce(dest_hex)
         self.assertIs(restored, serial_iface)
-        self.assertIs(path_table[dest][5], serial_iface)
+        entry = path_table[dest]
+        self.assertEqual(len(entry), 7)
+        self.assertIsInstance(entry[1], bytes)
+        self.assertEqual(entry[4], [])
+        self.assertIs(entry[5], serial_iface)
 
 
 if __name__ == "__main__":

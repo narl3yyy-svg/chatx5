@@ -18,6 +18,7 @@ from chatx5.core.lan_rns import (
     clear_peer_path,
     clear_peer_path_unless_family,
     ensure_serial_path_pinned,
+    interface_family,
     peer_path_entry,
     pin_serial_path,
     prune_bridged_lan_paths,
@@ -355,32 +356,64 @@ class ConnectMixin:
             if self._wait_for_peer_link(
                 dest_hex, alt_hex=clean, timeout_s=SERIAL_INBOUND_FIRST_WAIT_S,
             ):
-                return True
+                adopt = self._link_for_peer(dest_hex, transport="serial") or self.active_link
+                if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    return True
             ensure_serial_path_pinned(dest_hex)
             print(f"[connect] Serial outbound ({SERIAL_LINK_CONNECT_TIMEOUT_S}s)...")
             if self._establish_outbound_link(
                 destination, dest_hex, clean, old_link=old_link,
                 timeout_s=SERIAL_LINK_CONNECT_TIMEOUT_S, serial=True,
             ):
-                return True
-            if self._peer_link_active(dest_hex, clean):
-                return True
+                adopt = self._link_for_peer(dest_hex, transport="serial") or self.active_link
+                if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    return True
+            if self._peer_link_active(dest_hex, clean, transport="serial"):
+                adopt = self._link_for_peer(dest_hex, transport="serial")
+                if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    return True
             print(f"[connect] Waiting for serial inbound ({SERIAL_INBOUND_WAIT_S}s)...")
             if self._wait_for_peer_link(
                 dest_hex, alt_hex=clean, timeout_s=SERIAL_INBOUND_WAIT_S,
             ):
-                return True
+                adopt = self._link_for_peer(dest_hex, transport="serial") or self.active_link
+                if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    return True
             return False
         finally:
             unpin_serial_path(dest_hex)
 
-    def _promote_outbound_link(self, link, dest_hex, old_link=None, promote_active=None):
+    def _serial_outbound_link_valid(self, link, dest_hex):
+        """True when an outbound link for a serial connect uses a healthy USB iface."""
+        if not link:
+            return False
+        iface = self._link_attached_interface(link)
+        if not is_serial_interface(iface):
+            fam = interface_family(iface) or "unknown"
+            print(
+                f"[connect] Serial link not on USB (attached={fam}) "
+                f"for {dest_hex[:16]}..."
+            )
+            return False
+        if not self._link_interface_healthy(link):
+            print(f"[connect] Serial link transport offline for {dest_hex[:16]}...")
+            return False
+        return True
+
+    def _promote_outbound_link(self, link, dest_hex, old_link=None, promote_active=None,
+                               require_serial=False):
         if not link:
             return False
         try:
             if link.status != RNS.Link.ACTIVE:
                 return False
         except Exception:
+            return False
+        if require_serial and not self._serial_outbound_link_valid(link, dest_hex):
+            try:
+                link.teardown()
+            except Exception:
+                pass
             return False
         if old_link and old_link.link_id != link.link_id:
             old_peer = self._link_peer_hashes.get(old_link.link_id)
@@ -468,27 +501,36 @@ class ConnectMixin:
                         self._teardown_outbound_attempt(link)
                         return True
                 elif self._peer_link_active(dest_hex, clean):
-                    existing = self._link_for_peer(dest_hex) or self._link_for_peer(clean)
-                    if existing:
+                    existing = (
+                        self._link_for_peer(dest_hex, transport="serial" if serial else None)
+                        or self._link_for_peer(dest_hex)
+                        or self._link_for_peer(clean)
+                    )
+                    if existing and (
+                        not serial or self._serial_outbound_link_valid(existing, dest_hex)
+                    ):
                         self._notify_link_established(
                             existing, dest_hex,
                             promote_active=True, background=False,
                         )
-                    self._teardown_outbound_attempt(link)
-                    return True
+                        self._teardown_outbound_attempt(link)
+                        return True
                 try:
                     if link.status == RNS.Link.ACTIVE:
                         return self._promote_outbound_link(
-                            link, dest_hex, old_link=old_link, promote_active=promote_active,
+                            link, dest_hex, old_link=old_link,
+                            promote_active=promote_active, require_serial=serial,
                         )
                     if link.status == RNS.Link.CLOSED:
                         break
                 except Exception:
                     pass
                 if self.active_link and link and self.active_link.link_id == link.link_id:
-                    return True
+                    if not serial or self._serial_outbound_link_valid(link, dest_hex):
+                        return True
             if self._promote_outbound_link(
                 link, dest_hex, old_link=old_link, promote_active=promote_active,
+                require_serial=serial,
             ):
                 return True
             if self._adopt_healthy_peer_link(dest_hex):

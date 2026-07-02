@@ -2,6 +2,13 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.10] — 2026-07-02
+
+### Fixed
+- **Serial USB messaging (critical)** — RNS `path_table` rows now use the correct 7-field format (`next_hop` as bytes, `random_blobs` as `[]`). The previous 6-field injection caused `'int' object is not subscriptable` serial port crashes and one-way “connected” links with no delivery.
+- **Serial inbound callback crash** — fixed `UnboundLocalError` on `prune_lan_path_for_peer` that aborted link setup when a USB peer connected.
+- **Serial connect validation** — outbound USB connects are only marked established when the link is actually attached to `SerialInterface`; stale/dead USB links are torn down when the port drops.
+
 ## [0.6.9] — 2026-07-02
 
 ### Fixed
