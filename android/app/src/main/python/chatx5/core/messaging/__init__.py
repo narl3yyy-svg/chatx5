@@ -1,8 +1,5 @@
 """Messaging package — link management, connect, queue, and transfer (split from monolith)."""
 
-import RNS
-
-from chatx5.core.discovery import normalize_hash
 from chatx5.core.lan_rns import (
     interface_family,
     serial_interface_online,

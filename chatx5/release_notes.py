@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.16": [
+        "LAN connect from the initiator works when the peer web UI is localhost-only — HTTP wake failure no longer marks the peer unreachable or skips UDP/inbound connect.",
+        "Initiator waits for inbound links after a failed quick UDP connect instead of jumping straight to a short outbound timeout.",
+        "Internal refactor: peer link map and transport matching moved to messaging/links.py (no user-visible API changes).",
+    ],
     "0.5.14": [
         "Serial discovery rows from genuine USB announces are no longer purged when LAN rebroadcast updates the path table.",
         "LAN and USB sessions stay independent: switching transport in the UI keeps the correct link, send path, and connection state.",
