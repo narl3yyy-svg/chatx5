@@ -487,6 +487,54 @@ class HubInboundScopeTests(unittest.TestCase):
         self.assertFalse(backend._peer_allowed_by_scope("unknown", link=link))
 
 
+class HubInboundParallelTests(unittest.TestCase):
+    def test_hub_tcp_inbound_registers_parallel_tcp_link(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "server", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+        backend.peer_scope_checker = lambda *_a, **_k: True
+        backend.running = True
+        peer = "f" * 32
+
+        lan_link = MagicMock()
+        lan_link.link_id = b"\x01" * 16
+        lan_link.status = 1
+        backend.active_link = lan_link
+        backend.active_peer_hash = peer
+        backend.links = {lan_link.link_id: lan_link}
+        backend._link_peer_hashes = {lan_link.link_id: peer}
+        backend.peer_links = {peer: lan_link}
+        backend._link_path_score = lambda _l: 100
+        backend._link_interface_healthy = lambda _l: True
+        backend._has_active_transfer = lambda: False
+        backend._incoming_matches_active_session = lambda _l: False
+        backend._handoff_to_link = MagicMock()
+        backend._setup_link = MagicMock()
+        backend._schedule_hub_queue_drain = MagicMock()
+        backend._resolve_remote_peer = MagicMock(return_value=peer)
+        backend._peer_destination_hash = MagicMock(return_value=peer)
+        backend._resolve_incoming_link_peer = MagicMock(return_value=peer)
+        backend._cache_link_peer = MagicMock()
+        backend._peer_expected_transport_families = MagicMock(return_value={"lan", "udp"})
+        backend.is_user_disconnected = lambda _p: False
+
+        hub_link = MagicMock()
+        hub_link.link_id = b"\x02" * 16
+        hub_link.attached_interface = None
+        hub_link.teardown = MagicMock()
+
+        backend._link_callback(hub_link)
+
+        hub_link.teardown.assert_not_called()
+        tcp_key = f"{peer}:tcp"
+        self.assertIn(tcp_key, backend.peer_links)
+        self.assertIs(backend.peer_links[tcp_key], hub_link)
+
+
 class HubServerHashUpdateTests(unittest.TestCase):
     def test_maybe_update_hub_hash_only_on_hub_tcp_link(self):
         from chatx5.web.server import ChatWebServer

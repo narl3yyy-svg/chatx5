@@ -97,6 +97,8 @@ Extracted ~310 lines into `AnnounceMixin` in `announce.py`:
 | 8d | `web/discovery_bridge.py` | **done** | `DiscoveryBridgeMixin` — scope, peer callbacks, contact sync, supersede |
 | 8g | `web/share_browser.py` | **done** | `ShareBrowserMixin` — shared folder sessions, remote proxy, P2P + hub group |
 | 8h | release notes API | **done** | `GET /api/release-notes` — full version history for Settings → About |
+
+**v0.6.2 hub group fix:** Hub server accepts inbound TCP client links in parallel with LAN/serial P2P; hub client requires dedicated hub-TCP link for `send_hub_message` (no LAN session reuse).
 | 8a | `web/routes/` | planned | HTTP route table + thin handlers |
 | 8b | `web/ws/` | planned | WebSocket connect, broadcast, message fan-out |
 | 8e | `web/rns_lifecycle.py` | planned | RNS startup, interface config, announce scheduling |

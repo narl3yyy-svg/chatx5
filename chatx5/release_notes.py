@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.2": [
+        "Hub group chat: hub server keeps inbound TCP client links alongside LAN/serial P2P (no longer torn down as worse path).",
+        "Hub client opens a dedicated hub-TCP RNS link for group messages instead of reusing the LAN session.",
+        "Release notes: click the version badge in the bottom dock or Settings → System → About.",
+    ],
     "0.6.1": [
         "Saved contacts show USB serial rows when serial discovery finds the peer (even before serial_hash is stored).",
         "Serial discovery sync matches saved LAN contacts by display name (fixes Arch not seeing Ubuntu USB).",
