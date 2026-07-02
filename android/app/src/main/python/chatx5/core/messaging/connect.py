@@ -3,6 +3,7 @@
 import json
 import threading
 import time
+from contextlib import contextmanager
 from urllib import request as urlrequest
 
 import RNS
@@ -14,22 +15,26 @@ from chatx5.core.discovery import (
 )
 from chatx5.core.lan_rns import (
     clear_peer_path_unless_family,
+    clear_peer_path_unless_lan_families,
+    clear_paths_on_family,
+    clear_peer_path,
+    ensure_serial_path_pinned,
     peer_path_entry,
-    register_udp_peer_ip,
-    request_path_for_hash,
-    request_paths_for_hash,
-    reinforce_serial_peer_path,
-    restore_serial_path_from_announce,
-    scrub_peer_path,
-    serial_interface_online,
-    suppress_offline_lan_transports,
-    wait_for_peer_path_families,
+    pin_serial_path,
     prune_bridged_lan_paths,
     prune_lan_path_for_peer,
     prune_stale_lan_paths,
-    clear_peer_path,
-    clear_peer_path_unless_lan_families,
-    clear_paths_on_family,
+    register_udp_peer_ip,
+    reinforce_serial_peer_path,
+    request_path_for_hash,
+    request_paths_for_hash,
+    restore_serial_path_from_announce,
+    scrub_peer_path,
+    serial_interface_online,
+    serial_path_is_pinned,
+    suppress_offline_lan_transports,
+    unpin_serial_path,
+    wait_for_peer_path_families,
 )
 from chatx5.core.messaging.constants import (
     ANDROID_IDENTITY_WAIT_TIMEOUT_S,
@@ -66,8 +71,14 @@ from chatx5.core.rns_interfaces import (
 )
 from chatx5.core.serial_transfer import (
     boost_serial_establishment_timeout,
+    is_serial_interface,
     tune_serial_link,
 )
+
+
+@contextmanager
+def _null_context():
+    yield
 
 
 def _backend():

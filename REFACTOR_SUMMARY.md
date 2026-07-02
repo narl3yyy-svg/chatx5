@@ -23,7 +23,9 @@ chatx5/core/messaging/
   peers.py         # is_hub_peer_hash()
   links.py         # PeerLinkMixin — link map, transport zones, selection
   connect.py       # ConnectMixin — wake, path prime, connect_to
-  backend.py       # MessagingBackend (queue/transfer/hub/announce remain)
+  hub.py           # HubMixin — hub TCP link ensure, hash fetch
+  queue.py         # QueueMixin — enqueue, drain, retry
+  backend.py       # MessagingBackend (transfer/announce/hub relay remain)
 ```
 
 Imports like `from chatx5.core.messaging import MessagingBackend` are unchanged.
@@ -39,7 +41,7 @@ Extracted ~840 lines into `PeerLinkMixin` in `links.py`:
 - `linked_peers()`, `_best_outgoing_link()`, `_peer_link_active()`, `_peer_link_usable()`
 - Inbound link adoption helpers (`_find_active_link_for_peer`, `_handoff_to_link`, etc.)
 
-`MessagingBackend` now inherits `PeerLinkMixin` and `ConnectMixin`. `backend.py` is ~3,600 lines.
+`MessagingBackend` now inherits `PeerLinkMixin`, `ConnectMixin`, `HubMixin`, and `QueueMixin`. `backend.py` is ~3,350 lines.
 
 ## Phase 3 — connect.py extraction (done)
 
@@ -49,13 +51,17 @@ Extracted ~1,070 lines into `ConnectMixin` in `connect.py`:
 - `_connect_serial_peer`, `_establish_outbound_link`, inbound wait helpers
 - `_identity_for_hash`, `_wait_for_identity`, `connect_to`, `_connect_to_locked`
 
+## Phase 4 — queue.py extraction (done)
+
+Extracted ~280 lines into `QueueMixin` in `queue.py` (enqueue, drain, retry, prune).
+
 ## Planned phases
 
 | Phase | Target | Notes |
 |-------|--------|-------|
 | 2 | `links.py` | Done — see above |
 | 3 | `connect.py` | Done — see above |
-| 4 | `queue.py` | Queue load/save/drain/retry |
+| 4 | `queue.py` | Done — see above |
 | 5 | `transfer.py` | Files, resources, LAN HTTP fallback |
 | 6 | `hub.py` | Hub relay and group messaging |
 | 7 | `announce.py` | Announce loops, serial burst |
@@ -78,7 +84,7 @@ bash scripts/sync-android.sh   # after editing chatx5/
 
 ## Remaining technical debt
 
-- `backend.py` still ~3,600 lines — next extraction is `queue.py` (Phase 4).
+- `backend.py` still ~3,350 lines — next extraction is `transfer.py` (Phase 5).
 - `web/server.py` still ~5,700 lines.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.

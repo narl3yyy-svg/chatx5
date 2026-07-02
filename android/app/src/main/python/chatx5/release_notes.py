@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.5.18": [
+        "Fix connect regression: outbound links no longer fail with _null_context / serial_path_is_pinned NameError (Phase 3 extraction).",
+        "Hub group chat: clients auto-fetch hub server identity from /api/network-status, open a TCP RNS link, and drain queued group messages.",
+        "Hub TCP inbound links bypass LAN scope checks; Phase 4 refactor moves queue logic to messaging/queue.py.",
+    ],
     "0.5.17": [
         "Discovered peers: ↻ refresh button re-announces and rescans the peer list without a full restart.",
         "Hub settings: clearer hints — hub server uses 0.0.0.0:4242; hub client host is separate from LAN discovery IP; UDP LAN is correct for P2P while hub is on.",

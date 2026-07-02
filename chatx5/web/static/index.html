@@ -1837,7 +1837,7 @@ body.android-shell.sidebar-open #sidebar-backdrop {
           <div id="hub-client-fields" class="settings-section" style="display:none">
             <label>Hub host (IP)</label>
             <input id="settings-hub-host" placeholder="10.0.5.37" spellcheck="false">
-            <p class="field-hint" style="margin:6px 0 0">IP of the hub server machine — not your LAN discovery pin. P2P peers still use UDP.</p>
+            <p class="field-hint" style="margin:6px 0 0">IP of the hub server on <strong>your</strong> subnet (e.g. 10.0.30.112, not 10.0.5.37 if you are on 10.0.30.x). Requires <code>--share</code> on the server for hash discovery. P2P peers still use UDP.</p>
             <label style="margin-top:12px">Hub port</label>
             <input id="settings-hub-port" type="number" min="1" max="65535" value="4242">
           </div>
