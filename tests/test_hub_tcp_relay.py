@@ -285,6 +285,51 @@ class HubTransportFamilyTests(unittest.TestCase):
         self.assertFalse(backend._hub_transport_active())
 
 
+class HubClientLinkTests(unittest.TestCase):
+    def test_fetch_hub_server_hash_from_status_api(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        backend = MessagingBackend(identity=ident, config_dir=tempfile.mkdtemp())
+        payload = json.dumps({"hub_server_hash": "b" * 32}).encode()
+
+        class FakeResp:
+            def read(self):
+                return payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch("chatx5.core.messaging.hub.urlrequest.urlopen", return_value=FakeResp()):
+            got = backend._fetch_hub_server_hash_from_peer("10.0.30.112", 8742)
+        self.assertEqual(got, "b" * 32)
+
+    def test_ensure_hub_link_fetches_hash_when_missing(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({
+                "hub_role": "client",
+                "hub_host": "10.0.30.112",
+                "hub_port": 4242,
+                "hub_server_hash": "",
+            }, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+        backend.running = True
+        hub_hash = "c" * 32
+        with patch.object(backend, "_hub_tcp_transport_online", return_value=True):
+            with patch.object(backend, "_fetch_hub_server_hash_from_peer", return_value=hub_hash):
+                with patch.object(backend, "_peer_link_active", return_value=True):
+                    self.assertTrue(backend.ensure_hub_link())
+        with open(settings_path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertEqual(saved.get("hub_server_hash"), hub_hash)
+
+
 class HubHeadlessSpecTests(unittest.TestCase):
     """Specification tests for planned dedicated headless hub mode (not yet implemented)."""
 

@@ -1291,6 +1291,8 @@ class ChatWebServer:
                 online = tcp_server_interface_online(int(settings.get("hub_port") or 4242))
                 if online:
                     print(f"[hub] TCP hub server listening on 0.0.0.0:{settings.get('hub_port', 4242)}")
+                    if self.messaging:
+                        self.messaging._schedule_hub_link_ensure(delay=1.0)
                 else:
                     print(
                         f"[hub] TCP hub server not online yet on port "
@@ -1307,9 +1309,12 @@ class ChatWebServer:
                     if online:
                         print(f"[hub] TCP hub client connected to {host}:{port}")
                         if self.messaging:
+                            self.messaging._schedule_hub_link_ensure(delay=1.0)
                             self.messaging._schedule_hub_queue_drain()
                     elif host:
                         print(f"[hub] TCP hub client connecting to {host}:{port}...")
+                        if self.messaging:
+                            self.messaging._schedule_hub_link_ensure(delay=4.0)
                 elif host:
                     remove_tcp_client_to_host(host, port)
                     pinned = (settings.get("lan_interface") or "").strip()
@@ -2418,9 +2423,17 @@ class ChatWebServer:
                 resolved = fixed
         elif not resolved:
             resolved = self._peer_dest_hash(peer_hash)
+        hub_tcp_link = (
+            self.messaging
+            and link
+            and self.messaging._link_is_hub_transport(
+                self.messaging._link_attached_interface(link)
+            )
+        )
         if (
             resolved
             and not is_hub_peer_hash(resolved)
+            and not hub_tcp_link
             and not self._peer_in_discovery_scope(resolved, link=link)
         ):
             if self.messaging and link:

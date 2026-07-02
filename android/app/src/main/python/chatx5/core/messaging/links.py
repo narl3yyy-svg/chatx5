@@ -297,6 +297,8 @@ class PeerLinkMixin:
             iface = self._link_attached_interface(link)
             if is_serial_interface(iface):
                 return True
+            if self._link_is_hub_transport(iface):
+                return True
             if iface and not self._link_acceptable_for_peer(link, peer_hash):
                 return False
         if not self.peer_scope_checker:
