@@ -283,6 +283,7 @@ class RNSLifecycleMixin:
             except Exception:
                 identity_pubkey = None
         if lan_discovery_configured(interfaces):
+            serial_hash, serial_ident, serial_pubkey = self._serial_beacon_fields()
             self.lan_beacon = LanBeacon(
                 self.discovery,
                 my_dest_clean,
@@ -292,6 +293,9 @@ class RNSLifecycleMixin:
                 periodic=auto_announce,
                 identity_hash=self.identity_mgr.get_hex_hash(),
                 identity_pubkey=identity_pubkey,
+                serial_hash=serial_hash,
+                serial_identity_hash=serial_ident,
+                serial_identity_pubkey=serial_pubkey,
                 on_periodic=self._on_beacon_periodic if auto_announce else None,
             )
             self.lan_beacon.start()
@@ -316,6 +320,9 @@ class RNSLifecycleMixin:
         dedupe_serial_interfaces()
         if serial_hot:
             print(f"[serial] Runtime serial interface active on {getattr(serial_hot, 'port', '?')}")
+            if self.messaging:
+                self.messaging.ensure_serial_runtime()
+            self._sync_beacon_serial_fields()
         elif configured_serial_port(settings.get("rns_interfaces"))[0]:
             print("[serial] Warning: serial port configured but RNS SerialInterface is not active")
 
@@ -396,6 +403,32 @@ class RNSLifecycleMixin:
             timer.daemon = True
             timer.start()
 
+    def _serial_beacon_fields(self):
+        """USB serial connect hash + identity for LAN beacon payloads (dual-transport)."""
+        serial_hash = ""
+        serial_ident = ""
+        serial_pubkey = None
+        if self.messaging and getattr(self.messaging, "my_dest_hash_serial", None):
+            serial_hash = self._clean_hash(self.messaging.my_dest_hash_serial)
+        elif self.identity_mgr:
+            serial_hash = self._clean_hash(self.identity_mgr.get_connect_hash("serial"))
+        if self.identity_mgr and self.identity_mgr.identity_serial:
+            serial_ident = self._clean_hash(self.identity_mgr.get_hex_hash("serial"))
+            try:
+                serial_pubkey = self.identity_mgr.identity_serial.get_public_key()
+            except Exception:
+                serial_pubkey = None
+        return serial_hash, serial_ident, serial_pubkey
+
+    def _sync_beacon_serial_fields(self):
+        """Refresh USB endpoint fields on the LAN beacon after serial comes online."""
+        if not self.lan_beacon:
+            return
+        serial_hash, serial_ident, serial_pubkey = self._serial_beacon_fields()
+        self.lan_beacon.serial_hash = serial_hash
+        self.lan_beacon.serial_identity_hash = serial_ident
+        self.lan_beacon.serial_identity_pubkey = serial_pubkey
+
     def _beacon_payload(self):
         from chatx5.core.peer_identity import connect_hash_for_manager
 
@@ -430,6 +463,17 @@ class RNSLifecycleMixin:
                 payload["pubkey"] = base64.b64encode(
                     self.identity.get_public_key()
                 ).decode("ascii")
+            except Exception:
+                pass
+        serial_hash, serial_ident, serial_pubkey = self._serial_beacon_fields()
+        if serial_hash and len(serial_hash) == 32:
+            payload["serial_hash"] = serial_hash
+        if serial_ident and len(serial_ident) == 32:
+            payload["serial_identity_hash"] = serial_ident
+        if serial_pubkey:
+            try:
+                import base64
+                payload["serial_pubkey"] = base64.b64encode(serial_pubkey).decode("ascii")
             except Exception:
                 pass
         return payload

@@ -760,6 +760,25 @@ class PeerDiscovery:
             return
         if via == "serial":
             announce_ip = ""
+        elif (
+            via == "rns"
+            and not announce_ip
+            and serial_discovery_active()
+            and identity_hex
+        ):
+            # Serial message-dest hash announced without IP while we already know
+            # this identity on LAN — treat as the peer's USB row (dual-hash model).
+            for existing in self.peers.values():
+                ex_via = (existing.get("via") or "").strip()
+                if ex_via == "serial":
+                    continue
+                if normalize_hash(existing.get("identity_hash")) != identity_hex:
+                    continue
+                if normalize_hash(existing.get("hash")) == hash_hex:
+                    break
+                via = "serial"
+                announce_ip = ""
+                break
         peer = {
             "hash": hash_hex,
             "name": name or hash_hex[:8],
@@ -805,6 +824,52 @@ class PeerDiscovery:
             f"{hash_hex}:{via}",
             f"[discovery] RNS peer discovered ({via}): {label}...",
         )
+
+    def _register_serial_peer_from_beacon(self, data, name, lan_identity_hex=""):
+        """Register a peer's USB serial endpoint advertised alongside a LAN beacon."""
+        serial_hash = normalize_hash(data.get("serial_hash"))
+        if not serial_hash or len(serial_hash) != 32:
+            return False
+        if not serial_discovery_active():
+            return False
+        if self._is_local_hash(serial_hash):
+            return False
+        serial_ident = normalize_hash(data.get("serial_identity_hash"))
+        if serial_ident and self._is_local_hash(serial_ident):
+            return False
+        serial_peer = {
+            "hash": serial_hash,
+            "name": (name or serial_hash[:8]).strip() or serial_hash[:8],
+            "via": "serial",
+            "serial_rns": True,
+            "last_seen": time.time(),
+        }
+        if serial_ident:
+            serial_peer["identity_hash"] = serial_ident
+        elif lan_identity_hex:
+            serial_peer["identity_hash"] = normalize_hash(lan_identity_hex)
+        serial_pubkey = (data.get("serial_pubkey") or "").strip()
+        if serial_pubkey:
+            serial_peer["pubkey"] = serial_pubkey
+            if serial_ident:
+                try:
+                    from chatx5.core.peer_identity import register_beacon_identity
+                    register_beacon_identity({
+                        "hash": serial_hash,
+                        "identity_hash": serial_ident,
+                        "pubkey": serial_pubkey,
+                        "name": serial_peer["name"],
+                    })
+                except Exception:
+                    pass
+        if not self._store_peer(serial_peer):
+            return False
+        label = serial_peer["name"]
+        self._log_once(
+            f"beacon-serial:{serial_hash}",
+            f"[discovery] Beacon serial endpoint registered: {label} (serial)...",
+        )
+        return True
 
     def _on_beacon(self, data, my_dest_hash, my_identity_hash=None, source_ip=None):
         if not self.running or not self.accept_peers:
@@ -878,6 +943,7 @@ class PeerDiscovery:
             f"beacon:{hash_hex}",
             f"[discovery] Beacon peer discovered: {name} ({peer.get('ip', '?')})",
         )
+        self._register_serial_peer_from_beacon(data, name, identity_hex)
         return True
 
     def _log_once(self, key, message, interval=5):

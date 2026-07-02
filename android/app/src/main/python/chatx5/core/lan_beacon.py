@@ -18,11 +18,15 @@ MAGIC = b"CHATXZ1"
 class LanBeacon:
     def __init__(self, discovery, dest_hash, display_name="", ip=None, port=8742,
                  periodic=False, identity_hash=None, identity_pubkey=None,
+                 serial_hash=None, serial_identity_hash=None, serial_identity_pubkey=None,
                  on_periodic=None):
         self.discovery = discovery
         self.dest_hash = (dest_hash or "").replace(":", "")
         self.identity_hash = (identity_hash or "").replace(":", "")
         self.identity_pubkey = identity_pubkey
+        self.serial_hash = (serial_hash or "").replace(":", "")
+        self.serial_identity_hash = (serial_identity_hash or "").replace(":", "")
+        self.serial_identity_pubkey = serial_identity_pubkey
         self.on_periodic = on_periodic
         self.display_name = display_name or ""
         self.ip = ip
@@ -126,6 +130,17 @@ class LanBeacon:
         if self.identity_pubkey:
             try:
                 payload["pubkey"] = base64.b64encode(self.identity_pubkey).decode("ascii")
+            except Exception:
+                pass
+        if self.serial_hash and len(self.serial_hash) == 32:
+            payload["serial_hash"] = self.serial_hash
+        if self.serial_identity_hash and len(self.serial_identity_hash) == 32:
+            payload["serial_identity_hash"] = self.serial_identity_hash
+        if self.serial_identity_pubkey:
+            try:
+                payload["serial_pubkey"] = base64.b64encode(
+                    self.serial_identity_pubkey
+                ).decode("ascii")
             except Exception:
                 pass
         return json.dumps(payload).encode("utf-8")

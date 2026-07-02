@@ -2,6 +2,15 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.6] — 2026-07-02
+
+### Fixed
+- **Symmetric serial discovery** — LAN beacons now include the peer's USB serial connect hash (`serial_hash` + `serial_identity_hash`), so both ends see LAN **and** USB rows even when RNS serial announces only propagate one way over the USB link (fixes Arch seeing only Ubuntu LAN).
+- **RNS announce dual-hash** — when an ip-less announce arrives for a serial message-dest hash whose `identity_hash` already has a LAN discovery row, it is stored as `via=serial` instead of being dropped or misclassified.
+
+### Changed
+- **Settings → About** — removed the duplicate "View release notes" button; release notes remain on the bottom-dock version badge only.
+
 ## [0.6.5] — 2026-07-02
 
 ### Fixed
