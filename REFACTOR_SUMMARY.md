@@ -22,7 +22,8 @@ chatx5/core/messaging/
   models.py        # ChatMessage
   peers.py         # is_hub_peer_hash()
   links.py         # PeerLinkMixin — link map, transport zones, selection
-  backend.py       # MessagingBackend (still large; connect/queue/transfer remain)
+  connect.py       # ConnectMixin — wake, path prime, connect_to
+  backend.py       # MessagingBackend (queue/transfer/hub/announce remain)
 ```
 
 Imports like `from chatx5.core.messaging import MessagingBackend` are unchanged.
@@ -38,14 +39,22 @@ Extracted ~840 lines into `PeerLinkMixin` in `links.py`:
 - `linked_peers()`, `_best_outgoing_link()`, `_peer_link_active()`, `_peer_link_usable()`
 - Inbound link adoption helpers (`_find_active_link_for_peer`, `_handoff_to_link`, etc.)
 
-`MessagingBackend` now inherits `PeerLinkMixin`. `backend.py` is ~4,600 lines.
+`MessagingBackend` now inherits `PeerLinkMixin` and `ConnectMixin`. `backend.py` is ~3,600 lines.
+
+## Phase 3 — connect.py extraction (done)
+
+Extracted ~1,070 lines into `ConnectMixin` in `connect.py`:
+
+- LAN unreachable tracking, HTTP wake, UDP/TCP/serial path priming
+- `_connect_serial_peer`, `_establish_outbound_link`, inbound wait helpers
+- `_identity_for_hash`, `_wait_for_identity`, `connect_to`, `_connect_to_locked`
 
 ## Planned phases
 
 | Phase | Target | Notes |
 |-------|--------|-------|
 | 2 | `links.py` | Done — see above |
-| 3 | `connect.py` | `_connect_to_locked`, path priming, wake (~1,200 lines) |
+| 3 | `connect.py` | Done — see above |
 | 4 | `queue.py` | Queue load/save/drain/retry |
 | 5 | `transfer.py` | Files, resources, LAN HTTP fallback |
 | 6 | `hub.py` | Hub relay and group messaging |
@@ -69,7 +78,7 @@ bash scripts/sync-android.sh   # after editing chatx5/
 
 ## Remaining technical debt
 
-- `backend.py` still ~4,600 lines — next extraction is `connect.py` (Phase 3).
+- `backend.py` still ~3,600 lines — next extraction is `queue.py` (Phase 4).
 - `web/server.py` still ~5,700 lines.
 - `setup.py` duplicates `pyproject.toml` — deprecate after setuptools entry-point migration.
 - No pre-commit hook yet; ruff optional in check.sh.
