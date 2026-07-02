@@ -999,8 +999,10 @@ body.settings-open { overflow: hidden; }
 .msg.video-msg { max-width: 88%; min-width: 260px; }
 .msg .file-info { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .msg .file-info .file-icon { font-size: 22px; }
-.msg.voice-msg { max-width: min(92%, 520px); min-width: min(92vw, 360px); overflow: visible; }
+.msg.voice-msg { max-width: min(92%, 520px); min-width: min(92vw, 360px); overflow: visible; padding-right: 44px; }
 .msg.voice-msg.other { max-width: min(92%, 520px); }
+.msg.voice-msg .msg-actions,
+.msg.video-msg .msg-actions { opacity: 1; z-index: 5; pointer-events: auto; }
 .voice-wrap { width: 100%; max-width: 480px; min-width: min(88vw, 320px); margin-top: 8px; pointer-events: auto; }
 .msg .voice-player {
   display: block; width: 100%; min-width: min(88vw, 300px); max-width: 480px;
@@ -1107,6 +1109,26 @@ body.modal-open #save-contact-dialog * { pointer-events: auto; user-select: auto
   align-items: center; justify-content: center;
 }
 #folder-picker-dialog.open { display: flex; }
+#share-browser-dialog {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65); z-index: 5000;
+  align-items: center; justify-content: center;
+}
+#share-browser-dialog.open { display: flex; }
+.share-browser-toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px;
+}
+.share-browser-path {
+  flex: 1; min-width: 120px; font-size: 12px; color: var(--text2); word-break: break-all;
+}
+.share-entry-btn {
+  text-align: left; padding: 10px 12px; border-radius: var(--radius-md);
+  border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+  color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit;
+  display: flex; justify-content: space-between; gap: 10px; align-items: center;
+}
+.share-entry-btn:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+.share-entry-meta { font-size: 10px; color: var(--text3); flex-shrink: 0; }
 .folder-option-btn {
   text-align: left; padding: 12px 14px; border-radius: var(--radius-md);
   border: 1px solid var(--border); background: rgba(255,255,255,0.03);
@@ -1598,6 +1620,7 @@ body.android-shell.sidebar-open #sidebar-backdrop {
             <button class="input-btn desktop-only" id="voice-btn" onclick="toggleVoice()" title="Voice note">🎤</button>
             <button class="input-btn desktop-only" id="file-btn" onclick="pickFiles()" title="Attach file">📎</button>
             <button class="input-btn desktop-only" id="folder-btn" onclick="pickSendFolder()" title="Attach folder">📁</button>
+            <button class="input-btn desktop-only" id="share-btn" onclick="pickShareFolder()" title="Share folder to browse">🗂️</button>
             <input type="file" id="file-input" style="display:none" multiple onchange="uploadFiles(this.files);this.value=''">
             <input type="file" id="folder-input" style="display:none" webkitdirectory multiple onchange="uploadFolder(this.files);this.value=''">
             <button class="input-btn" id="send-btn" onclick="sendMessage()" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault()" title="Send">➤</button>
@@ -1608,6 +1631,7 @@ body.android-shell.sidebar-open #sidebar-backdrop {
           <button class="input-btn" id="voice-btn-mobile" onclick="toggleVoice()" title="Voice note">🎤</button>
           <button class="input-btn" id="file-btn-mobile" onclick="pickFiles()" title="Attach file">📎</button>
           <button class="input-btn" id="folder-btn-mobile" onclick="pickSendFolder()" title="Attach folder">📁</button>
+          <button class="input-btn" id="share-btn-mobile" onclick="pickShareFolder()" title="Share folder to browse">🗂️</button>
         </div>
       </div>
     </div>
@@ -1868,6 +1892,22 @@ body.android-shell.sidebar-open #sidebar-backdrop {
         </div>
       </section>
     </main>
+  </div>
+</div>
+
+<div id="share-browser-dialog" onclick="if(event.target===this)closeShareBrowser()">
+  <div class="dialog" style="max-height:85vh;overflow:hidden;display:flex;flex-direction:column;min-width:min(92vw,520px)">
+    <button class="panel-close" onclick="closeShareBrowser()" style="position:absolute;top:16px;right:16px" title="Close">&times;</button>
+    <h2 id="share-browser-title">Shared folder</h2>
+    <div class="share-browser-toolbar">
+      <button class="dlg-btn secondary" id="share-browser-up" onclick="shareBrowserUp()" style="display:none">↑ Up</button>
+      <span class="share-browser-path" id="share-browser-path">/</span>
+      <label class="dlg-btn secondary" id="share-browser-upload-label" style="cursor:pointer;margin:0">
+        Upload<input type="file" id="share-browser-upload" style="display:none" onchange="uploadShareFile(this.files);this.value=''">
+      </label>
+    </div>
+    <div id="share-browser-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+    <button class="dlg-btn secondary" onclick="closeShareBrowser()">Close</button>
   </div>
 </div>
 
@@ -5518,18 +5558,43 @@ function linkKey(hash, via) {
   return `${h}:${normalizeVia(via)}`;
 }
 
+function isCorruptContactName(name, hashes) {
+  const raw = (name || '').trim();
+  if (!raw) return true;
+  if (/[\r\n]/.test(raw)) return true;
+  if (raw.length > 48) return true;
+  if (/\bLAN\b|\bUSB\b/i.test(raw)) return true;
+  if (/\d+ms\b/i.test(raw)) return true;
+  const compact = raw.replace(/[: ]/g, '');
+  if (compact.length >= 20 && /^[0-9a-f]+$/i.test(compact)) return true;
+  if (/[0-9a-f]{16,}/i.test(compact)) {
+    const hexChars = (compact.match(/[0-9a-f]/gi) || []).length;
+    if (hexChars >= Math.max(16, compact.length * 0.6)) return true;
+  }
+  const key = peerKey(raw);
+  if (key && hashes && hashes.has(key)) return true;
+  for (const h of hashes || []) {
+    if (!h) continue;
+    const hk = peerKey(h);
+    if (key === hk || key === hk.slice(0, 8) || key === hk.slice(0, 12) || key.startsWith(hk.slice(0, 8))) return true;
+  }
+  return false;
+}
+
 function contactDisplayName(c) {
-  const raw = (c?.name || '').trim();
   const hashes = new Set(
     [c?.hash, c?.lan_hash, c?.serial_hash, contactLanHash(c), contactSerialHash(c)]
       .map(peerKey).filter(Boolean)
   );
-  if (c?.custom_name && raw) return raw;
-  if (raw && !hashes.has(peerKey(raw)) && raw.length <= 24) return raw;
+  const raw = (c?.name || '').trim();
+  const cleanRaw = isCorruptContactName(raw, hashes) ? '' : raw;
+  if (c?.custom_name && cleanRaw) return cleanRaw;
+  if (cleanRaw && !hashes.has(peerKey(cleanRaw)) && cleanRaw.length <= 24) return cleanRaw;
   const disc = bestPeerForContact(window._discoveredPeers || [], c);
-  if (!c?.custom_name && disc?.name && !hashes.has(peerKey(disc.name))) return disc.name;
-  if (raw && raw.length <= 16) return raw;
-  return truncateHash(c?.lan_hash || c?.serial_hash || c?.hash || raw);
+  const discName = (disc?.name || '').trim();
+  if (!c?.custom_name && discName && !isCorruptContactName(discName, hashes) && !hashes.has(peerKey(discName))) return discName;
+  if (cleanRaw && cleanRaw.length <= 16) return cleanRaw;
+  return truncateHash(c?.lan_hash || c?.serial_hash || c?.hash || cleanRaw);
 }
 
 function isLocalPeerHash(hash) {
@@ -5759,7 +5824,7 @@ function addMessage(data, opts) {
   if (data.type === 'text' || data.type === 'emoji') {
     html += `<span class="msg-text">${linkify(escapeHtml(data.content))}</span>`;
   } else if (data.type === 'image') {
-    html = `<div>📷 ${escapeHtml(data.file_name || 'Image')}</div>`;
+    html += `<div>📷 ${escapeHtml(data.file_name || 'Image')}</div>`;
     if (data.content) {
       const url = fileUrl(data.content, data);
       if (url) {
@@ -5771,23 +5836,34 @@ function addMessage(data, opts) {
     }
   } else if (data.type === 'video' || (data.type === 'file' && isVideoFile(data.file_name))) {
     div.classList.add('video-msg');
-    html = renderVideoMessage(data);
+    html += renderVideoMessage(data);
   } else if (data.type === 'voice') {
     div.classList.add('voice-msg');
-    html = `<div>🎤 ${escapeHtml(data.file_name || 'Voice note')}</div>`;
+    html += `<div>🎤 ${escapeHtml(data.file_name || 'Voice note')}</div>`;
     if (data.content) {
       const url = fileUrl(data.content, data);
       if (url) html += `<div class="voice-wrap"><audio class="voice-player" controls preload="metadata" src="${url}"></audio></div>`;
     }
   } else if (data.type === 'file') {
     const sz = data.file_size ? formatSize(data.file_size) : '';
-    html = `<div class="file-info"><span class="file-icon">📄</span><span>${escapeHtml(data.file_name || 'File')} ${sz}</span></div>`;
+    html += `<div class="file-info"><span class="file-icon">📄</span><span>${escapeHtml(data.file_name || 'File')} ${sz}</span></div>`;
     if (data.content) {
       const url = fileUrl(data.content, data);
       html += `<div style="margin-top:4px"><a href="${url}" download="${escapeHtml(data.file_name || 'file')}" style="color:var(--primary);font-size:12px">Download</a></div>`;
     }
+  } else if (data.type === 'share_browse') {
+    const share = data.share || {};
+    try {
+      if (!share.session_id && data.content) Object.assign(share, JSON.parse(data.content));
+    } catch (_) {}
+    const root = escapeHtml(share.root_name || data.file_name || 'Shared folder');
+    const shareKey = 'share-' + (data.msg_id || Date.now());
+    window._shareOffers = window._shareOffers || {};
+    window._shareOffers[shareKey] = share;
+    html += `<div class="file-info"><span class="file-icon">📂</span><span>${root}</span></div>`;
+    html += `<div style="margin-top:6px"><button class="dlg-btn primary" style="font-size:12px;padding:6px 12px" onclick="openShareBrowser('${shareKey}')">Browse folder</button></div>`;
   } else if (data.type === 'system') {
-    html = escapeHtml(data.content);
+    html += escapeHtml(data.content);
   }
   const icon = receiptIcon(data.status || (isSelf && data.type !== 'system' ? 'sending' : ''));
   html += `<div class="time">${time}${icon ? ' <span class="receipt" style="font-size:11px;margin-left:4px">' + icon + '</span>' : ''}</div>`;
@@ -6117,6 +6193,194 @@ function closeFolderPicker() {
   document.getElementById('folder-picker-dialog')?.classList.remove('open');
 }
 
+let _shareSession = null;
+
+function closeShareBrowser() {
+  document.getElementById('share-browser-dialog')?.classList.remove('open');
+  _shareSession = null;
+}
+
+function shareRemoteQuery(extra) {
+  const s = _shareSession;
+  if (!s) return '';
+  const q = new URLSearchParams({
+    host: s.host,
+    port: String(s.port),
+    session_id: s.session_id,
+    token: s.token,
+    ...(extra || {}),
+  });
+  return q.toString();
+}
+
+function shareIsLocal() {
+  return !!(_shareSession && _shareSession.local);
+}
+
+async function loadShareListing() {
+  const s = _shareSession;
+  const list = document.getElementById('share-browser-list');
+  if (!s || !list) return;
+  const pathEl = document.getElementById('share-browser-path');
+  const upBtn = document.getElementById('share-browser-up');
+  const uploadLabel = document.getElementById('share-browser-upload-label');
+  list.innerHTML = '<div style="color:var(--text3);font-size:12px">Loading…</div>';
+  const rel = s.path || '';
+  const base = shareIsLocal()
+    ? `/api/share/${encodeURIComponent(s.session_id)}/list?token=${encodeURIComponent(s.token)}&path=${encodeURIComponent(rel)}`
+    : `/api/share/remote/list?${shareRemoteQuery({path: rel})}`;
+  try {
+    const r = await fetch(base);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'list failed');
+    s.writable = !!d.writable;
+    if (pathEl) pathEl.textContent = '/' + (d.path || '').replace(/^\//, '');
+    if (upBtn) upBtn.style.display = d.parent !== undefined && d.parent !== null && d.path ? '' : 'none';
+    if (uploadLabel) uploadLabel.style.display = d.writable ? '' : 'none';
+    list.innerHTML = '';
+    (d.entries || []).forEach(entry => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'share-entry-btn';
+      const meta = entry.dir ? 'folder' : formatSize(entry.size || 0);
+      btn.innerHTML = `<span>${entry.dir ? '📁' : '📄'} ${escapeHtml(entry.name)}</span><span class="share-entry-meta">${escapeHtml(meta)}</span>`;
+      btn.onclick = () => {
+        if (entry.dir) {
+          s.path = entry.path;
+          loadShareListing();
+        } else {
+          downloadShareFile(entry.path, entry.name);
+        }
+      };
+      list.appendChild(btn);
+    });
+    if (!d.entries || !d.entries.length) {
+      list.innerHTML = '<div style="color:var(--text3);font-size:12px">Empty folder</div>';
+    }
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--danger);font-size:12px">${escapeHtml(e.message || 'Failed to load')}</div>`;
+  }
+}
+
+function shareBrowserUp() {
+  if (!_shareSession) return;
+  const cur = (_shareSession.path || '').replace(/\\/g, '/').replace(/\/$/, '');
+  if (!cur) return;
+  const parent = cur.includes('/') ? cur.replace(/\/[^/]+$/, '') : '';
+  _shareSession.path = parent;
+  loadShareListing();
+}
+
+function openShareBrowser(keyOrOffer) {
+  let offer = keyOrOffer;
+  if (typeof keyOrOffer === 'string') {
+    offer = (window._shareOffers || {})[keyOrOffer];
+  }
+  if (!offer || !offer.session_id || !offer.token) {
+    toast('Share session unavailable');
+    return;
+  }
+  const myHost = window.location.hostname;
+  const local = String(offer.host) === myHost && Number(offer.port) === Number(window.location.port || location.port);
+  _shareSession = {
+    session_id: offer.session_id,
+    token: offer.token,
+    host: offer.host,
+    port: offer.port,
+    root_name: offer.root_name || 'Shared folder',
+    writable: !!offer.writable,
+    path: '',
+    local,
+  };
+  const title = document.getElementById('share-browser-title');
+  if (title) title.textContent = offer.root_name || 'Shared folder';
+  document.getElementById('share-browser-dialog')?.classList.add('open');
+  loadShareListing();
+}
+
+function downloadShareFile(relPath, fileName) {
+  const s = _shareSession;
+  if (!s) return;
+  const rel = relPath || '';
+  const url = shareIsLocal()
+    ? `/api/share/${encodeURIComponent(s.session_id)}/download?token=${encodeURIComponent(s.token)}&path=${encodeURIComponent(rel)}`
+    : `/api/share/remote/download?${shareRemoteQuery({path: rel})}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName || 'download';
+  a.click();
+}
+
+async function uploadShareFile(files) {
+  const s = _shareSession;
+  if (!s || !files || !files.length) return;
+  if (!s.writable) {
+    toast('Read-only share');
+    return;
+  }
+  const form = new FormData();
+  form.append('path', s.path || '');
+  form.append('file', files[0]);
+  const url = shareIsLocal()
+    ? `/api/share/${encodeURIComponent(s.session_id)}/upload`
+    : `/api/share/remote/upload?${shareRemoteQuery()}`;
+  const headers = shareIsLocal() ? {'X-Share-Token': s.token} : {};
+  try {
+    const r = await fetch(url, {method: 'POST', headers, body: form});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'upload failed');
+    toast('Uploaded ' + (files[0].name || 'file'));
+    loadShareListing();
+  } catch (e) {
+    toast('Upload failed: ' + (e.message || 'error'));
+  }
+}
+
+async function startShareBrowse(path) {
+  if (!viewingPeer) {
+    toast('Select a chat first');
+    return;
+  }
+  const hub_group = viewingPeer === HUB_GROUP_PEER;
+  try {
+    const r = await fetch('/api/share/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path, peer: viewingPeer, hub_group, writable: true}),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'share failed');
+    toast('Shared ' + (d.offer?.root_name || 'folder'));
+  } catch (e) {
+    toast('Share failed: ' + (e.message || 'error'));
+  }
+}
+
+async function pickShareFolder() {
+  if (!viewingPeer) {
+    toast('Select a chat first');
+    return;
+  }
+  toast('Pick a folder to share…');
+  try {
+    const r = await fetch('/api/browse-dir');
+    const d = await r.json();
+    if (d.platform === 'android' && Array.isArray(d.options) && d.options.length) {
+      window._sharePickCallback = (path) => startShareBrowse(path);
+      showFolderOptionsDialog(d.options, '__share_pick__');
+      return;
+    }
+    if (r.ok && d.path) {
+      await startShareBrowse(d.path);
+      return;
+    }
+    if (d.error === 'cancelled') return;
+    if (d.error) toast('Browse failed: ' + d.error);
+  } catch (_) {
+    toast('Browse failed');
+  }
+}
+
 function showFolderOptionsDialog(options, targetId) {
   window._receivedDirTargetId = targetId || 'settings-received-dir';
   const list = document.getElementById('folder-picker-list');
@@ -6127,7 +6391,17 @@ function showFolderOptionsDialog(options, targetId) {
     btn.type = 'button';
     btn.className = 'folder-option-btn';
     btn.innerHTML = `<strong>${escapeHtml(opt.label)}</strong><span class="path">${escapeHtml(opt.path)}</span>`;
-    btn.onclick = () => selectReceivedDir(opt.path);
+    btn.onclick = () => {
+      if (targetId === '__share_pick__') {
+        closeFolderPicker();
+        const cb = window._sharePickCallback;
+        window._sharePickCallback = null;
+        if (cb) cb(opt.path);
+        else startShareBrowse(opt.path);
+      } else {
+        selectReceivedDir(opt.path);
+      }
+    };
     list.appendChild(btn);
   });
   document.getElementById('folder-picker-dialog')?.classList.add('open');
@@ -6135,6 +6409,14 @@ function showFolderOptionsDialog(options, targetId) {
 
 async function selectReceivedDir(path) {
   const targetId = window._receivedDirTargetId || 'settings-received-dir';
+  if (targetId === '__share_pick__') {
+    closeFolderPicker();
+    const cb = window._sharePickCallback;
+    window._sharePickCallback = null;
+    if (cb) await cb(path);
+    else await startShareBrowse(path);
+    return;
+  }
   const setupTarget = targetId === 'setup-received-dir';
   try {
     const r = await fetch('/api/browse-dir', {
@@ -6466,7 +6748,7 @@ function copyMsgText(btn) {
 }
 
 function deleteMessage(msgId) {
-  if (!msgId || !confirm('Delete this message?')) return;
+  if (!msgId) return;
   fetch('/api/history/' + encodeURIComponent(msgId), { method: 'DELETE' })
     .then(r => {
       if (!r.ok) throw new Error();

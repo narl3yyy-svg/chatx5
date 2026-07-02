@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.0": [
+        "Voice, video, image, and file messages show the trash icon; delete removes immediately with no confirm dialog.",
+        "Shared folder browse: share a folder with a peer (or hub group) to browse, download, and upload files for 2 hours.",
+        "Contact names no longer corrupt to hash/RTT/LAN garbage when discovery updates arrive after voice or link events.",
+        "Phase 8: ShareBrowserMixin wired into web server (share_browser.py).",
+    ],
     "0.5.24": [
         "Hub TCP: server counts inbound TCPClientInterface links as hub relay; hub-client TCP dials match hub host only.",
         "Hub group chat: connect reuses active hub TCP link; stops ensure_hub_link retry storm; server logs linked client count.",

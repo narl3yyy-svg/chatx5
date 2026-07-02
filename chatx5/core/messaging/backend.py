@@ -1983,3 +1983,39 @@ class MessagingBackend(
             print(f"[messaging] Send failed: {e}")
             return False
 
+    def send_chat_message(self, chat_msg, receipt_callback=None, target_peer=None,
+                          link=None, prefer_transport=None):
+        """Send a pre-built ChatMessage (any type) to a peer."""
+        peer = self.dest_hash_for(
+            target_peer or self.active_peer_hash or self._session_peer_hash or ""
+        )
+        if not peer or peer == "unknown":
+            print("[messaging] send_chat_message: no target peer")
+            return False
+        transport = self._normalize_transport(prefer_transport) if prefer_transport else None
+        if not self._peer_link_active(peer, transport=transport):
+            print(f"[messaging] send_chat_message: no active link to {peer[:16]}")
+            return False
+        link = self._queue_send_link(peer, link_hint=link, prefer_transport=transport)
+        if not link or not self._link_matches_peer(link, peer):
+            print(f"[messaging] send_chat_message: no transport-safe link to {peer[:16]}")
+            return False
+        data = chat_msg.to_json().encode("utf-8")
+        mtu = getattr(link, "mtu", 500)
+        try:
+            if len(data) > mtu - 50 and chat_msg.msg_type == MESSAGE_TYPE_TEXT:
+                return self._send_long_text(
+                    chat_msg, chat_msg.content, data, receipt_callback, link,
+                )
+            import RNS
+            RNS.Packet(link, data).send()
+            print(f"[messaging] Sent {chat_msg.msg_type} message")
+            self._sent_messages[chat_msg.msg_id] = chat_msg
+            self._pending_sends[chat_msg.msg_id] = time.time()
+            if receipt_callback:
+                self._receipt_callbacks[chat_msg.msg_id] = receipt_callback
+            return chat_msg
+        except Exception as e:
+            print(f"[messaging] Send failed: {e}")
+            return False
+
