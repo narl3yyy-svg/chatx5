@@ -137,7 +137,7 @@ class TransportFamilyMatrixTests(unittest.TestCase):
                 }
                 backend = _messaging(resolver)
                 with patch(
-                    "chatx5.core.messaging.serial_interface_online",
+                    "chatx5.core.messaging.backend.serial_interface_online",
                     return_value=MagicMock() if usb_up else None,
                 ):
                     with patch.object(
@@ -269,10 +269,10 @@ class ThreeDeviceMatrixTests(unittest.TestCase):
             (WINDOWS, serial_link, "serial"),
         ):
             with self.subTest(target=target[:8], fam=fam):
-                with patch("chatx5.core.messaging.serial_interface_online", return_value=MagicMock()):
+                with patch("chatx5.core.messaging.backend.serial_interface_online", return_value=MagicMock()):
                     with patch.object(backend, "_peer_lan_ip_usable", return_value=True):
                         with patch(
-                            "chatx5.core.messaging.interface_family",
+                            "chatx5.core.messaging.backend.interface_family",
                             side_effect=lambda i: fam if i else "",
                         ):
                             ok = backend._link_acceptable_for_peer(link, target)
@@ -305,7 +305,7 @@ class SenderReceiverMatrixTests(unittest.TestCase):
                 }
                 backend = _messaging(resolver)
                 with patch(
-                    "chatx5.core.messaging.serial_interface_online",
+                    "chatx5.core.messaging.backend.serial_interface_online",
                     return_value=MagicMock() if r_usb else None,
                 ):
                     with patch.object(backend, "_lan_transport_ready", return_value=True):
@@ -477,9 +477,9 @@ class SerialInboundScopeTests(unittest.TestCase):
         link.attached_interface = None
         link.interface = serial_iface
         backend.peer_scope_checker = lambda peer_hash, link=None: False
-        with patch("chatx5.core.messaging.is_serial_interface", return_value=True):
+        with patch("chatx5.core.messaging.backend.is_serial_interface", return_value=True):
             with patch(
-                "chatx5.core.messaging.interface_family",
+                "chatx5.core.messaging.backend.interface_family",
                 return_value="serial",
             ):
                 allowed = backend._peer_allowed_by_scope(ARCH_SERIAL, link=link)
@@ -494,7 +494,7 @@ class SerialInboundScopeTests(unittest.TestCase):
         link.interface = None
         link.parent_interface = serial_iface
         with patch(
-            "chatx5.core.messaging.interface_family",
+            "chatx5.core.messaging.backend.interface_family",
             return_value="serial",
         ):
             self.assertIs(backend._link_attached_interface(link), serial_iface)

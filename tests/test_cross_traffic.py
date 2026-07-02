@@ -83,7 +83,7 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         backend = self._backend(resolver)
         ubuntu_serial, windows_udp = self._wire_dual_links(backend)
 
-        with patch("chatx5.core.messaging.interface_family", side_effect=lambda i: (
+        with patch("chatx5.core.messaging.backend.interface_family", side_effect=lambda i: (
             "serial" if i is ubuntu_serial.attached_interface else "udp"
         )):
             with patch.object(backend, "_link_interface_healthy", return_value=True):
@@ -105,7 +105,7 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         backend = self._backend(resolver)
         ubuntu_serial, windows_udp = self._wire_dual_links(backend)
 
-        with patch("chatx5.core.messaging.interface_family", side_effect=lambda i: (
+        with patch("chatx5.core.messaging.backend.interface_family", side_effect=lambda i: (
             "serial" if i is ubuntu_serial.attached_interface else "udp"
         )):
             with patch.object(backend, "_peer_lan_ip_usable", return_value=True):
@@ -164,13 +164,13 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         backend._session_peer_hash = UBUNTU
         backend._last_link_established_at = 0
 
-        with patch("chatx5.core.messaging.serial_interface_online", return_value=MagicMock()):
+        with patch("chatx5.core.messaging.backend.serial_interface_online", return_value=MagicMock()):
             with patch.object(backend, "_parallel_sessions_allowed", return_value=True):
                 with patch.object(backend, "_link_interface_healthy", return_value=True):
                     with patch.object(backend, "_has_online_family", return_value=True):
-                        with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+                        with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
                             with patch.object(backend, "_peer_has_path_on_family", return_value=True):
-                                with patch("chatx5.core.messaging.interface_family", return_value="serial"):
+                                with patch("chatx5.core.messaging.backend.interface_family", return_value="serial"):
                                     needs, reason = backend.link_needs_failover()
         self.assertFalse(needs)
 
@@ -186,7 +186,7 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         with patch.object(backend, "_parallel_sessions_allowed", return_value=True):
             with patch.object(backend, "_link_interface_healthy", return_value=True):
                 with patch.object(backend, "_peer_lan_ip_usable", return_value=True):
-                    with patch("chatx5.core.messaging.interface_family", return_value="udp"):
+                    with patch("chatx5.core.messaging.backend.interface_family", return_value="udp"):
                         needs, _ = backend.link_needs_failover()
         self.assertFalse(needs)
 
@@ -195,7 +195,7 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         ubuntu_serial, windows_udp = self._wire_dual_links(backend)
 
         with patch.object(backend, "_link_interface_healthy", return_value=True):
-            with patch("chatx5.core.messaging.interface_family", return_value="serial"):
+            with patch("chatx5.core.messaging.backend.interface_family", return_value="serial"):
                 with patch.object(backend, "_notify_link_established") as notify:
                     adopted = backend._adopt_healthy_peer_link(UBUNTU)
         self.assertIs(adopted, ubuntu_serial)
@@ -206,7 +206,7 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         backend = self._backend(resolver)
         self._wire_dual_links(backend)
 
-        with patch("chatx5.core.messaging.interface_family", side_effect=lambda i: (
+        with patch("chatx5.core.messaging.backend.interface_family", side_effect=lambda i: (
             "serial" if getattr(i, "family", "") == "serial" else "udp"
         )):
             with patch.object(backend, "_link_interface_healthy", return_value=True):
@@ -224,7 +224,7 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         ubuntu_serial, windows_udp = self._wire_dual_links(backend)
         backend.peer_links[UBUNTU] = windows_udp
 
-        with patch("chatx5.core.messaging.interface_family", side_effect=lambda i: (
+        with patch("chatx5.core.messaging.backend.interface_family", side_effect=lambda i: (
             "serial" if i is ubuntu_serial.attached_interface else "udp"
         )):
             with patch.object(backend, "_link_interface_healthy", return_value=True):
@@ -299,8 +299,8 @@ class CrossTrafficRoutingTests(unittest.TestCase):
         backend._link_peer_hashes[udp_link.link_id] = UBUNTU
         backend.peer_links[UBUNTU] = serial_link
 
-        with patch("chatx5.core.messaging.serial_interface_online", return_value=MagicMock()):
-            with patch("chatx5.core.messaging.interface_family", side_effect=lambda i: (
+        with patch("chatx5.core.messaging.backend.serial_interface_online", return_value=MagicMock()):
+            with patch("chatx5.core.messaging.backend.interface_family", side_effect=lambda i: (
                 "serial" if i is serial_iface else "udp"
             )):
                 with patch.object(backend, "_link_interface_healthy", return_value=True):

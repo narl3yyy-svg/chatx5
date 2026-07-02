@@ -46,7 +46,7 @@ class InboundLinkTests(unittest.TestCase):
         remote_ident = "f687bbff423a220af49f04edb8381ab2"
         link = _FakeLink("11" * 16, remote_ident)
         with patch(
-            "chatx5.core.messaging.message_dest_hash_for_identity",
+            "chatx5.core.messaging.backend.message_dest_hash_for_identity",
             return_value="4a2aa1dbbed382886b0333274e546ba8",
         ):
             peer = backend._peer_hash_from_link_identity(link)
@@ -88,7 +88,7 @@ class InboundLinkTests(unittest.TestCase):
         link = _FakeLink("22" * 16, remote_ident)
         backend.links[link.link_id] = link
         with patch(
-            "chatx5.core.messaging.message_dest_hash_for_identity",
+            "chatx5.core.messaging.backend.message_dest_hash_for_identity",
             return_value="4a2aa1dbbed382886b0333274e546ba8",
         ):
             found = backend._find_active_link_for_peer("4a2aa1dbbed382886b0333274e546ba8")
@@ -113,7 +113,7 @@ class InboundLinkTests(unittest.TestCase):
 
         backend.on_link_established = on_established
         with patch(
-            "chatx5.core.messaging.message_dest_hash_for_identity",
+            "chatx5.core.messaging.backend.message_dest_hash_for_identity",
             return_value="4a2aa1dbbed382886b0333274e546ba8",
         ):
             backend._notify_link_established(link, peer_hash="unknown")
@@ -158,11 +158,11 @@ class InboundLinkTests(unittest.TestCase):
             "_peer_expected_transport_families",
             return_value={"udp", "lan", "tcp"},
         ):
-            with patch("chatx5.core.messaging.interface_family", return_value="serial"):
-                with patch("chatx5.core.messaging.is_serial_interface", return_value=True):
+            with patch("chatx5.core.messaging.backend.interface_family", return_value="serial"):
+                with patch("chatx5.core.messaging.backend.is_serial_interface", return_value=True):
                     with patch.object(backend, "_setup_link"):
                         with patch(
-                            "chatx5.core.messaging.message_dest_hash_for_identity",
+                            "chatx5.core.messaging.backend.message_dest_hash_for_identity",
                             return_value=peer,
                         ):
                             with patch.object(backend, "dest_hash_for", side_effect=lambda h: h):
@@ -189,7 +189,7 @@ class InboundLinkTests(unittest.TestCase):
 
         backend.on_link_established = on_established
         with patch(
-            "chatx5.core.messaging.message_dest_hash_for_identity",
+            "chatx5.core.messaging.backend.message_dest_hash_for_identity",
             return_value=connect_hex,
         ):
             backend._notify_link_established(

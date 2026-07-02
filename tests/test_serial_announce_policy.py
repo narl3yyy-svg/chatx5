@@ -32,12 +32,12 @@ class SerialAnnouncePolicyTests(unittest.TestCase):
             with patch.object(backend, "ensure_serial_runtime", return_value=True):
                 with patch.object(backend, "_announce_on_interface", return_value=True) as announce:
                     with patch(
-                        "chatx5.core.messaging.serial_interface_online",
+                        "chatx5.core.messaging.backend.serial_interface_online",
                         return_value=MagicMock(port="/dev/ttyUSB0"),
                     ):
-                        with patch("chatx5.core.messaging.suppress_offline_lan_transports"):
-                            with patch("chatx5.core.messaging.dedupe_serial_interfaces"):
-                                with patch("chatx5.core.messaging.prune_dead_serial_interfaces"):
+                        with patch("chatx5.core.messaging.backend.suppress_offline_lan_transports"):
+                            with patch("chatx5.core.messaging.backend.dedupe_serial_interfaces"):
+                                with patch("chatx5.core.messaging.backend.prune_dead_serial_interfaces"):
                                     sent = backend._burst_serial_announce()
         self.assertEqual(sent, 1)
         self.assertEqual(announce.call_count, 1)
@@ -49,15 +49,15 @@ class SerialAnnouncePolicyTests(unittest.TestCase):
         backend.announce_interval = 1
         with patch.object(backend, "_has_active_transfer", return_value=False):
             with patch(
-                "chatx5.core.messaging.load_settings_interfaces",
+                "chatx5.core.messaging.backend.load_settings_interfaces",
                 return_value=[{"preset": "serial", "enabled": True}],
             ):
                 with patch(
-                    "chatx5.core.messaging.lan_discovery_configured",
+                    "chatx5.core.messaging.backend.lan_discovery_configured",
                     return_value=False,
                 ):
                     with patch(
-                        "chatx5.core.messaging.configured_serial_enabled",
+                        "chatx5.core.messaging.backend.configured_serial_enabled",
                         return_value=True,
                     ):
                         with patch.object(backend, "_serial_transport_ready", return_value=True):
@@ -77,18 +77,18 @@ class SerialAnnouncePolicyTests(unittest.TestCase):
 
         with patch.object(backend, "_has_active_transfer", return_value=False):
             with patch(
-                "chatx5.core.messaging.load_settings_interfaces",
+                "chatx5.core.messaging.backend.load_settings_interfaces",
                 return_value=[
                     {"preset": "udp_lan", "enabled": True},
                     {"preset": "serial", "enabled": True},
                 ],
             ):
                 with patch(
-                    "chatx5.core.messaging.lan_discovery_configured",
+                    "chatx5.core.messaging.backend.lan_discovery_configured",
                     return_value=True,
                 ):
                     with patch(
-                        "chatx5.core.messaging.configured_serial_enabled",
+                        "chatx5.core.messaging.backend.configured_serial_enabled",
                         return_value=True,
                     ):
                         with patch.object(backend, "_serial_transport_ready", return_value=True):
@@ -98,8 +98,8 @@ class SerialAnnouncePolicyTests(unittest.TestCase):
                                 with patch.object(
                                     backend, "_burst_serial_announce", side_effect=serial_announce
                                 ):
-                                    with patch("chatx5.core.messaging.prune_dead_serial_interfaces"):
-                                        with patch("chatx5.core.messaging.time.sleep"):
+                                    with patch("chatx5.core.messaging.backend.prune_dead_serial_interfaces"):
+                                        with patch("chatx5.core.messaging.backend.time.sleep"):
                                             backend._announce_loop()
         self.assertEqual(calls["silent"], 1)
         self.assertEqual(calls["serial"], 1)

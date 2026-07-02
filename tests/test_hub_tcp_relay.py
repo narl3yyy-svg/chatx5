@@ -197,7 +197,7 @@ class HubRelayIsolationTests(unittest.TestCase):
         msg = MagicMock()
         msg.hub_group = True
         msg.to_json.return_value = '{"hub":true,"type":"text"}'
-        with patch("chatx5.core.messaging.RNS.Packet") as pkt:
+        with patch("chatx5.core.messaging.backend.RNS.Packet") as pkt:
             backend.relay_hub_message(msg, sender_hash="c" * 32)
             targets = {call.args[0] for call in pkt.call_args_list}
             self.assertEqual(targets, {tcp_b})
@@ -215,7 +215,7 @@ class HubRelayIsolationTests(unittest.TestCase):
         lan_link.attached_interface = TCPClientInterface()
         backend.peer_links["e" * 32] = lan_link
         backend.links["lan1"] = lan_link
-        with patch("chatx5.core.messaging.RNS.Packet") as pkt:
+        with patch("chatx5.core.messaging.backend.RNS.Packet") as pkt:
             backend.send_hub_message(
                 "remote group",
                 hub_server_mode=True,
@@ -229,7 +229,7 @@ class HubRelayIsolationTests(unittest.TestCase):
         backend, _, tcp_a, _ = self._backend()
         msg = MagicMock()
         msg.hub_group = False
-        with patch("chatx5.core.messaging.RNS.Packet") as pkt:
+        with patch("chatx5.core.messaging.backend.RNS.Packet") as pkt:
             backend.relay_hub_message(msg, sender_hash="c" * 32)
             pkt.assert_not_called()
 

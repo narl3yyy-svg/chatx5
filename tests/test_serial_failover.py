@@ -83,10 +83,10 @@ class SerialConnectPreferenceTests(unittest.TestCase):
         with patch.object(backend, "_serial_transport_ready", return_value=True):
             with patch.object(backend, "ensure_serial_runtime", return_value=True):
                 with patch.object(backend, "_announce_on_interface", return_value=True) as announce:
-                    with patch("chatx5.core.messaging.serial_interface_online", return_value=MagicMock(port="/dev/ttyUSB0")):
-                        with patch("chatx5.core.messaging.suppress_offline_lan_transports"):
-                            with patch("chatx5.core.messaging.dedupe_serial_interfaces"):
-                                with patch("chatx5.core.messaging.prune_dead_serial_interfaces"):
+                    with patch("chatx5.core.messaging.backend.serial_interface_online", return_value=MagicMock(port="/dev/ttyUSB0")):
+                        with patch("chatx5.core.messaging.backend.suppress_offline_lan_transports"):
+                            with patch("chatx5.core.messaging.backend.dedupe_serial_interfaces"):
+                                with patch("chatx5.core.messaging.backend.prune_dead_serial_interfaces"):
                                     sent = backend._burst_serial_announce(count=1, force=True)
         self.assertEqual(sent, 1)
         announce.assert_called()
@@ -94,9 +94,9 @@ class SerialConnectPreferenceTests(unittest.TestCase):
     def test_udp_connect_ready_false_for_stale_non_udp_path(self):
         backend = self._backend()
         peer_hash = "d" * 32
-        with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+        with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
             with patch.object(backend, "_lan_transport_ready", return_value=True):
-                with patch("chatx5.core.messaging.configured_udp_lan_enabled", return_value=True):
+                with patch("chatx5.core.messaging.backend.configured_udp_lan_enabled", return_value=True):
                     with patch.object(backend, "_peer_has_path_on_family", return_value=False):
                         with patch.object(backend, "_peer_has_path", return_value=True):
                             self.assertFalse(
@@ -107,9 +107,9 @@ class SerialConnectPreferenceTests(unittest.TestCase):
 
     def test_udp_connect_ready_false_when_serial_preferred(self):
         backend = self._backend()
-        with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+        with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
             with patch.object(backend, "_lan_transport_ready", return_value=True):
-                with patch("chatx5.core.messaging.configured_udp_lan_enabled", return_value=True):
+                with patch("chatx5.core.messaging.backend.configured_udp_lan_enabled", return_value=True):
                     self.assertFalse(
                         backend._udp_connect_ready("e" * 32, peer_ip="10.10.10.2", prefer_serial=True)
                     )
@@ -237,12 +237,12 @@ class FailoverPreferenceTests(unittest.TestCase):
         }]
         with patch.object(backend, "_hub_transport_active", return_value=False):
             with patch(
-                "chatx5.core.messaging.load_settings_interfaces",
+                "chatx5.core.messaging.backend.load_settings_interfaces",
                 return_value=udp_only,
             ):
                 with patch.object(backend, "_has_online_family", side_effect=lambda fam: fam in ("udp", "serial")):
                     with patch.object(backend, "_serial_transport_ready", return_value=True):
-                        with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+                        with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
                             with patch.object(backend, "_serial_faster_than_lan", return_value=False):
                                 families = backend._failover_families_to_try(peer)
         self.assertEqual(families[0], "udp")
@@ -253,7 +253,7 @@ class FailoverPreferenceTests(unittest.TestCase):
         peer = "4a2aa1dbbed382886b0333274e546ba8"
         with patch.object(backend, "_has_online_family", side_effect=lambda fam: fam in ("udp", "serial")):
             with patch.object(backend, "_serial_transport_ready", return_value=True):
-                with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+                with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
                     with patch.object(backend, "_serial_faster_than_lan", return_value=True):
                         families = backend._failover_families_to_try(peer)
         self.assertEqual(families[0], "serial")
@@ -272,10 +272,10 @@ class FailoverPreferenceTests(unittest.TestCase):
         backend._link_peer_hashes[serial_link.link_id] = peer
         backend._link_peer_hashes[udp_link.link_id] = peer
         with patch.object(backend, "_serial_transport_ready", return_value=True):
-            with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+            with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
                 with patch.object(backend, "_has_online_family", return_value=True):
                     with patch.object(backend, "_peer_has_path_on_family", return_value=True):
-                        with patch("chatx5.core.messaging.interface_family", side_effect=lambda i: (
+                        with patch("chatx5.core.messaging.backend.interface_family", side_effect=lambda i: (
                             "serial" if i is serial_iface else "udp"
                         )):
                             self.assertTrue(backend._serial_faster_than_lan(peer))
@@ -292,9 +292,9 @@ class FailoverPreferenceTests(unittest.TestCase):
         with patch.object(backend, "_hub_transport_active", return_value=True):
             with patch.object(backend, "_peer_uses_hub_transport", return_value=False):
                 with patch.object(backend, "_has_online_family", return_value=True):
-                    with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
-                        with patch("chatx5.core.messaging.configured_udp_lan_enabled", return_value=True):
-                            with patch("chatx5.core.messaging.configured_tcp_lan_enabled", return_value=False):
+                    with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
+                        with patch("chatx5.core.messaging.backend.configured_udp_lan_enabled", return_value=True):
+                            with patch("chatx5.core.messaging.backend.configured_tcp_lan_enabled", return_value=False):
                                 families = backend._failover_families_to_try(
                                     "f1c2ac9061239f7c096701f02969729c"
                                 )
@@ -325,7 +325,7 @@ class FailoverPreferenceTests(unittest.TestCase):
             "name": "UBUNTU",
             "via": "serial",
         }
-        with patch("chatx5.core.messaging.interface_family", side_effect=lambda i: (
+        with patch("chatx5.core.messaging.backend.interface_family", side_effect=lambda i: (
             "serial" if i is serial_iface else "udp"
         )):
             chosen = backend._queue_send_link(peer, link_hint=serial_link)
@@ -343,7 +343,7 @@ class FailoverPreferenceTests(unittest.TestCase):
             "name": "UBUNTU",
             "via": "serial",
         }
-        with patch("chatx5.core.messaging.interface_family", return_value="udp"):
+        with patch("chatx5.core.messaging.backend.interface_family", return_value="udp"):
             with patch.object(backend, "_links_for_peer", return_value=[]):
                 with patch.object(backend, "_link_for_peer", return_value=None):
                     chosen = backend._queue_send_link(peer, link_hint=udp_link)
@@ -360,7 +360,7 @@ class FailoverPreferenceTests(unittest.TestCase):
         with patch.object(backend, "_hub_transport_active", return_value=False):
             with patch.object(backend, "_has_online_family", return_value=True):
                 with patch.object(backend, "_serial_transport_ready", return_value=True):
-                    with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+                    with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
                         families = backend._failover_families_to_try(peer)
         self.assertEqual(families, ["serial"])
 
@@ -417,7 +417,7 @@ class FailoverPreferenceTests(unittest.TestCase):
         with patch.object(backend, "_hub_transport_active", return_value=False):
             with patch.object(backend, "_has_online_family", return_value=True):
                 with patch.object(backend, "_serial_transport_ready", return_value=True):
-                    with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
+                    with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
                         with patch.object(backend, "_serial_faster_than_lan", return_value=False):
                             families = backend._failover_families_to_try(peer)
         self.assertEqual(families, ["serial"])

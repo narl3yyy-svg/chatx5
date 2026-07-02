@@ -70,117 +70,59 @@ from chatx5.core.rns_interfaces import (
     tcp_client_interface_online,
     tcp_server_interface_online,
 )
+from chatx5.core.messaging.constants import (
+    ANDROID_IDENTITY_WAIT_TIMEOUT_S,
+    ANDROID_INITIATOR_INBOUND_WAIT_S,
+    ANDROID_LINK_CONNECT_TIMEOUT_S,
+    ANDROID_REVERSE_CONNECT_WAIT_S,
+    APP_NAME,
+    DUAL_PATH_DISCONNECTED_COOLDOWN_S,
+    DUAL_PATH_FAILOVER_COOLDOWN_S,
+    DUAL_PATH_RECONNECT_MIN_IDLE_S,
+    FAILOVER_CONNECT_TIMEOUT_S,
+    HUB_GROUP_PEER,
+    HTTP_WAKE_TIMEOUT_S,
+    IDENTITY_WAIT_TIMEOUT_S,
+    INITIATOR_INBOUND_WAIT_S,
+    LAN_HTTP_CHUNK,
+    LAN_HTTP_MIN_BYTES,
+    LINK_CONNECT_POLL_S,
+    LINK_CONNECT_TIMEOUT_S,
+    LINK_FAILOVER_GRACE_S,
+    LINK_STALE_FAILOVER_IDLE_S,
+    MAX_CONCURRENT_RECEIVES,
+    MESSAGE_TYPE_EMOJI,
+    MESSAGE_TYPE_FILE,
+    MESSAGE_TYPE_IMAGE,
+    MESSAGE_TYPE_LAN_HTTP,
+    MESSAGE_TYPE_LONGTEXT,
+    MESSAGE_TYPE_TEXT,
+    MESSAGE_TYPE_TRANSFER_CANCEL,
+    MESSAGE_TYPE_VIDEO,
+    MESSAGE_TYPE_VOICE,
+    PEER_LAN_UNREACHABLE_TTL_S,
+    QUEUE_DRAIN_DELAY_S,
+    QUEUE_RECEIPT_TIMEOUT_S,
+    QUEUE_RETRY_INTERVAL_S,
+    QUICK_OUTBOUND_TIMEOUT_S,
+    RECEIPT_FAILOVER_MIN_PENDING,
+    RECEIPT_FAILOVER_TIMEOUT_S,
+    REVERSE_CONNECT_WAIT_S,
+    SERIAL_ANNOUNCE_BURST_COUNT,
+    SERIAL_ANNOUNCE_BURST_INTERVAL_S,
+    SERIAL_CONNECT_PRIME_INTERVAL_S,
+    SERIAL_IDENTITY_WAIT_TIMEOUT_S,
+    SERIAL_INBOUND_FIRST_WAIT_S,
+    SERIAL_INBOUND_WAIT_S,
+    SERIAL_LINK_CONNECT_TIMEOUT_S,
+    SERIAL_PATH_PRIME_TIMEOUT_S,
+    SERIAL_SPEED_MARGIN,
+    SESSION_RECONNECT_MIN_IDLE_S,
+    _NO_COMPRESS_SUFFIXES,
+)
+from chatx5.core.messaging.models import ChatMessage
+from chatx5.core.messaging.peers import is_hub_peer_hash
 
-APP_NAME = "chatx5"
-LINK_CONNECT_TIMEOUT_S = 12
-ANDROID_LINK_CONNECT_TIMEOUT_S = 14
-FAILOVER_CONNECT_TIMEOUT_S = 16
-LINK_CONNECT_POLL_S = 0.05
-IDENTITY_WAIT_TIMEOUT_S = 12
-ANDROID_IDENTITY_WAIT_TIMEOUT_S = 16
-SERIAL_IDENTITY_WAIT_TIMEOUT_S = 35
-SERIAL_PATH_PRIME_TIMEOUT_S = 28
-SERIAL_ANNOUNCE_BURST_COUNT = 1
-SERIAL_ANNOUNCE_BURST_INTERVAL_S = 0
-SERIAL_CONNECT_PRIME_INTERVAL_S = 3.0
-SERIAL_LINK_CONNECT_TIMEOUT_S = 22
-SERIAL_INBOUND_FIRST_WAIT_S = 4
-SERIAL_INBOUND_WAIT_S = 12
-REVERSE_CONNECT_WAIT_S = 10
-ANDROID_REVERSE_CONNECT_WAIT_S = 12
-INITIATOR_INBOUND_WAIT_S = 8
-ANDROID_INITIATOR_INBOUND_WAIT_S = 10
-QUICK_OUTBOUND_TIMEOUT_S = 6
-HTTP_WAKE_TIMEOUT_S = 1.5
-LINK_FAILOVER_GRACE_S = 30
-LINK_STALE_FAILOVER_IDLE_S = 90
-SESSION_RECONNECT_MIN_IDLE_S = 18
-DUAL_PATH_RECONNECT_MIN_IDLE_S = 4
-DUAL_PATH_FAILOVER_COOLDOWN_S = 8
-DUAL_PATH_DISCONNECTED_COOLDOWN_S = 4
-SERIAL_SPEED_MARGIN = 1.15
-PEER_LAN_UNREACHABLE_TTL_S = 90
-RECEIPT_FAILOVER_TIMEOUT_S = 30
-RECEIPT_FAILOVER_MIN_PENDING = 2
-MAX_CONCURRENT_RECEIVES = 2
-QUEUE_RETRY_INTERVAL_S = 5
-QUEUE_DRAIN_DELAY_S = 1.0
-QUEUE_RECEIPT_TIMEOUT_S = 30
-_NO_COMPRESS_SUFFIXES = frozenset({
-    ".apk", ".zip", ".gz", ".bz2", ".xz", ".7z", ".rar",
-    ".mp4", ".mkv", ".webm", ".mov", ".m4v",
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic",
-    ".mp3", ".ogg", ".opus", ".wav", ".flac", ".aac",
-    ".pdf", ".deb", ".rpm", ".jar", ".aar",
-})
-
-MESSAGE_TYPE_TEXT = "text"
-MESSAGE_TYPE_FILE = "file"
-MESSAGE_TYPE_IMAGE = "image"
-MESSAGE_TYPE_VOICE = "voice"
-MESSAGE_TYPE_VIDEO = "video"
-MESSAGE_TYPE_EMOJI = "emoji"
-MESSAGE_TYPE_LONGTEXT = "longtext"
-MESSAGE_TYPE_LAN_HTTP = "__lan_http_offer"
-MESSAGE_TYPE_TRANSFER_CANCEL = "__transfer_cancel"
-LAN_HTTP_MIN_BYTES = 2 * 1024 * 1024
-LAN_HTTP_CHUNK = 256 * 1024
-HUB_GROUP_PEER = "__hub_group__"
-
-
-def is_hub_peer_hash(peer_hash):
-    clean = normalize_hash(peer_hash)
-    return clean in (HUB_GROUP_PEER, "__hub_group__")
-
-
-class ChatMessage:
-    def __init__(self, msg_type, content, sender=None, timestamp=None, file_name=None, file_size=None, msg_id=None):
-        self.msg_type = msg_type
-        self.content = content
-        self.sender = sender
-        self.timestamp = timestamp or time.time()
-        self.file_name = file_name
-        self.file_size = file_size
-        self.msg_id = msg_id or str(uuid.uuid4())[:12]
-        self.hub_group = False
-
-    def to_dict(self):
-        d = {
-            "type": self.msg_type,
-            "content": self.content,
-            "timestamp": self.timestamp,
-            "msg_id": self.msg_id,
-        }
-        if self.sender:
-            d["sender"] = self.sender
-        if self.file_name:
-            d["file_name"] = self.file_name
-        if self.file_size:
-            d["file_size"] = self.file_size
-        if self.hub_group:
-            d["hub"] = True
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        msg = cls(
-            msg_type=d.get("type", MESSAGE_TYPE_TEXT),
-            content=d.get("content", ""),
-            sender=d.get("sender"),
-            timestamp=d.get("timestamp", time.time()),
-            file_name=d.get("file_name"),
-            file_size=d.get("file_size"),
-            msg_id=d.get("msg_id"),
-        )
-        msg.hub_group = bool(d.get("hub"))
-        return msg
-
-    def to_json(self):
-        return json.dumps(self.to_dict())
-
-    @classmethod
-    def from_json(cls, data):
-        return cls.from_dict(json.loads(data))
 
 class MessagingBackend:
     def __init__(self, identity, config_dir, on_message=None, on_file=None,

@@ -167,7 +167,7 @@ class HubP2pLinkTests(unittest.TestCase):
                 with patch.object(backend, "_peer_uses_hub_transport", return_value=False):
                     with patch.object(backend, "_link_attached_interface", return_value=udp_iface):
                         with patch.object(backend, "_link_interface_healthy", return_value=True):
-                            with patch("chatx5.core.messaging.interface_family", return_value="udp"):
+                            with patch("chatx5.core.messaging.backend.interface_family", return_value="udp"):
                                 with patch.object(backend, "_peer_path_interface", return_value=udp_iface):
                                     with patch.object(backend, "_interface_healthy", return_value=True):
                                         with patch.object(backend, "_has_online_family", return_value=True):
@@ -381,9 +381,9 @@ class HubFailoverTests(unittest.TestCase):
         with patch.object(backend, "_hub_transport_active", return_value=True):
             with patch.object(backend, "_peer_uses_hub_transport", return_value=False):
                 with patch.object(backend, "_has_online_family", return_value=True):
-                    with patch("chatx5.core.messaging.physical_lan_reachable", return_value=True):
-                        with patch("chatx5.core.messaging.configured_udp_lan_enabled", return_value=True):
-                            with patch("chatx5.core.messaging.configured_tcp_lan_enabled", return_value=False):
+                    with patch("chatx5.core.messaging.backend.physical_lan_reachable", return_value=True):
+                        with patch("chatx5.core.messaging.backend.configured_udp_lan_enabled", return_value=True):
+                            with patch("chatx5.core.messaging.backend.configured_tcp_lan_enabled", return_value=False):
                                 families = backend._failover_families_to_try(p2p_peer)
         self.assertIn("udp", families)
         self.assertNotEqual(families, ["tcp"])
@@ -453,7 +453,7 @@ class HubGroupIsolationTests(unittest.TestCase):
         msg = MagicMock()
         msg.hub_group = True
         msg.to_json.return_value = '{"hub":true}'
-        with patch("chatx5.core.messaging.RNS.Packet") as pkt:
+        with patch("chatx5.core.messaging.backend.RNS.Packet") as pkt:
             backend.relay_hub_message(msg, sender_hash="d" * 32)
             pkt.assert_called_once_with(tcp_link, b'{"hub":true}')
 

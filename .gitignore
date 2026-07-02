@@ -12,3 +12,33 @@ venv/
 *.swp
 *.swo
 .DS_Store
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Android / Gradle
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.cxx/
+android/captures/
+*.apk
+*.aab
+*.keystore
+!android/debug.keystore
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs and local data
+*.log
+portable-data/
+.config/
