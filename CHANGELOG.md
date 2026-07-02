@@ -2,6 +2,12 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.7] — 2026-07-02
+
+### Fixed
+- **Announce Serial now reaches LAN peers** — tapping Announce Serial (or auto-announcing on USB attach) also sends a companion LAN UDP beacon that includes `serial_hash`. Previously only the RNS USB packet went out, so the remote machine (e.g. Arch) never learned the USB connect hash unless it happened to catch a periodic LAN beacon.
+- **Dual-identity name matching** — ip-less RNS announces for a serial endpoint hash are classified as `via=serial` when the display name matches an existing LAN discovery row, even though LAN and USB use separate RNS identity keys.
+
 ## [0.6.6] — 2026-07-02
 
 ### Fixed

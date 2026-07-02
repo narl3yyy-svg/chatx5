@@ -252,6 +252,7 @@ class RNSLifecycleMixin:
         self.messaging.lan_announce_interval_s = lan_ann
         self.messaging.serial_announce_interval_s = ser_ann
         self.messaging.max_peer_links = int(settings.get("max_peer_links") or 0)
+        self.messaging.on_after_serial_announce = self._after_serial_announce_beacon
         self.voice_recorder = VoiceRecorder(self.config_dir)
         dest = self.messaging.start()
         sent_ids = [
@@ -428,6 +429,20 @@ class RNSLifecycleMixin:
         self.lan_beacon.serial_hash = serial_hash
         self.lan_beacon.serial_identity_hash = serial_ident
         self.lan_beacon.serial_identity_pubkey = serial_pubkey
+
+    def _after_serial_announce_beacon(self):
+        """After every USB RNS announce, blast LAN beacon with serial_hash (dual-transport)."""
+        self._sync_beacon_serial_fields()
+        if not self.lan_beacon:
+            return
+        if not lan_ip_reachable():
+            return
+        sent = self.lan_beacon.send(1, is_android())
+        if sent:
+            print(
+                f"[beacon] Companion LAN beacon after serial announce "
+                f"({sent} packet(s), includes serial_hash)"
+            )
 
     def _beacon_payload(self):
         from chatx5.core.peer_identity import connect_hash_for_manager
@@ -1025,12 +1040,13 @@ class RNSLifecycleMixin:
                     do_lan = transport in ("lan", "all")
                     do_serial = transport in ("serial", "usb", "all")
                     if do_serial and configured_serial_enabled(configured):
+                        self._sync_beacon_serial_fields()
                         serial_sent = await asyncio.to_thread(
                             self.messaging._burst_serial_announce, 1, force=True,
                         )
                         if serial_sent:
                             self._sync_discovery_local_hashes()
-                            print("[network] Serial RNS announce")
+                            print("[network] Serial RNS announce (+ LAN beacon with serial_hash)")
                         serial_port, _ = configured_serial_port(configured)
                     if do_lan and lan_discovery_configured(configured):
                         await asyncio.to_thread(
@@ -1049,10 +1065,11 @@ class RNSLifecycleMixin:
             return {"ok": False, "error": str(e)}
 
         peers = await self._broadcast_peers(authoritative=True)
-        if debounced and self.lan_beacon:
+        if self.lan_beacon and (debounced or serial_sent):
             beacon_sent = self.lan_beacon.last_announce_sent
         do_lan = transport in ("lan", "all")
         do_serial = transport in ("serial", "usb", "all")
+        beacon_fired = bool(beacon_sent) and (do_lan or do_serial)
         return {
             "ok": True,
             "debounced": debounced,
@@ -1061,8 +1078,8 @@ class RNSLifecycleMixin:
             "serial_port": serial_port if do_serial else None,
             "serial_announced": bool(serial_sent),
             "lan_announced": do_lan,
-            "beacon_port": BEACON_PORT if do_lan else None,
-            "beacon_sent": beacon_sent if do_lan else 0,
+            "beacon_port": BEACON_PORT if beacon_fired else None,
+            "beacon_sent": beacon_sent if beacon_fired else 0,
             "beacon_session_total": (
                 self.lan_beacon.packets_sent if self.lan_beacon else 0
             ),

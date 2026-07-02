@@ -157,6 +157,12 @@ class AnnounceMixin:
             print(f"[serial] RNS announce on {port}")
         else:
             print(f"[serial] Burst {burst} RNS announce(s) on {port}")
+        cb = getattr(self, "on_after_serial_announce", None)
+        if cb and burst > 0:
+            try:
+                cb()
+            except Exception as exc:
+                print(f"[serial] after-serial-announce callback failed: {exc}")
         return burst
 
     def _silent_announce(self, peer_ip=None, also_serial=None):

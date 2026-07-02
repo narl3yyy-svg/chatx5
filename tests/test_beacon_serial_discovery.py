@@ -2,8 +2,9 @@
 
 import os
 import sys
+import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -71,6 +72,34 @@ class BeaconSerialDiscoveryTests(unittest.TestCase):
         self.assertEqual(serial_rows[0]["hash"], serial_hash)
         self.assertEqual(len(lan_rows), 1)
         self.assertEqual(lan_rows[0]["hash"], lan_hash)
+
+
+    def test_ipless_announce_serial_by_matching_display_name(self):
+        """Dual-identity: serial hash + name matches existing LAN row → USB row."""
+        disc = PeerDiscovery()
+        disc.running = True
+        disc.accept_peers = True
+        lan_hash = "6d0c4a39e4db8cbd6d0c4a39e4db8cbd"
+        serial_hash = "cf3420dbcc9f256ccf3420dbcc9f256c"
+        disc.peers[f"{lan_hash}:rns"] = {
+            "hash": lan_hash,
+            "name": "330s",
+            "via": "rns",
+            "ip": "10.0.30.101",
+            "identity_hash": "a" * 32,
+            "last_seen": time.time(),
+        }
+        peer_hash = bytes.fromhex(serial_hash)
+        app_data = b'{"app":"chatx5","name":"330s"}'
+        lan_iface = MagicMock()
+        with patch("chatx5.core.discovery.announce_packet_receiving_interface", return_value=lan_iface):
+            with patch("chatx5.core.discovery.interface_family", return_value="udp"):
+                with patch("chatx5.core.discovery.serial_discovery_active", return_value=True):
+                    with patch("chatx5.utils.platform.discovery_scope_ip", return_value="10.0.30.112"):
+                        disc._on_announce(peer_hash, app_data, announced_identity=None)
+        serial_peer = disc.peer_row(serial_hash, via="serial")
+        self.assertIsNotNone(serial_peer)
+        self.assertEqual(serial_peer.get("via"), "serial")
 
 
 if __name__ == "__main__":
