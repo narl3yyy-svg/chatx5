@@ -364,12 +364,16 @@ class PeerLinkMixin:
                 return True
             if link and self._serial_inbound_scope_ok(peer_hash, link):
                 return True
+            if link and self._inbound_link_is_hub_tcp(link):
+                return True
             return not self.peer_scope_checker
         if link:
             iface = self._link_attached_interface(link)
             if is_serial_interface(iface):
                 return True
             if self._link_is_hub_transport(iface):
+                return True
+            if self._inbound_link_is_hub_tcp(link):
                 return True
             if not iface and self._serial_inbound_scope_ok(peer_hash, link):
                 return True

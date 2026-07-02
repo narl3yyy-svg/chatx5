@@ -36,8 +36,15 @@ def normalize_contact(entry):
         entry.pop("hash", None)
         h = ""
     if h and not lan and not serial:
-        entry["lan_hash"] = h
-        lan = h
+        via = (entry.get("via") or "").strip().lower()
+        if via == "serial":
+            entry["serial_hash"] = h
+            serial = h
+            entry.pop("hash", None)
+            h = ""
+        else:
+            entry["lan_hash"] = h
+            lan = h
     if lan and not entry.get("hash"):
         entry["hash"] = lan
     if lan and not entry.get("identity_hash") and entry.get("lan_identity_hash"):
@@ -522,24 +529,30 @@ def _should_merge_contacts(primary, secondary):
     b_lan = (b.get("lan_hash") or "").replace(":", "")
     b_serial = (b.get("serial_hash") or "").replace(":", "")
     if not a_lan and not a_serial and a.get("hash"):
-        a_lan = (a.get("hash") or "").replace(":", "")
+        a_only = (a.get("hash") or "").replace(":", "")
+        if a.get("via") == "serial" or a.get("serial_hash"):
+            a_serial = a_serial or a_only
+        else:
+            a_lan = a_lan or a_only
     if not b_lan and not b_serial and b.get("hash"):
-        b_lan = (b.get("hash") or "").replace(":", "")
+        b_only = (b.get("hash") or "").replace(":", "")
+        if b.get("via") == "serial" or b.get("serial_hash"):
+            b_serial = b_serial or b_only
+        else:
+            b_lan = b_lan or b_only
+    if a_serial and (a_serial == b_lan or a_serial == (b.get("hash") or "").replace(":", "")):
+        return True
+    if b_serial and (b_serial == a_lan or b_serial == (a.get("hash") or "").replace(":", "")):
+        return True
+    if a_lan and (a_lan == b_serial or a_lan == (b.get("hash") or "").replace(":", "")):
+        return True
+    if b_lan and (b_lan == a_serial or b_lan == (a.get("hash") or "").replace(":", "")):
+        return True
     complementary = (
         (a_lan and b_serial and not a_serial and not b_lan)
         or (a_serial and b_lan and not a_lan and not b_serial)
     )
-    if complementary and _names_related(a.get("name"), b.get("name")):
-        return True
-    a_name = (a.get("name") or "").strip().lower()
-    b_name = (b.get("name") or "").strip().lower()
-    if (
-        complementary
-        and a_name
-        and b_name
-        and a_name == b_name
-        and not _name_is_hash_like(a.get("name"), _contact_hashes(a))
-    ):
+    if complementary:
         return True
     return False
 
