@@ -551,6 +551,35 @@ class HubInboundScopeTests(unittest.TestCase):
         self.assertFalse(backend._peer_allowed_by_scope("unknown", link=link))
 
 
+class HubMessageReceivableTests(unittest.TestCase):
+    def test_hub_group_receivable_on_lan_link_when_hub_active(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        tmp = tempfile.mkdtemp()
+        settings_path = os.path.join(tmp, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump({"hub_role": "client", "hub_port": 4242}, fh)
+        backend = MessagingBackend(identity=ident, config_dir=tmp)
+
+        class UDPInterface:
+            pass
+
+        link = MagicMock()
+        link.attached_interface = UDPInterface()
+        msg = MagicMock()
+        msg.hub_group = True
+        self.assertTrue(backend._hub_message_receivable(msg, link))
+        self.assertFalse(backend._hub_message_acceptable(msg, link))
+
+    def test_hub_group_not_receivable_when_hub_off(self):
+        ident = MagicMock()
+        ident.hash = bytes.fromhex("a" * 32)
+        backend = MessagingBackend(identity=ident, config_dir=tempfile.mkdtemp())
+        msg = MagicMock()
+        msg.hub_group = True
+        self.assertFalse(backend._hub_message_receivable(msg, None))
+
+
 class HubFinalizeInboundTests(unittest.TestCase):
     def test_finalize_hub_tcp_inbound_registers_unknown_peer(self):
         ident = MagicMock()

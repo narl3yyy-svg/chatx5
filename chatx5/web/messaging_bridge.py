@@ -328,8 +328,11 @@ class MessagingBridgeMixin:
             return False
         vp = self._ui_state.get("viewing_peer")
         hidden = self._ui_state.get("hidden", True)
-        if vp and self._peers_equivalent(vp, peer_hash) and not hidden:
-            return False
+        if vp and not hidden:
+            if is_hub_peer_hash(peer_hash) and is_hub_peer_hash(vp):
+                return False
+            if not is_hub_peer_hash(peer_hash) and self._peers_equivalent(vp, peer_hash):
+                return False
         return True
 
     def _on_queue_sent(self, chat_msg, target_hash, queue_entry):

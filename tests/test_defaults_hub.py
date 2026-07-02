@@ -447,7 +447,8 @@ class HubGroupIsolationTests(unittest.TestCase):
         backend, _, _ = self._backend_with_links(hub_role="client")
         targets = backend._hub_send_targets(hub_server_hash="c" * 32)
         self.assertEqual(targets, ["c" * 32])
-        self.assertEqual(backend._hub_send_targets(hub_server_hash="b" * 32), [])
+        # Fallback: use the active hub TCP peer when hash aliases differ.
+        self.assertEqual(backend._hub_send_targets(hub_server_hash="b" * 32), ["c" * 32])
 
     def test_relay_hub_message_skips_udp_peers(self):
         from unittest.mock import MagicMock, patch

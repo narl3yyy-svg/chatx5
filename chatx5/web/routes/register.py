@@ -20,6 +20,7 @@ def register_routes(server, app):
     app.router.add_post("/api/path_wake", server.handle_path_wake)
     app.router.add_get("/api/lan-transfer/{transfer_id}", server.handle_lan_transfer)
     app.router.add_get("/api/network-status", server.handle_network_status)
+    app.router.add_post("/api/hub/ensure", server.handle_hub_ensure)
     app.router.add_get("/api/network", server.handle_network)
     app.router.add_get("/api/interfaces", server.handle_interfaces_get)
     app.router.add_post("/api/network/reset", server.handle_network_reset)

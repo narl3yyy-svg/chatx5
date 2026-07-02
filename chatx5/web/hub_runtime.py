@@ -1,8 +1,11 @@
 """Hub TCP relay runtime: settings apply, hot-add, and in-scope host resolution."""
 
+import asyncio
 import json
 import threading
 from urllib import request as urlrequest
+
+from aiohttp import web
 
 from chatx5.core.rns_interfaces import (
     add_interface,
@@ -261,6 +264,31 @@ class HubRuntimeMixin:
             timer = threading.Timer(delay, attempt, args=(label,))
             timer.daemon = True
             timer.start()
+
+    async def handle_hub_ensure(self, request):
+        """Ensure hub TCP RNS link is up (group chat reconnect after P2P switch)."""
+        ok, err = await self._wait_for_rns()
+        if not ok:
+            return web.json_response({"error": err or "not ready"}, status=400)
+        settings = self.load_settings()
+        if settings.get("hub_role", "off") == "off":
+            return web.json_response({"error": "hub disabled"}, status=400)
+
+        def _run():
+            linked = False
+            clients = 0
+            if self.messaging:
+                linked = bool(self.messaging.ensure_hub_link(background=False))
+                clients = len(self.messaging._hub_tcp_linked_peers())
+                self.messaging._schedule_hub_queue_drain(delay=0.3)
+            return linked, clients
+
+        linked, clients = await asyncio.to_thread(_run)
+        return web.json_response({
+            "status": "ok",
+            "hub_group_linked": linked or clients > 0,
+            "hub_clients_linked": clients,
+        })
 
     def _maybe_update_hub_server_hash(self, peer_hash, link=None):
         settings = self.load_settings()
