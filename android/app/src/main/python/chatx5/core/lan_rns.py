@@ -258,6 +258,34 @@ def announce_receiving_interface(destination_hash):
     return packet_iface
 
 
+def seed_serial_path_for_peer(hash_hex):
+    """Install a direct 1-hop serial path when USB is up and the peer is known."""
+    clean = _normalize_dest_hex(hash_hex)
+    if len(clean) != 32:
+        return None
+    serial_iface = serial_interface_online()
+    if serial_iface is None:
+        return None
+    existing = peer_path_on_family(clean, "serial")
+    if existing is not None and interface_is_healthy(existing):
+        pin_serial_path(clean)
+        return existing
+    dest_bytes = _dest_bytes_for_hash(clean)
+    if dest_bytes is None:
+        return None
+    prune_lan_path_for_peer(clean)
+    try:
+        now = time.time()
+        with RNS.Transport.path_table_lock:
+            RNS.Transport.path_table[dest_bytes] = [
+                now, 0, 1, now + 3600, dest_bytes, serial_iface,
+            ]
+    except Exception:
+        return peer_path_on_family(clean, "serial")
+    pin_serial_path(clean)
+    return serial_iface
+
+
 def restore_serial_path_from_announce(hash_hex):
     """Repair path_table when a USB announce arrived but LAN rebroadcast stole the route."""
     clean = _normalize_dest_hex(hash_hex)
@@ -266,6 +294,9 @@ def restore_serial_path_from_announce(hash_hex):
         return None
     serial_recv = announce_packet_receiving_interface(dest_bytes)
     if serial_recv is None or interface_family(serial_recv) != "serial":
+        seeded = seed_serial_path_for_peer(clean)
+        if seeded is not None:
+            return seeded
         return peer_path_on_family(clean, "serial")
     if not interface_is_healthy(serial_recv):
         return peer_path_on_family(clean, "serial")
@@ -295,6 +326,9 @@ def reinforce_serial_peer_path(hash_hex):
     restored = restore_serial_path_from_announce(clean)
     if restored is not None:
         return restored
+    seeded = seed_serial_path_for_peer(clean)
+    if seeded is not None:
+        return seeded
     pin_serial_path(clean)
     prune_lan_path_for_peer(clean)
     iface = peer_path_on_family(clean, "serial")
@@ -397,6 +431,8 @@ def ensure_serial_path_pinned(hash_hex, request=True):
     _, path_iface = peer_path_entry(clean)
     if path_iface and interface_family(path_iface) != "serial":
         clear_peer_path(clean)
+    if peer_path_on_family(clean, "serial") is None:
+        seed_serial_path_for_peer(clean)
     if request and peer_path_on_family(clean, "serial") is None:
         request_paths_for_hash(clean, family="serial")
     return peer_path_on_family(clean, "serial") is not None

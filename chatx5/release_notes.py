@@ -3,6 +3,10 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.9": [
+        "Fix: USB serial messaging — connect no longer fails after discovery; serial paths are seeded and inbound links from known USB peers are accepted.",
+        "Fix: Serial identity hash from RNS links matches beacon discovery rows (330s · USB connect works both directions).",
+    ],
     "0.6.8": [
         "Fix: Hub group chat — server counts connected TCP clients and relays messages reliably (hub links no longer dropped on hash supersede).",
         "Fix: Announce LAN no longer also announces on USB serial; Announce Serial toast confirms USB + companion LAN beacon.",

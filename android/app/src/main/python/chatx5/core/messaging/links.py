@@ -92,21 +92,27 @@ class PeerLinkMixin:
                 return None
         return None
 
+    @staticmethod
+    def _serial_row_matches_peer(peer, row):
+        if not row or (row.get("via") or "").strip() != "serial":
+            return False
+        dest = normalize_hash(row.get("hash"))
+        ident = normalize_hash(row.get("identity_hash"))
+        return peer in (dest, ident) and bool(dest or ident)
+
     def _peer_discovery_meta_serial(self, peer_hash):
         peer = self.dest_hash_for(peer_hash)
         if not peer or peer == "unknown" or not self.peer_transport_resolver:
             return None
         try:
             row = self.peer_transport_resolver(peer, via="serial")
-            if row and (row.get("via") or "").strip() == "serial":
-                if normalize_hash(row.get("hash")) == peer:
-                    return row
+            if self._serial_row_matches_peer(peer, row):
+                return row
         except TypeError:
             try:
                 row = self.peer_transport_resolver(peer)
-                if row and (row.get("via") or "").strip() == "serial":
-                    if normalize_hash(row.get("hash")) == peer:
-                        return row
+                if self._serial_row_matches_peer(peer, row):
+                    return row
             except Exception:
                 return None
         except Exception:
@@ -144,11 +150,13 @@ class PeerLinkMixin:
         """Allow USB serial inbound when RNS has not attached an interface yet."""
         if not self._serial_transport_ready():
             return False
+        peer = self.dest_hash_for(peer_hash) if peer_hash and peer_hash != "unknown" else ""
+        if link and peer and self._peer_hash_is_serial_endpoint(peer):
+            return True
         if link:
             iface = self._link_attached_interface(link)
             if iface and not is_serial_interface(iface):
                 return False
-        peer = self.dest_hash_for(peer_hash) if peer_hash and peer_hash != "unknown" else ""
         if peer and self._peer_has_path_on_family(peer, "serial"):
             return True
         row = self._peer_discovery_meta_serial(peer) if peer else None
@@ -381,9 +389,7 @@ class PeerLinkMixin:
             and self._serial_transport_ready()
             and self._peer_hash_is_serial_endpoint(peer)
         ):
-            iface = self._link_attached_interface(link) if link else None
-            if not iface or is_serial_interface(iface):
-                return True
+            return True
         if link:
             iface = self._link_attached_interface(link)
             if is_serial_interface(iface):

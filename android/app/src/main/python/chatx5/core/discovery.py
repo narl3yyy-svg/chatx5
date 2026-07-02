@@ -886,6 +886,11 @@ class PeerDiscovery:
             f"beacon-serial:{serial_hash}",
             f"[discovery] Beacon serial endpoint registered: {label} (serial)...",
         )
+        try:
+            from chatx5.core.lan_rns import reinforce_serial_peer_path
+            reinforce_serial_peer_path(serial_hash)
+        except Exception:
+            pass
         return True
 
     def _on_beacon(self, data, my_dest_hash, my_identity_hash=None, source_ip=None):

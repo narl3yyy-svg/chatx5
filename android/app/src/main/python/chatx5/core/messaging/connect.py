@@ -29,6 +29,7 @@ from chatx5.core.lan_rns import (
     request_paths_for_hash,
     restore_serial_path_from_announce,
     scrub_peer_path,
+    seed_serial_path_for_peer,
     serial_path_is_pinned,
     suppress_offline_lan_transports,
     unpin_serial_path,
@@ -283,6 +284,10 @@ class ConnectMixin:
         if not self._serial_transport_ready():
             print("[connect] Serial path blocked — Serial in RNS: no")
             return False
+        seeded = seed_serial_path_for_peer(dest_hex)
+        if seeded:
+            print(f"[connect] Serial path ready via {type(seeded).__name__} (seeded)")
+            return True
         clear_peer_path_unless_family(dest_hex, "serial")
         suppress_offline_lan_transports()
         dedupe_serial_interfaces()

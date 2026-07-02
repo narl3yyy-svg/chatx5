@@ -3,7 +3,7 @@
 import json
 import time
 
-from chatx5.core.lan_rns import interface_family, prune_lan_path_for_peer
+from chatx5.core.lan_rns import interface_family
 from chatx5.core.messaging.constants import (
     MESSAGE_TYPE_EMOJI,
     MESSAGE_TYPE_FILE,
@@ -73,6 +73,14 @@ class InboundCallbacksMixin:
         expected = self._peer_expected_transport_families(peer_hash)
         if expected and incoming_fam != "serial":
             if incoming_fam in ("udp", "lan", "tcp") and not (expected & {"udp", "lan", "tcp"}):
+                canon = self.dest_hash_for(peer_hash)
+                if canon and canon != "unknown":
+                    from chatx5.core.lan_rns import (
+                        prune_lan_path_for_peer,
+                        seed_serial_path_for_peer,
+                    )
+                    prune_lan_path_for_peer(canon)
+                    seed_serial_path_for_peer(canon)
                 try:
                     link.teardown()
                 except Exception:

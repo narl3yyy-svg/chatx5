@@ -2,6 +2,12 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.9] — 2026-07-02
+
+### Fixed
+- **Serial USB messaging** — known serial endpoint peers are accepted for inbound scope even when RNS attaches a stale LAN interface; serial discovery rows now match by `identity_hash` as well as connect hash (fixes inbound rejected as “outside LAN scope”).
+- **Serial path priming** — beacon-discovered USB peers get a direct 1-hop `SerialInterface` path seeded in the RNS path table so connect no longer times out waiting for an announce that never arrives over the cable.
+
 ## [0.6.8] — 2026-07-02
 
 ### Fixed
