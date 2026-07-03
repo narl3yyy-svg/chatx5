@@ -631,6 +631,11 @@ class HubMixin:
         role, _ = self._load_hub_settings()
         if role != "server":
             return 0
+        wire_sender = normalize_hash(getattr(chat_msg, "sender", None) or "")
+        if len(wire_sender) != 32 and sender_hash:
+            wire_sender = normalize_hash(sender_hash)
+        if len(wire_sender) == 32:
+            chat_msg.sender = wire_sender
         relayed = 0
         for peer in self._hub_tcp_linked_peers():
             if is_hub_peer_hash(peer) or self.hashes_equivalent(peer, sender_hash):
@@ -646,6 +651,7 @@ class HubMixin:
                     target_peer=peer,
                     link=link,
                     hub_group=True,
+                    hub_sender=wire_sender if len(wire_sender) == 32 else None,
                 )
                 if result:
                     relayed += 1

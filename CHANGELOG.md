@@ -2,6 +2,14 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.24] — 2026-07-02
+
+### Fixed
+- **Hub group file sender** — Photos, files, and voice in group chat keep the original sender hash when the hub server relays them (no longer attributed to the hub server).
+- **Serial transfer labels** — Incoming/outgoing file progress uses the actual link transport (USB vs UDP/TCP), not the active chat link.
+- **Hub group catch-up** — Reopening group chat after a 1:1 detour syncs missed messages from the hub server (`/api/hub/sync-group`).
+- **Voice seek playback** — Seeking a received voice note resumes from the scrubbed position instead of restarting from the beginning.
+
 ## [0.6.23] — 2026-07-02
 
 ### Added

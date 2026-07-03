@@ -1,3 +1,29 @@
+async function syncHubGroupHistory() {
+  if (!window._hubRole || window._hubRole === 'off') return 0;
+  let since = 0;
+  try {
+    const hist = await fetch('/api/history?limit=500&peer=' + encodeURIComponent(HUB_GROUP_PEER));
+    const rows = await readJsonResponse(hist);
+    if (Array.isArray(rows)) {
+      rows.forEach(m => {
+        const ts = Number(m.timestamp) || 0;
+        if (ts > since) since = ts;
+      });
+    }
+  } catch (_) {}
+  try {
+    const r = await fetch('/api/hub/sync-group', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({since}),
+    });
+    const d = await readJsonResponse(r);
+    return d.synced || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
 function openChat(hash, tryConnect, meta) {
   chatSwitchGen++;
   connectGeneration++;
@@ -32,15 +58,19 @@ function openChat(hash, tryConnect, meta) {
   updateAndroidShellLayout();
   syncUiState();
   updateHubUi();
+  loadHistoryForPeer(viewingPeer);
   if (viewingPeer === HUB_GROUP_PEER && window._hubRole && window._hubRole !== 'off') {
-    fetch('/api/hub/ensure', {method: 'POST'}).then(r => r.json()).then(d => {
-      if (d.hub_group_linked) {
+    Promise.all([
+      fetch('/api/hub/ensure', {method: 'POST'}).then(r => r.json()).catch(() => ({})),
+      syncHubGroupHistory(),
+    ]).then(([ensure, synced]) => {
+      if (ensure.hub_group_linked) {
         window._hubGroupLinked = true;
         updatePeerHeader();
       }
+      if (synced > 0) loadHistoryForPeer(HUB_GROUP_PEER);
     }).catch(() => {});
   }
-  loadHistoryForPeer(viewingPeer);
   pollQueue();
   renderContacts(allContacts);
   renderDiscovered(window._discoveredPeers || []);

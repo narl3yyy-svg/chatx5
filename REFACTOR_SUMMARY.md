@@ -97,6 +97,15 @@ chatx5/web/static/
 Served at `/static/css/*` and `/static/js/*` via existing `handle_static` route.
 `tests/test_static_frontend.py` verifies all referenced assets exist.
 
+## v0.6.24 — Hub file sender, serial transport labels, group sync (done)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Hub group file sender | **done** | `hub_sender` on `send_file`; `relay_hub_file` preserves wire sender |
+| Serial transfer label | **done** | `_emit_progress` uses receive/send link, not `active_link` |
+| Hub group catch-up | **done** | `/api/hub/sync-group` + `/api/hub/group-history` |
+| Voice seek | **done** | `initVoicePlayer` resumes after seek |
+
 ## v0.6.23 — Share JSON, hub UI, transport labels, emoji categories (done)
 
 | Area | Status | Notes |

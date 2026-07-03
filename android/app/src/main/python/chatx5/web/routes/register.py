@@ -21,6 +21,8 @@ def register_routes(server, app):
     app.router.add_get("/api/lan-transfer/{transfer_id}", server.handle_lan_transfer)
     app.router.add_get("/api/network-status", server.handle_network_status)
     app.router.add_post("/api/hub/ensure", server.handle_hub_ensure)
+    app.router.add_get("/api/hub/group-history", server.handle_hub_group_history)
+    app.router.add_post("/api/hub/sync-group", server.handle_hub_sync_group)
     app.router.add_get("/api/network", server.handle_network)
     app.router.add_get("/api/interfaces", server.handle_interfaces_get)
     app.router.add_post("/api/network/reset", server.handle_network_reset)

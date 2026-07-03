@@ -268,7 +268,7 @@ function renderIncomingTransfers() {
   el.innerHTML = items.map(t => {
     const pct = t.progress || 0;
     let status = t.status || 'active';
-    const via = t.transport === 'serial' ? 'USB' : (t.transport ? String(t.transport).toUpperCase() : 'LAN');
+    const via = t.transport === 'serial' ? 'USB' : (t.transport ? String(t.transport).toUpperCase() : '');
     if (status === 'active') status = pct > 0 ? pct + '%' : 'waiting…';
     return `<div class="incoming-item"><span>↓ ${escapeHtml(t.file_name || 'file')} <span style="opacity:0.65;font-size:10px">${escapeHtml(via)}</span></span><span>${escapeHtml(String(status))}</span></div>`;
   }).join('');

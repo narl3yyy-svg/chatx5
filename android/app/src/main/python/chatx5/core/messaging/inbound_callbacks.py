@@ -352,10 +352,11 @@ class InboundCallbacksMixin:
                         direction="receive",
                         transfer_id=chat_msg.msg_id,
                         status="active",
+                        link=link,
                     )
                     self._start_receive_progress_watch(link, chat_msg)
                 elif self.on_message:
-                    self.on_message(chat_msg, remote_hash)
+                    self.on_message(chat_msg, remote_hash, link)
 
                 if chat_msg.msg_type in (MESSAGE_TYPE_TEXT, MESSAGE_TYPE_EMOJI):
                     self._send_receipt(link, chat_msg.msg_id, "received")

@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.24": [
+        "Fix: Group chat photos and files show the real sender — not the hub server name after relay.",
+        "Fix: File transfer progress shows USB when sending/receiving over serial (not LAN).",
+        "Fix: Missed group messages sync when you return to Group Chat after a 1:1 chat.",
+        "Fix: Voice message scrubbing plays from the position you picked.",
+    ],
     "0.6.23": [
         "Fix: Shared folder browse — no more JSON parse errors when browsing a peer's folder.",
         "Fix: Hub server interface picker keeps your selection instead of resetting to 0.0.0.0.",

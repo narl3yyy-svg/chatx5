@@ -38,6 +38,19 @@ function parseShareOfferContent(content) {
   return null;
 }
 
+function initVoicePlayer(audio) {
+  if (!audio || audio.dataset.voiceInit) return;
+  audio.dataset.voiceInit = '1';
+  audio.preload = 'auto';
+  audio.addEventListener('seeked', () => {
+    if (!audio.paused) return;
+    const t = audio.currentTime;
+    audio.play().then(() => {
+      if (Math.abs(audio.currentTime - t) > 0.25) audio.currentTime = t;
+    }).catch(() => {});
+  });
+}
+
 function voiceMimeType(fname) {
   const ext = (fname || '').split('.').pop().toLowerCase();
   return {
@@ -123,6 +136,8 @@ function buildMessageNode(data) {
   const icon = receiptIcon(data.status || (isSelf && data.type !== 'system' ? 'sent' : ''));
   html += `<div class="time">${time}${icon ? ' <span class="receipt" style="font-size:11px;margin-left:4px">' + icon + '</span>' : ''}</div>`;
   div.innerHTML = html;
+  const voiceEl = div.querySelector('.voice-player');
+  if (voiceEl) initVoicePlayer(voiceEl);
   return div;
 }
 

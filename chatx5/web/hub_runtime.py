@@ -4,6 +4,7 @@ import asyncio
 import json
 import threading
 
+import aiohttp
 from aiohttp import web
 
 from chatx5.core.rns_interfaces import (
@@ -285,6 +286,97 @@ class HubRuntimeMixin:
             timer = threading.Timer(delay, attempt, args=(label,))
             timer.daemon = True
             timer.start()
+
+    def _hub_group_messages_since(self, since_ts=0, limit=200):
+        from chatx5.core.messaging import HUB_GROUP_PEER
+
+        rows = []
+        since = float(since_ts or 0)
+        for m in self.message_history:
+            if not (
+                m.get("hub_group")
+                or self._peer_dest_hash(m.get("chat_peer") or m.get("peer")) == HUB_GROUP_PEER
+            ):
+                continue
+            if float(m.get("timestamp") or 0) <= since:
+                continue
+            rows.append(m)
+        return [self._enrich_message(dict(m)) for m in rows[-limit:]]
+
+    def _merge_incoming_hub_messages(self, messages):
+        existing = {m.get("msg_id") for m in self.message_history if m.get("msg_id")}
+        added = []
+        for raw in messages or []:
+            if not isinstance(raw, dict):
+                continue
+            mid = raw.get("msg_id")
+            if mid and mid in existing:
+                continue
+            entry = self._enrich_message(dict(raw), outgoing=raw.get("outgoing"))
+            self.message_history.append(entry)
+            if mid:
+                existing.add(mid)
+            added.append(entry)
+        if added:
+            self._save_history()
+        return added
+
+    async def _fetch_remote_hub_group_history(self, hub_host, since_ts):
+        from chatx5.core.http_peer import peer_url
+
+        port = int(self.port)
+        schemes = ["https", "http"] if getattr(self, "use_tls", False) else ["http", "https"]
+        timeout = aiohttp.ClientTimeout(total=15)
+        for scheme in schemes:
+            url = peer_url(
+                hub_host, port,
+                f"/api/hub/group-history?since={since_ts}",
+                scheme=scheme,
+            )
+            connector = aiohttp.TCPConnector(ssl=False) if scheme == "https" else None
+            try:
+                async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            continue
+                        data = await resp.json()
+                        return data.get("messages") or []
+            except Exception:
+                continue
+        return []
+
+    async def handle_hub_group_history(self, request):
+        settings = self.load_settings()
+        if settings.get("hub_role") != "server":
+            return web.json_response({"error": "hub server only"}, status=403)
+        since = float(request.query.get("since") or 0)
+        msgs = self._hub_group_messages_since(since)
+        return web.json_response({"status": "ok", "messages": msgs})
+
+    async def handle_hub_sync_group(self, request):
+        ok, err = await self._wait_for_rns()
+        if not ok:
+            return web.json_response({"error": err or "not ready"}, status=400)
+        settings = self.load_settings()
+        if settings.get("hub_role", "off") == "off":
+            return web.json_response({"error": "hub disabled"}, status=400)
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        since = float(data.get("since") or 0)
+        role = settings.get("hub_role")
+        if role == "server":
+            remote_msgs = self._hub_group_messages_since(since)
+        else:
+            hub_host = (settings.get("hub_host") or "").strip()
+            if not hub_host:
+                return web.json_response({"error": "hub host not configured"}, status=400)
+            remote_msgs = await self._fetch_remote_hub_group_history(hub_host, since)
+        added = self._merge_incoming_hub_messages(remote_msgs)
+        for entry in added:
+            await self._broadcast({"type": "message", "data": entry})
+        return web.json_response({"status": "ok", "synced": len(added), "messages": added})
 
     async def handle_hub_ensure(self, request):
         """Ensure hub TCP RNS link is up (group chat reconnect after P2P switch)."""

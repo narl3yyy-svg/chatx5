@@ -7,7 +7,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.6.21
+**Current version:** 0.6.24
 
 ## How chatx5 works
 
@@ -51,10 +51,12 @@ Flow: Web UI → WebSocket → `send_message()` → RNS `Link` on the transport 
 
 | What | Wire format | Transport |
 |------|-------------|-----------|
-| Group text / emoji | Encrypted RNS packet with `hub: true` | **Hub TCP :4242** only (not LAN P2P) |
-| Server relay | Hub server re-sends to other hub TCP clients | Hub TCP |
+| Group text / emoji | Encrypted RNS packet with `hub: true` + wire `sender` hash | **Hub TCP :4242** only (not LAN P2P) |
+| Group photos / files / voice | RNS resource on hub TCP; `sender` preserved on relay | Hub TCP |
+| Server relay | Hub server re-sends to other hub TCP clients with original sender | Hub TCP |
+| Catch-up after 1:1 detour | `POST /api/hub/sync-group` pulls missed messages from hub server | HTTP to hub `:8742` |
 
-Flow: open **Hub Group** → `/api/hub/ensure` → `send_hub_message()` over hub TCP link. LAN and USB links to the same peer stay separate; group chat never rides the P2P path.
+Flow: open **Hub Group** → `/api/hub/ensure` + optional sync → `send_hub_message()` / `send_hub_file()` over hub TCP link. LAN and USB links to the same peer stay separate; group chat never rides the P2P path.
 
 ### Large files, images, and video (1:1)
 

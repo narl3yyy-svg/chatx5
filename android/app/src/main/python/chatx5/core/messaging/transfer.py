@@ -277,7 +277,7 @@ class TransferMixin:
                         chat_msg.content = save_path
                     remote_hash = self.dest_hash_for(self._peer_for_link(link))
                     if self.on_message:
-                        self.on_message(chat_msg, remote_hash)
+                        self.on_message(chat_msg, remote_hash, link)
                     self._emit_progress(
                         chat_msg.file_name or "file",
                         100,
@@ -285,6 +285,7 @@ class TransferMixin:
                         direction="receive",
                         transfer_id=chat_msg.msg_id,
                         status="complete",
+                        link=link,
                     )
                     self._send_receipt(link, chat_msg.msg_id, "received")
                 else:
@@ -345,6 +346,7 @@ class TransferMixin:
                         self._emit_progress(
                             fname, pct, fsize, speed=speed,
                             direction="receive", transfer_id=tid, status="active",
+                            link=link,
                         )
                         if getattr(res, "status", None) == RNS.Resource.COMPLETE:
                             return
@@ -355,7 +357,7 @@ class TransferMixin:
         threading.Thread(target=watch, name=f"recv-progress-{chat_msg.msg_id[:8]}", daemon=True).start()
 
     def _emit_progress(self, file_name, progress, total_size=0, speed="", direction="receive",
-                       transfer_id=None, status="active", transport=None):
+                       transfer_id=None, status="active", transport=None, link=None):
         if transfer_id and transfer_id in self._cancelled_transfers and status == "active":
             return
         if status in ("complete", "cancelled", "failed"):
@@ -369,8 +371,8 @@ class TransferMixin:
                 if abs(progress - last.get("pct", -1)) < 1:
                     return
             self._progress_last[key] = {"ts": now, "pct": progress}
-        if transport is None and self.active_link:
-            transport = self._transfer_transport_label(self.active_link)
+        if transport is None:
+            transport = self._transfer_transport_label(link or self.active_link)
         if self.on_progress:
             try:
                 self.on_progress({
@@ -782,7 +784,7 @@ class TransferMixin:
 
     def send_file(self, file_path, msg_type=MESSAGE_TYPE_FILE, progress_callback=None,
                   transfer_id=None, target_peer=None, link=None, hub_group=False,
-                  prefer_transport=None):
+                  prefer_transport=None, hub_sender=None):
         peer = self.dest_hash_for(target_peer or self.active_peer_hash or "")
         transport = self._normalize_transport(prefer_transport) if prefer_transport else None
         link = (
@@ -809,7 +811,7 @@ class TransferMixin:
             sender_hex = ""
             if hub_group:
                 from chatx5.core.discovery import normalize_hash
-                sender_hex = normalize_hash(self.my_dest_hash or "")
+                sender_hex = normalize_hash(hub_sender or self.my_dest_hash or "")
             chat_msg = ChatMessage(
                 msg_type, str(time.time()), file_name=fname, file_size=fsize,
                 msg_id=transfer_id,
@@ -839,6 +841,7 @@ class TransferMixin:
                 packet.send()
 
                 resource_holder = {"resource": None}
+                xfer_link = link or self._outgoing_link(peer)
 
                 def wrapped_progress(resource):
                     if cancel_ev.is_set() or transfer_id in self._cancelled_transfers:
@@ -859,6 +862,7 @@ class TransferMixin:
                         self._emit_progress(
                             fname, pct, fsize, speed=speed,
                             direction="send", transfer_id=transfer_id,
+                            link=xfer_link,
                         )
                     except Exception:
                         pass
@@ -866,7 +870,6 @@ class TransferMixin:
                 f = open(file_path, "rb")
                 self._file_handles[transfer_id] = f
                 ext = os.path.splitext(file_path)[1].lower()
-                xfer_link = link or self._outgoing_link(peer)
                 xfer_iface = self._link_attached_interface(xfer_link)
                 xfer_fam = interface_family(xfer_iface)
                 fast_path = xfer_fam in ("tcp", "lan", "udp")

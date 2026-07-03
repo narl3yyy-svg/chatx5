@@ -84,11 +84,13 @@ class HubGroupFileTests(unittest.TestCase):
         msg.msg_type = MESSAGE_TYPE_FILE
         msg.msg_id = "f1"
         msg.file_name = "doc.pdf"
+        msg.sender = "c" * 32
         with patch.object(backend, "send_file", return_value=MagicMock()) as send_file:
             relayed = backend.relay_hub_file(msg, peer, fpath)
         self.assertEqual(relayed, 1)
         send_file.assert_called_once()
         self.assertTrue(send_file.call_args.kwargs.get("hub_group"))
+        self.assertEqual(send_file.call_args.kwargs.get("hub_sender"), "c" * 32)
 
 
 class SerialLinkQualityTests(unittest.TestCase):

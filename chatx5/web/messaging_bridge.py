@@ -168,7 +168,7 @@ class MessagingBridgeMixin:
         chat_msg.msg_type = MESSAGE_TYPE_SHARE_BROWSE
         return chat_msg
 
-    def _on_message(self, chat_msg, sender_hash):
+    def _on_message(self, chat_msg, sender_hash, link=None):
         chat_msg = self._coerce_share_browse_message(chat_msg)
         hub_group = bool(getattr(chat_msg, "hub_group", False))
         if not hub_group and chat_msg.msg_type == "share_browse":
@@ -219,7 +219,7 @@ class MessagingBridgeMixin:
         elif sender_hash and sender_hash != "system":
             if self.messaging:
                 chat_peer = (
-                    self.messaging.canonical_connect_hash(sender_hash)
+                    self.messaging.canonical_connect_hash(sender_hash, link=link)
                     or self._peer_dest_hash(sender_hash)
                 )
             else:
@@ -228,6 +228,12 @@ class MessagingBridgeMixin:
         else:
             chat_peer = self._peer_dest_hash(self.active_peer)
             sender = "system"
+        msg_via = None
+        if link and self.messaging:
+            try:
+                msg_via = self.messaging._transport_from_link(link)
+            except Exception:
+                msg_via = None
         entry = self._enrich_message({
             "type": chat_msg.msg_type,
             "content": chat_msg.content,
@@ -239,6 +245,7 @@ class MessagingBridgeMixin:
             "file_size": chat_msg.file_size,
             "msg_id": chat_msg.msg_id,
             "hub_group": hub_group,
+            "via": msg_via,
             "status": "received" if sender_hash and sender_hash != "system" else "",
         }, outgoing=False)
         if self._is_session_system_message(chat_msg.content or ""):
