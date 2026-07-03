@@ -7,7 +7,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.6.26
+**Current version:** 0.6.27
 
 ## How chatx5 works
 
@@ -260,7 +260,7 @@ chatx5/core/messaging/
 
 ### Android Python sources (Phase 13)
 
-Chaquopy reads the canonical `chatx5/` package directly via `chaquopy.sourceSets { srcDir("../../chatx5") }` in `android/app/build.gradle.kts`. There is no tracked duplicate tree in git — edit `chatx5/` only.
+Chaquopy reads `main.py` from `android/app/src/main/python/` and the canonical `chatx5/` package from the repo root via `setSrcDirs(listOf("src/main/python", "../.."))` in `android/app/build.gradle.kts`. There is no tracked duplicate tree in git — edit `chatx5/` only.
 
 - `scripts/verify-android-sync.sh` — fails `check.sh` if Gradle is not pointed at `../../chatx5`
 - `scripts/sync-android.sh` — legacy no-op (kept for older docs/scripts)
