@@ -2,6 +2,17 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.13] — 2026-07-02
+
+### Fixed
+- **Hub group chat latency** — hub TCP `connect_to` no longer primes serial paths first; hub links skip serial-only peer detection; group queue drains immediately (~0.1s) when a hub TCP session is established; hub link retry throttle reduced when messages are queued.
+- **Shared folder in group chat** — hub group shares send `share_browse` (not JSON `text`); inbound JSON share offers are coerced for the UI; failed hub shares are queued and drained; UI renders JSON-looking text as a Browse folder button.
+- **Discovery after USB chat** — hash supersede no longer disconnects peers or clears ephemeral history when a replacement hash exists; UI merges `replacement_peer` into the discovered list immediately.
+- **Transport RTT labels** — link-established RTT probes pass `via` so LAN probes no longer overwrite USB row latency (and vice versa).
+
+### Added
+- **README transport guide** — documents how text, files, voice, and shared folders travel over LAN, USB, and hub TCP.
+
 ## [0.6.12] — 2026-07-02
 
 ### Fixed

@@ -494,6 +494,20 @@ class HubGroupIsolationTests(unittest.TestCase):
         backend.links["lan1"] = lan_tcp
         self.assertNotIn("e" * 32, backend._hub_tcp_linked_peers())
 
+    def test_coerce_share_browse_from_hub_group_json_text(self):
+        from chatx5.core.messaging.models import ChatMessage
+        from chatx5.web.server import ChatWebServer
+
+        server = ChatWebServer.__new__(ChatWebServer)
+        offer = (
+            '{"session_id":"abc","token":"tok","root_name":"dl",'
+            '"host":"10.0.30.112","port":8742,"hub_group":true}'
+        )
+        msg = ChatMessage("text", offer)
+        msg.hub_group = True
+        coerced = server._coerce_share_browse_message(msg)
+        self.assertEqual(coerced.msg_type, "share_browse")
+
     def test_on_message_drops_hub_group_when_hub_off(self):
         from unittest.mock import MagicMock, patch
 

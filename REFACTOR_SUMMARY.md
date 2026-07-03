@@ -63,7 +63,18 @@ chatx5/web/
   share_browser.py       # shared-folder browse sessions
 ```
 
-**299 tests pass** (1 skipped). Public API unchanged.
+**301 tests pass**. Public API unchanged.
+
+## v0.6.13 — Hub delivery, share browse, discovery supersede (done)
+
+| Issue | Fix |
+|-------|-----|
+| Hub group slow / no active link storm | Hub `tcp` connect skips serial priming; faster queue drain + retry throttle |
+| Share folder raw JSON in group chat | `send_hub_message(msg_type=share_browse)`; inbound JSON coercion + UI fallback |
+| Discovery vanishes after USB send | Supersede keeps replacement peer; no disconnect/clear on hash rotation |
+| LAN RTT on USB row | `update_peer_probe(..., via=link_via)` on link established |
+
+README now documents transport paths for text, files, voice, and shared folders.
 
 ## v0.6.12 — Android UI + hub session hardening (done)
 

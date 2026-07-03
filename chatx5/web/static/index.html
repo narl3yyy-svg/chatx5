@@ -3166,7 +3166,13 @@ function handleWSMessage(msg) {
       );
     });
     if (data.replacement_peer) {
-      registerPeerAliases(data.replacement_peer.hash, data.replacement_peer.identity_hash);
+      const repl = data.replacement_peer;
+      registerPeerAliases(repl.hash, repl.identity_hash);
+      const peers = window._discoveredPeers || [];
+      const replKey = peerKey(repl.hash);
+      const merged = peers.filter(p => peerKey(p.hash) !== replKey);
+      merged.push(repl);
+      window._discoveredPeers = merged;
     }
     fetchIdentity();
     renderDiscovered(window._discoveredPeers || []);
@@ -5883,6 +5889,17 @@ function isSessionSystemMessage(data) {
   return c.startsWith('Link established with ') || c.includes('Link closed') || c.startsWith('Connected to ');
 }
 
+function parseShareOfferContent(content) {
+  if (!content || typeof content !== 'string') return null;
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    const offer = JSON.parse(trimmed);
+    if (offer && offer.session_id && offer.token) return offer;
+  } catch (_) {}
+  return null;
+}
+
 function addMessage(data, opts) {
   const scroll = !opts || opts.scroll !== false;
   const msgs = document.getElementById('messages');
@@ -5952,8 +5969,8 @@ function addMessage(data, opts) {
       const url = fileUrl(data.content, data);
       html += `<div style="margin-top:4px"><a href="${url}" download="${escapeHtml(data.file_name || 'file')}" style="color:var(--primary);font-size:12px">Download</a></div>`;
     }
-  } else if (data.type === 'share_browse') {
-    const share = data.share || {};
+  } else if (data.type === 'share_browse' || (data.type === 'text' && parseShareOfferContent(data.content))) {
+    const share = data.share || parseShareOfferContent(data.content) || {};
     try {
       if (!share.session_id && data.content) Object.assign(share, JSON.parse(data.content));
     } catch (_) {}

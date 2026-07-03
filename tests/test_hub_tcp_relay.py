@@ -425,6 +425,26 @@ class HubTcpLinkSelectionTests(unittest.TestCase):
             self.assertIs(pkt.call_args.args[0], hub_link)
             self.assertIsNot(pkt.call_args.args[0], udp_link)
 
+    def test_send_hub_message_preserves_share_browse_type(self):
+        from chatx5.core.messaging.constants import MESSAGE_TYPE_SHARE_BROWSE
+
+        backend, _, hub_link = self._backend(hub_role="client")
+        offer = (
+            '{"session_id":"abc","token":"tok","root_name":"dl",'
+            '"host":"10.0.30.112","port":8742,"hub_group":true}'
+        )
+        with patch("chatx5.core.messaging.hub.RNS.Packet") as pkt:
+            result = backend.send_hub_message(
+                offer,
+                msg_type=MESSAGE_TYPE_SHARE_BROWSE,
+            )
+            self.assertTrue(result)
+            self.assertEqual(result.msg_type, MESSAGE_TYPE_SHARE_BROWSE)
+            payload = pkt.call_args.args[1]
+            parsed = __import__("json").loads(payload.decode("utf-8"))
+            self.assertEqual(parsed.get("type"), MESSAGE_TYPE_SHARE_BROWSE)
+            self.assertTrue(parsed.get("hub"))
+
     def test_hub_path_connect_ready_for_configured_server(self):
         backend, _, _ = self._backend()
         with patch.object(backend, "_hub_tcp_transport_online", return_value=True):

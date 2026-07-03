@@ -464,9 +464,12 @@ class ConnectMixin:
         except Exception:
             pass
         print("[connect] Link established")
-        self._schedule_queue_drain(
-            dest_hex, link=link, include_files=not self._has_active_transfer(),
-        )
+        if self._link_is_hub_tcp(link) or self._peer_uses_hub_transport(dest_hex):
+            self._schedule_hub_queue_drain(delay=0.1)
+        else:
+            self._schedule_queue_drain(
+                dest_hex, link=link, include_files=not self._has_active_transfer(),
+            )
         return True
 
     def _establish_outbound_link(self, destination, dest_hex, clean, old_link=None,
@@ -1013,7 +1016,7 @@ class ConnectMixin:
 
             if requested_transport == "serial":
                 serial_only_peer = serial_ready
-            elif requested_transport == "lan":
+            elif requested_transport in ("lan", "tcp"):
                 serial_only_peer = False
             else:
                 serial_only_peer = (
@@ -1021,7 +1024,11 @@ class ConnectMixin:
                     or serial_only
                     or self._peer_expected_transport_families(dest_hex) == {"serial"}
                 )
-            if serial_ready and serial_only_peer and requested_transport != "lan":
+            if (
+                serial_ready
+                and serial_only_peer
+                and requested_transport not in ("lan", "tcp")
+            ):
                 prime_timeout = 12.0 if not physical_lan else 8.0
                 if self._connect_serial_peer(
                     destination, dest_hex, clean, old_link=old_link,
@@ -1138,7 +1145,11 @@ class ConnectMixin:
                     f"[connect] Outbound to caller at {peer_ip}:{peer_port or 8742} "
                     f"({dest_hex[:16]}...)"
                 )
-            elif serial_ready and not peer_ip and requested_transport != "lan":
+            elif (
+                serial_ready
+                and not peer_ip
+                and requested_transport not in ("lan", "tcp")
+            ):
                 self._prime_serial_path(dest_hex, timeout_s=12.0)
 
             scrub_peer_path(dest_hex)

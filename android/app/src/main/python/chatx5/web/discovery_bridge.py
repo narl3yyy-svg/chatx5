@@ -300,7 +300,7 @@ class DiscoveryBridgeMixin:
                     if link:
                         self.messaging._register_peer_link(link, canon)
                         self.messaging._cache_link_peer(link, canon)
-                elif not same_peer:
+                elif not same_peer and not replacement:
                     self.messaging.disconnect_peer(old, transport="lan")
                     self.messaging.disconnect_peer(old, transport="serial")
                     self.messaging.clear_queue(old)
@@ -331,6 +331,11 @@ class DiscoveryBridgeMixin:
                 self._schedule_contacts_broadcast()
             elif contact:
                 self._schedule_contacts_broadcast()
+            elif replacement:
+                self.messaging.register_peer_mapping(
+                    replacement,
+                    (new_peer or {}).get("identity_hash"),
+                )
             else:
                 self._clear_history_for_peer(old)
                 self._clear_queue_for_peer(old)

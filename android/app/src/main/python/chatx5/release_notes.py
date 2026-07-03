@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.13": [
+        "Fix: Hub group chat delivers faster — hub TCP connects no longer compete with USB serial path setup; queued group messages drain in under a second when the link comes up.",
+        "Fix: Shared folder offers in group chat use share_browse (Browse folder button) instead of raw JSON text.",
+        "Fix: Discovery stays visible after USB chat — hash supersede no longer disconnects or clears ephemeral peers when a replacement hash exists.",
+        "Fix: RTT probes update the correct LAN or USB row (no more LAN latency shown on USB).",
+    ],
     "0.6.12": [
         "Fix: Android app loads the web UI again (static assets resolved from chatx5/web/static, not web/routes/static).",
         "Fix: Group chat survives P2P transport switches — hub TCP relay links are protected and reopen via /api/hub/ensure when you return to Group Chat.",

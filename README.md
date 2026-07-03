@@ -7,7 +7,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.6.12
+**Current version:** 0.6.13
 
 ## How chatx5 works
 
@@ -24,6 +24,73 @@ chatx5 treats **LAN** and **USB serial** as **separate endpoints** on the same d
 - **Hub group chat** — optional TCP relay on port 4242 for multi-peer group messaging (hub server + hub clients).
 - **Shared folder browse** — share a folder with a peer or hub group to browse, download, and upload files (🗂️ in composer).
 - Upgrading from older versions **migrates** `identities/identity` → `identity_lan` automatically.
+
+## Transports & how each feature is sent
+
+chatx5 uses **three independent network paths**. The transport you pick in the UI is the transport used — there is no silent auto-failover between LAN and USB for 1:1 chat.
+
+| Path | RNS interface | Typical use | Requires |
+|------|---------------|-------------|----------|
+| **LAN P2P** | UDP (default) or TCP LAN | Wi‑Fi / Ethernet on same subnet | Pinned IPv4 on both devices |
+| **USB serial** | `SerialInterface` (`/dev/ttyUSB0`, etc.) | Direct cable between two machines | USB serial enabled; `dialout` on Linux |
+| **Hub group** | TCP client → hub server **:4242** | Multi-peer group chat relay | Hub server + `--share`; clients dial hub host |
+
+Run with **`--share`** so LAN HTTP fast transfers, shared-folder browse, and hub identity discovery work (`http://<lan-ip>:8742`).
+
+### Text & emoji (1:1 chat)
+
+| What | Wire format | Transport |
+|------|-------------|-----------|
+| Short message | Encrypted **RNS packet** on the active link | **LAN** or **USB** — whichever sub-row you opened |
+| Long message (over link MTU) | **RNS resource** (`longtext`) on the same link | Same as above |
+| Queued message | Stored locally; drained when link is up | Same target hash + transport |
+
+Flow: Web UI → WebSocket → `send_message()` → RNS `Link` on the transport you selected. Receipts (`received` / `read`) travel back on that same link.
+
+### Hub group chat
+
+| What | Wire format | Transport |
+|------|-------------|-----------|
+| Group text / emoji | Encrypted RNS packet with `hub: true` | **Hub TCP :4242** only (not LAN P2P) |
+| Server relay | Hub server re-sends to other hub TCP clients | Hub TCP |
+
+Flow: open **Hub Group** → `/api/hub/ensure` → `send_hub_message()` over hub TCP link. LAN and USB links to the same peer stay separate; group chat never rides the P2P path.
+
+### Large files, images, and video (1:1)
+
+| Size / condition | Metadata | File bytes | Transport |
+|------------------|----------|------------|-----------|
+| **≥ 512 KiB**, LAN up, `--share`, not hub peer | `__lan_http_offer` over **RNS** (token + URL) | Plain **HTTP GET** to sender `:8742` | **LAN** only (fast path) |
+| Smaller files, USB, or no LAN HTTP | `file` / `image` / `video` chat message over **RNS** | **RNS resource** stream on active link | **LAN** or **USB** |
+
+The LAN HTTP path sends a one-time token inside an encrypted RNS packet; the receiver downloads bytes over HTTP on your subnet. USB and cross-subnet paths use full in-band RNS resources (slower but works without routable LAN HTTP).
+
+### Voice notes (1:1)
+
+| What | Wire format | Transport |
+|------|-------------|-----------|
+| Voice clip | `voice` message + **RNS resource** (audio file) | **LAN** or **USB** — active chat transport |
+
+Voice uses the same resource pipeline as files. LAN HTTP fast path applies only to large generic files (≥ 512 KiB), not voice clips.
+
+### Shared folder browse (🗂️)
+
+| Mode | Offer (how the peer learns the session) | Browse / download / upload |
+|------|----------------------------------------|----------------------------|
+| **1:1 P2P** | `share_browse` over **RNS** on LAN or USB link | **HTTP** to sharer’s `:8742` (`/api/share/...`) |
+| **Hub group** | `share_browse` over **hub TCP** (`hub: true`) | Same HTTP API on the machine that shared the folder |
+
+Flow: tap 🗂️ → pick folder → server creates a 2-hour session (`session_id` + `token`) → offer sent to peer → peer taps **Browse folder** → UI proxies list/download/upload via HTTP to the sharer’s LAN IP. Group shares include `hub_group: true` so all hub clients see the offer in Group Chat.
+
+### Quick reference
+
+| Feature | LAN P2P | USB serial | Hub group |
+|---------|---------|------------|-----------|
+| Text / emoji | ✅ RNS packet | ✅ RNS packet | ✅ RNS over TCP :4242 |
+| Long text | ✅ RNS resource | ✅ RNS resource | ✅ RNS resource on hub link |
+| Files / images / video | ✅ RNS resource; **≥512 KiB → LAN HTTP** with `--share` | ✅ RNS resource | ❌ (use 1:1 or shared folder) |
+| Voice | ✅ RNS resource | ✅ RNS resource | ❌ |
+| Shared folder | ✅ RNS offer + HTTP browse | ✅ RNS offer + HTTP browse | ✅ Hub TCP offer + HTTP browse |
 
 ### First-time setup
 

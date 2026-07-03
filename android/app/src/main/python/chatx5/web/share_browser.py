@@ -85,7 +85,11 @@ class ShareBrowserMixin:
         msg = ChatMessage(MESSAGE_TYPE_SHARE_BROWSE, payload)
         if hub_group:
             msg.hub_group = True
-            result = self.messaging.send_hub_message(payload, msg_id=msg.msg_id)
+            result = self.messaging.send_hub_message(
+                payload,
+                msg_id=msg.msg_id,
+                msg_type=MESSAGE_TYPE_SHARE_BROWSE,
+            )
             return bool(result)
         if hasattr(self.messaging, "send_chat_message"):
             return bool(self.messaging.send_chat_message(
@@ -161,7 +165,7 @@ class ShareBrowserMixin:
         self.message_history.append(entry)
         self._save_history()
         await self._broadcast({"type": "message", "data": entry})
-        if not sent and not hub_group:
+        if not sent:
             self.messaging.enqueue(
                 MESSAGE_TYPE_SHARE_BROWSE,
                 json.dumps(offer),

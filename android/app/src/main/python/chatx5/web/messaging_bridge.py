@@ -1,6 +1,7 @@
 """Auto-extracted from web/server.py — MessagingBridge layer."""
 
 import asyncio
+import json
 import os
 import time
 from urllib.parse import quote
@@ -147,8 +148,34 @@ class MessagingBridgeMixin:
             return "/api/file/received/" + self._encode_file_rel(rel)
         return ""
 
+    def _coerce_share_browse_message(self, chat_msg):
+        """Hub group shares were sometimes sent as JSON text — normalize for the UI."""
+        from chatx5.core.messaging.constants import MESSAGE_TYPE_SHARE_BROWSE
+
+        if chat_msg.msg_type == MESSAGE_TYPE_SHARE_BROWSE:
+            return chat_msg
+        if chat_msg.msg_type != "text":
+            return chat_msg
+        try:
+            parsed = json.loads(chat_msg.content or "")
+        except Exception:
+            return chat_msg
+        if not isinstance(parsed, dict):
+            return chat_msg
+        if not parsed.get("session_id") or not parsed.get("token"):
+            return chat_msg
+        chat_msg.msg_type = MESSAGE_TYPE_SHARE_BROWSE
+        return chat_msg
+
     def _on_message(self, chat_msg, sender_hash):
+        chat_msg = self._coerce_share_browse_message(chat_msg)
         hub_group = bool(getattr(chat_msg, "hub_group", False))
+        if not hub_group and chat_msg.msg_type == "share_browse":
+            try:
+                offer = json.loads(chat_msg.content or "")
+                hub_group = bool(isinstance(offer, dict) and offer.get("hub_group"))
+            except Exception:
+                pass
         if hub_group:
             settings = self.load_settings()
             if settings.get("hub_role", "off") == "off":
@@ -562,9 +589,11 @@ class MessagingBridgeMixin:
                     link_via = None
             link_rtt = link_rtt_ms(self.messaging, resolved, transport=link_via)
             if link_rtt is not None:
-                self.discovery.update_peer_probe(resolved, rtt_ms=link_rtt, ok=True)
+                self.discovery.update_peer_probe(
+                    resolved, rtt_ms=link_rtt, ok=True, via=link_via,
+                )
                 self._schedule_peers_broadcast()
-            elif self.discovery.clear_peer_rtt(resolved):
+            elif self.discovery.clear_peer_rtt(resolved, via=link_via):
                 self._schedule_peers_broadcast()
         self._maybe_update_hub_server_hash(resolved, link=link)
         if hub_tcp_link and self.messaging:

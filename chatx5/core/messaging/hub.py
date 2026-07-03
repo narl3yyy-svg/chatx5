@@ -12,6 +12,7 @@ from chatx5.core.discovery import normalize_hash
 from chatx5.core.lan_rns import interface_family, request_paths_for_hash
 from chatx5.core.messaging.constants import (
     HUB_GROUP_PEER,
+    MESSAGE_TYPE_SHARE_BROWSE,
     MESSAGE_TYPE_TEXT,
     QUEUE_DRAIN_DELAY_S,
 )
@@ -474,8 +475,15 @@ class HubMixin:
             return True
         now = time.time()
         last = float(getattr(self, "_last_hub_open_attempt", 0) or 0)
-        if now - last < 8.0:
-            return bool(self._hub_link_for_peer(peer))
+        hub_queue_pending = any(
+            is_hub_peer_hash(e.get("target_hash")) for e in self.message_queue
+        )
+        throttle_s = 2.0 if hub_queue_pending else 4.0
+        if now - last < throttle_s:
+            existing = self._hub_link_for_peer(peer)
+            if existing or hub_queue_pending:
+                self._schedule_hub_queue_drain(delay=0.1)
+            return bool(existing)
         self._last_hub_open_attempt = now
         if self._connect_in_progress:
             return False
@@ -504,13 +512,15 @@ class HubMixin:
         )
 
     def send_hub_message(self, text, receipt_callback=None, msg_id=None,
-                         hub_server_hash=None, hub_server_mode=False):
+                         hub_server_hash=None, hub_server_mode=False,
+                         msg_type=None):
         role, _ = self._load_hub_settings()
         if role == "off":
             return False
         if not self._hub_tcp_linked_peers():
             self.ensure_hub_link(background=(role == "server"))
-        msg = ChatMessage(MESSAGE_TYPE_TEXT, text, msg_id=msg_id)
+        wire_type = msg_type or MESSAGE_TYPE_TEXT
+        msg = ChatMessage(wire_type, text, msg_id=msg_id)
         msg.hub_group = True
         data = msg.to_json().encode("utf-8")
         targets = self._hub_send_targets(
@@ -538,8 +548,11 @@ class HubMixin:
                 print(f"[hub] send failed to {peer[:16]}: {e}")
         if not sent:
             print("[hub] send_hub_message: no active link")
+            self._schedule_hub_queue_drain(delay=0.15)
+            self.ensure_hub_link(background=(role == "server"))
             return False
-        print(f"[hub] Sent group message: {text[:50]}...")
+        preview = text[:50] if wire_type == MESSAGE_TYPE_TEXT else wire_type
+        print(f"[hub] Sent group message: {preview}...")
         self._sent_messages[msg.msg_id] = msg
         self._pending_sends[msg.msg_id] = time.time()
         if receipt_callback:
@@ -580,7 +593,8 @@ class HubMixin:
             if not is_hub_peer_hash(entry.get("target_hash")):
                 remaining.append(entry)
                 continue
-            if entry.get("type") not in ("text", "emoji"):
+            entry_type = entry.get("type")
+            if entry_type not in ("text", "emoji", MESSAGE_TYPE_SHARE_BROWSE):
                 remaining.append(entry)
                 continue
             msg_id = entry.get("msg_id")
@@ -589,6 +603,7 @@ class HubMixin:
                 msg_id=msg_id,
                 hub_server_hash=hub_server_hash,
                 hub_server_mode=hub_server_mode,
+                msg_type=entry_type if entry_type != "emoji" else MESSAGE_TYPE_TEXT,
             )
             if result:
                 sent += 1
@@ -605,7 +620,7 @@ class HubMixin:
         self._save_queue()
         return sent
 
-    def _schedule_hub_link_ensure(self, delay=2.0):
+    def _schedule_hub_link_ensure(self, delay=0.5):
         role, _ = self._load_hub_settings()
         if role == "off":
             return

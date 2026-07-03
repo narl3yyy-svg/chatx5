@@ -618,9 +618,15 @@ class PeerLinkMixin:
                 peer, keep_link=use_link, transport=transport,
             )
         if not self.is_user_disconnected(peer):
-            self._schedule_queue_drain(peer, link=use_link, include_files=True)
-            if initiated:
-                self._schedule_hub_queue_drain()
+            hub_tcp = bool(use_link and self._link_is_hub_tcp(use_link))
+            if hub_tcp or self._peer_uses_hub_transport(peer):
+                self._schedule_hub_queue_drain(delay=0.1)
+            elif not self._peer_uses_hub_transport(peer):
+                self._schedule_queue_drain(
+                    peer, link=use_link, include_files=True,
+                )
+            if initiated and not hub_tcp:
+                self._schedule_hub_queue_drain(delay=0.2)
         return True
 
     def linked_peers(self):
