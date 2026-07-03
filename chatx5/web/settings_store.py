@@ -26,13 +26,15 @@ from chatx5.utils.platform import (
     set_lan_interface_preference,
 )
 from chatx5.web.rns_utils import (
-    SETTINGS_FILE,
     _pick_directory_tkinter,
     _win_subprocess_flags,
 )
 
 
 class SettingsStoreMixin:
+    def _settings_path(self):
+        return os.path.join(self.config_dir, "settings.json")
+
     def load_settings(self):
         defaults = {
             "name": "",
@@ -60,7 +62,7 @@ class SettingsStoreMixin:
             "serial_quality_interval_s": 5,
         }
         try:
-            with open(SETTINGS_FILE) as f:
+            with open(self._settings_path()) as f:
                 s = json.load(f)
                 for key, val in defaults.items():
                     s.setdefault(key, val)
@@ -90,7 +92,7 @@ class SettingsStoreMixin:
 
     def save_settings(self, settings):
         os.makedirs(self.config_dir, exist_ok=True)
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+        with open(self._settings_path(), "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
 
     def _settings_api_payload(self, settings):

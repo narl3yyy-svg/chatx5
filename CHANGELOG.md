@@ -2,6 +2,11 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.18] — 2026-07-03
+
+### Fixed
+- **CI Checks** — `SettingsStoreMixin` reads/writes `settings.json` under `config_dir` so tests and isolated installs work on fresh runners.
+
 ## [0.6.17] — 2026-07-03
 
 ### Fixed
