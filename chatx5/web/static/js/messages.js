@@ -32,14 +32,18 @@ function isSessionSystemMessage(data) {
 }
 
 function parseShareOfferContent(content) {
-  if (!content || typeof content !== 'string') return null;
-  const trimmed = content.trim();
-  if (!trimmed.startsWith('{')) return null;
-  try {
-    const offer = JSON.parse(trimmed);
-    if (offer && offer.session_id && offer.token) return offer;
-  } catch (_) {}
+  if (!content) return null;
+  const offer = safeJsonParse(content);
+  if (offer && offer.session_id && offer.token) return offer;
   return null;
+}
+
+function voiceMimeType(fname) {
+  const ext = (fname || '').split('.').pop().toLowerCase();
+  return {
+    webm: 'audio/webm', ogg: 'audio/ogg', opus: 'audio/ogg',
+    m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav',
+  }[ext] || 'audio/webm';
 }
 
 function buildMessageNode(data) {
@@ -87,7 +91,12 @@ function buildMessageNode(data) {
     html += `<div>🎤 ${escapeHtml(data.file_name || 'Voice note')}</div>`;
     if (data.content) {
       const url = fileUrl(data.content, data);
-      if (url) html += `<div class="voice-wrap"><audio class="voice-player" controls preload="metadata" src="${url}"></audio></div>`;
+      if (url) {
+        const mime = voiceMimeType(data.file_name);
+        html += `<div class="voice-wrap"><audio class="voice-player" controls preload="auto">`;
+        html += `<source src="${url}" type="${mime}">`;
+        html += `</audio></div>`;
+      }
     }
   } else if (data.type === 'file') {
     const sz = data.file_size ? formatSize(data.file_size) : '';
@@ -98,9 +107,10 @@ function buildMessageNode(data) {
     }
   } else if (data.type === 'share_browse' || (data.type === 'text' && parseShareOfferContent(data.content))) {
     const share = data.share || parseShareOfferContent(data.content) || {};
-    try {
-      if (!share.session_id && data.content) Object.assign(share, JSON.parse(data.content));
-    } catch (_) {}
+    if (!share.session_id && data.content) {
+      const parsed = safeJsonParse(data.content);
+      if (parsed && typeof parsed === 'object') Object.assign(share, parsed);
+    }
     const root = escapeHtml(share.root_name || data.file_name || 'Shared folder');
     const shareKey = 'share-' + (data.msg_id || Date.now());
     window._shareOffers = window._shareOffers || {};
@@ -186,6 +196,15 @@ function filterEmojiPicker(query) {
     el.style.display = show ? '' : 'none';
     if (show) visible++;
   });
+  document.querySelectorAll('#emoji-grid .emoji-category').forEach(header => {
+    let next = header.nextElementSibling;
+    let any = false;
+    while (next && !next.classList.contains('emoji-category')) {
+      if (next.classList.contains('emoji-item') && next.style.display !== 'none') any = true;
+      next = next.nextElementSibling;
+    }
+    header.style.display = any ? '' : 'none';
+  });
   let empty = document.getElementById('emoji-empty');
   if (!empty) {
     empty = document.createElement('div');
@@ -201,18 +220,25 @@ function buildEmojiPicker() {
   const grid = document.getElementById('emoji-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  EMOJIS.forEach((e, idx) => {
-    const span = document.createElement('span');
-    span.className = 'emoji-item';
-    span.textContent = e;
-    span.dataset.search = emojiSearchTerms(idx, e);
-    span.onclick = () => {
-      const input = document.getElementById('msg-input');
-      input.value += e;
-      input.focus();
-      onComposerInput(input);
-    };
-    grid.appendChild(span);
+  EMOJI_CATEGORIES.forEach(cat => {
+    const header = document.createElement('div');
+    header.className = 'emoji-category';
+    header.textContent = cat.label;
+    grid.appendChild(header);
+    for (let idx = cat.from; idx <= cat.to && idx < EMOJIS.length; idx++) {
+      const e = EMOJIS[idx];
+      const span = document.createElement('span');
+      span.className = 'emoji-item';
+      span.textContent = e;
+      span.dataset.search = emojiSearchTerms(idx, e);
+      span.onclick = () => {
+        const input = document.getElementById('msg-input');
+        input.value += e;
+        input.focus();
+        onComposerInput(input);
+      };
+      grid.appendChild(span);
+    }
   });
 }
 

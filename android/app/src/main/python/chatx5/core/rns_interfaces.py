@@ -1109,6 +1109,8 @@ def normalize_hub_listen_interfaces(settings=None, raw=None):
 def remove_tcp_hub_listeners(listen_port, keep_ips=None):
     """Remove hub TCP listeners on listen_port except addresses in keep_ips."""
     keep = set(normalize_hub_listen_interfaces(raw=keep_ips or ["0.0.0.0"]))
+    if "0.0.0.0" in keep:
+        keep = {"0.0.0.0"}
     removed = 0
     try:
         import RNS
@@ -1130,6 +1132,29 @@ def remove_tcp_hub_listeners(listen_port, keep_ips=None):
                 print(f"[hub] Removed TCP hub listener {lip}:{port}")
             except Exception as exc:
                 print(f"[hub] Could not remove TCP hub listener {lip}:{port}: {exc}")
+    except Exception:
+        pass
+    return removed
+
+
+def remove_tcp_listeners_on_port(listen_port, log_tag="hub"):
+    """Remove all TCPServerInterface bindings on listen_port (hub vs tcp_lan conflicts)."""
+    listen_port = int(listen_port or 4242)
+    removed = 0
+    try:
+        import RNS
+        for iface in list(getattr(RNS.Transport, "interfaces", []) or []):
+            if type(iface).__name__ != "TCPServerInterface":
+                continue
+            if _tcp_server_listen_port(iface) != listen_port:
+                continue
+            lip = _tcp_server_listen_ip(iface)
+            try:
+                RNS.Transport.remove_interface(iface)
+                removed += 1
+                print(f"[{log_tag}] Removed TCP listener {lip}:{listen_port}")
+            except Exception as exc:
+                print(f"[{log_tag}] Could not remove TCP listener {lip}:{listen_port}: {exc}")
     except Exception:
         pass
     return removed
@@ -1395,7 +1420,11 @@ def ensure_runtime_tcp_hub(settings=None, config_dir=None):
         listen_port = int(iface.get("listen_port") or listen_port)
         ifac_size = int(iface.get("ifac_size") or ifac_size)
         break
-    remove_tcp_hub_listeners(listen_port, keep_ips=listen_ips)
+    if "0.0.0.0" in listen_ips:
+        remove_tcp_listeners_on_port(listen_port, log_tag="hub")
+        listen_ips = ["0.0.0.0"]
+    else:
+        remove_tcp_listeners_on_port(listen_port, log_tag="hub")
     first = None
     for lip in listen_ips:
         iface = hot_add_tcp_server_interface(

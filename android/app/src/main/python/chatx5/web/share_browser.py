@@ -81,8 +81,11 @@ class ShareBrowserMixin:
     def _send_share_offer(self, offer, target_peer, hub_group=False):
         if not self.messaging:
             return False
-        payload = json.dumps(offer)
+        payload = json.dumps(offer, separators=(",", ":"))
         msg = ChatMessage(MESSAGE_TYPE_SHARE_BROWSE, payload)
+        sender_hex = self._my_sender_hash()
+        if len(sender_hex) == 32:
+            msg.sender = sender_hex
         if hub_group:
             msg.hub_group = True
             result = self.messaging.send_hub_message(

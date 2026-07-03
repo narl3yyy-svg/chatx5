@@ -17,6 +17,7 @@ function shareRemoteQuery(extra) {
     port: String(s.port),
     session_id: s.session_id,
     token: s.token,
+    scheme: s.scheme || (window.location.protocol === 'https:' ? 'https' : 'http'),
     ...(extra || {}),
   });
   return q.toString();
@@ -40,7 +41,7 @@ async function loadShareListing() {
     : `/api/share/remote/list?${shareRemoteQuery({path: rel})}`;
   try {
     const r = await fetch(base);
-    const d = await r.json();
+    const d = await readJsonResponse(r);
     if (!r.ok) throw new Error(d.error || 'list failed');
     s.writable = !!d.writable;
     if (pathEl) pathEl.textContent = '/' + (d.path || '').replace(/^\//, '');
@@ -96,6 +97,7 @@ function openShareBrowser(keyOrOffer) {
     token: offer.token,
     host: offer.host,
     port: offer.port,
+    scheme: offer.scheme || (window.location.protocol === 'https:' ? 'https' : 'http'),
     root_name: offer.root_name || 'Shared folder',
     writable: !!offer.writable,
     path: '',
@@ -136,7 +138,7 @@ async function uploadShareFile(files) {
   const headers = shareIsLocal() ? {'X-Share-Token': s.token} : {};
   try {
     const r = await fetch(url, {method: 'POST', headers, body: form});
-    const d = await r.json();
+    const d = await readJsonResponse(r);
     if (!r.ok) throw new Error(d.error || 'upload failed');
     toast('Uploaded ' + (files[0].name || 'file'));
     loadShareListing();
@@ -157,7 +159,7 @@ async function startShareBrowse(path) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({path, peer: viewingPeer, hub_group, writable: true}),
     });
-    const d = await r.json();
+    const d = await readJsonResponse(r);
     if (!r.ok) throw new Error(d.error || 'share failed');
     toast('Shared ' + (d.offer?.root_name || 'folder'));
   } catch (e) {

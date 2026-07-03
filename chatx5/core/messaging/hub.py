@@ -658,6 +658,9 @@ class HubMixin:
     def relay_hub_message(self, chat_msg, sender_hash):
         if not getattr(chat_msg, "hub_group", False):
             return
+        wire_sender = normalize_hash(getattr(chat_msg, "sender", None) or "")
+        if len(wire_sender) != 32 and sender_hash:
+            chat_msg.sender = normalize_hash(sender_hash)
         data = chat_msg.to_json().encode("utf-8")
         for peer in self._hub_tcp_linked_peers():
             if is_hub_peer_hash(peer) or self.hashes_equivalent(peer, sender_hash):

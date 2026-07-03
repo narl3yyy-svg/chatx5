@@ -4,7 +4,9 @@ function peerKey(hash) {
 
 function normalizeVia(via) {
   const v = (via || 'lan').toLowerCase();
-  return v === 'serial' ? 'serial' : 'lan';
+  if (v === 'serial' || v === 'usb') return 'serial';
+  if (v === 'tcp' || v === 'tcp_lan' || v === 'tcp_hub' || v === 'hub') return 'tcp';
+  return 'lan';
 }
 
 function linkKey(hash, via) {

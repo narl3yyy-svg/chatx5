@@ -138,7 +138,11 @@ class HubRuntimeMixin:
             server["listen_port"] = hub_port
             settings["hub_listen_interfaces"] = listen_ips
             for iface in interfaces:
+                if iface is server:
+                    continue
                 if self._is_tcp_client_iface(iface):
+                    iface["enabled"] = False
+                if iface.get("preset") == "tcp_lan":
                     iface["enabled"] = False
         elif hub_role == "client":
             if not hub_host:

@@ -330,8 +330,15 @@ class InboundCallbacksMixin:
                 if not self._hub_message_receivable(chat_msg, link):
                     return
 
-                chat_msg.sender = remote_hash
-                print(f"[messaging] Received {chat_msg.msg_type} from {remote_hash[:16]}...")
+                from chatx5.core.discovery import normalize_hash
+
+                wire_sender = normalize_hash(getattr(chat_msg, "sender", None) or "")
+                if len(wire_sender) != 32:
+                    chat_msg.sender = remote_hash
+                print(
+                    f"[messaging] Received {chat_msg.msg_type} from "
+                    f"{(wire_sender if len(wire_sender) == 32 else remote_hash)[:16]}..."
+                )
 
                 if chat_msg.msg_type in (MESSAGE_TYPE_FILE, MESSAGE_TYPE_IMAGE, MESSAGE_TYPE_VIDEO, MESSAGE_TYPE_VOICE, MESSAGE_TYPE_LONGTEXT):
                     with self._pending_lock:

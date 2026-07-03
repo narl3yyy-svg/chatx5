@@ -113,6 +113,11 @@ function applySettingsToForm(s, ifaces) {
   window._hubListenInterfaces = Array.isArray(s.hub_listen_interfaces) && s.hub_listen_interfaces.length
     ? s.hub_listen_interfaces.slice()
     : ['0.0.0.0'];
+  if (window._hubRole === 'server') {
+    const host = document.getElementById('hub-listen-interfaces');
+    if (host) host.dataset.ifaceFp = '';
+    ensureHubListenInterfacesRendered(window._lanInterfaces || []);
+  }
   applyBrandTitle(s.brand_title);
   trackAppVersion(s);
   const brandTitleEl = document.getElementById('settings-brand-title');
@@ -173,7 +178,7 @@ function refreshLanInterfaces(showToast, btn, forceRefresh) {
       populateLanInterfaceSelect(ifaces, pinned);
       populateSetupLanSelect(ifaces, document.getElementById('setup-lan-interface')?.value || '');
       renderLanInterfaceSummary(ifaces);
-      if (currentHubRole() === 'server') renderHubListenInterfaces(ifaces);
+      ensureHubListenInterfacesRendered(ifaces);
       if (showToast) toast(ifaces.length ? `Refreshed — ${ifaces.length} network card(s)` : 'Refreshed — no network cards found');
       return ifaces;
     })
@@ -669,8 +674,14 @@ function rttForViewingPeer() {
 function peerInterfaceLabel(via) {
   const v = normalizeVia(via);
   if (v === 'serial') return 'USB Serial';
-  if (v === 'lan') return 'LAN';
+  if (v === 'tcp') return 'TCP';
+  if (v === 'lan') return 'UDP';
   return 'Unknown';
+}
+
+function connectTransportLabel(via) {
+  const label = peerInterfaceLabel(via);
+  return label === 'Unknown' ? '' : label;
 }
 
 function updatePeerHeader() {
@@ -731,6 +742,20 @@ function hubListenSelection() {
   return selected;
 }
 
+function hubListenInterfacesFingerprint(ifaces) {
+  return (ifaces || []).map(entry => `${entry.name || ''}:${entry.ip || ''}:${entry.up !== false}`).join('|');
+}
+
+function ensureHubListenInterfacesRendered(ifaces) {
+  if (currentHubRole() !== 'server') return;
+  const host = document.getElementById('hub-listen-interfaces');
+  if (!host) return;
+  const fp = hubListenInterfacesFingerprint(ifaces);
+  if (host.dataset.ifaceFp === fp && host.querySelector('[data-hub-listen-ip]')) return;
+  host.dataset.ifaceFp = fp;
+  renderHubListenInterfaces(ifaces);
+}
+
 function renderHubListenInterfaces(ifaces) {
   const host = document.getElementById('hub-listen-interfaces');
   if (!host) return;
@@ -766,12 +791,11 @@ function onHubListenChange(el) {
     document.querySelectorAll('[data-hub-listen-ip]').forEach(box => {
       if (box.getAttribute('data-hub-listen-ip') !== '0.0.0.0') box.checked = false;
     });
-    return;
-  }
-  if (ip !== '0.0.0.0' && el.checked) {
+  } else if (ip !== '0.0.0.0' && el.checked) {
     const allBox = document.querySelector('[data-hub-listen-ip="0.0.0.0"]');
     if (allBox) allBox.checked = false;
   }
+  window._hubListenInterfaces = hubListenSelection();
 }
 
 function updateHubUi() {
@@ -794,7 +818,6 @@ function updateHubUi() {
   if (serverFields) serverFields.style.display = selectedRole === 'server' ? 'block' : 'none';
   const serverHint = document.getElementById('hub-server-hint');
   if (serverHint) serverHint.style.display = selectedRole === 'server' ? 'block' : 'none';
-  if (selectedRole === 'server') renderHubListenInterfaces(window._lanInterfaces || []);
   updateLanTransportHubHint();
 }
 
@@ -840,6 +863,9 @@ function saveHubSettings() {
       window._hubRole = d.settings?.hub_role || hub_role;
       if (Array.isArray(d.settings?.hub_listen_interfaces)) {
         window._hubListenInterfaces = d.settings.hub_listen_interfaces.slice();
+        const host = document.getElementById('hub-listen-interfaces');
+        if (host) host.dataset.ifaceFp = '';
+        ensureHubListenInterfacesRendered(window._lanInterfaces || []);
       }
       if (d.settings?.lan_transport_hub_tcp) window._lanTransportHubTcp = d.settings.lan_transport_hub_tcp;
       updateHubUi();

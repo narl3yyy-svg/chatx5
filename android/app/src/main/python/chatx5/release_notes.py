@@ -3,6 +3,14 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.23": [
+        "Fix: Shared folder browse — no more JSON parse errors when browsing a peer's folder.",
+        "Fix: Hub server interface picker keeps your selection instead of resetting to 0.0.0.0.",
+        "Fix: Group chat — hub server messages reach clients; sender names show correctly after restart.",
+        "Fix: Voice messages can be scrubbed/seeked on the receiver without replaying from the start.",
+        "New: Emoji picker sorted into categories for faster search.",
+        "New: Connect toasts and peer header show UDP vs TCP vs USB Serial.",
+    ],
     "0.6.22": [
         "New: Hub server — pick which local network interfaces the TCP relay listens on (multi-select).",
         "Fix: Group chat shows the real sender on all clients — not the hub server name after relay.",

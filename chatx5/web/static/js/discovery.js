@@ -322,7 +322,8 @@ function connectTo(hash, ip, port, via, opts) {
       if (d.linked_peers) syncLinkedPeers(d.linked_peers);
       if (viewingPeer && peersMatch(viewingPeer, connected)) updatePeerHeader();
       else openChat(connected, false, {via});
-      toast('Connected!');
+      const viaLabel = connectTransportLabel(via);
+      toast(viaLabel ? `Connected via ${viaLabel}` : 'Connected!');
     } else if (!(viewingPeer && isPeerLinked(viewingPeer, via))) {
       toast('Connection failed: ' + (d.error || 'unknown'));
     }

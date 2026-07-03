@@ -162,13 +162,15 @@ function handleWSMessage(msg) {
         connectInFlight = false;
         if (!viewingPeer || peersMatch(viewingPeer, h)) {
           openChat(h, false, {via: linkVia});
-          toast('Connected');
+          const viaLabel = connectTransportLabel(linkVia);
+          toast(viaLabel ? `Connected via ${viaLabel}` : 'Connected');
           lastLinkToastAt = now;
         }
       } else if (msg.data.path_switch && viewingPeer && peersMatch(viewingPeer, h)) {
         updatePeerHeader();
         if (now - lastLinkToastAt > 45000) {
-          toast('Switched to faster link');
+          const viaLabel = connectTransportLabel(linkVia);
+          toast(viaLabel ? `Switched to ${viaLabel} link` : 'Switched to faster link');
           lastLinkToastAt = now;
         }
       } else {
@@ -208,7 +210,8 @@ function handleWSMessage(msg) {
       if (!viewingPeer || peersMatch(viewingPeer, msg.hash)) {
         openChat(msg.hash, false, {via: okVia});
       }
-      toast('Connected!');
+      const viaLabel = connectTransportLabel(okVia);
+      toast(viaLabel ? `Connected via ${viaLabel}` : 'Connected!');
     }
   } else if (msg.type === 'connect_fail') {
     const alreadyLinked = viewingPeer && isPeerLinked(viewingPeer, viewingVia);

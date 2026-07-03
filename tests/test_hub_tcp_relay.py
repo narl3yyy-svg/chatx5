@@ -233,6 +233,26 @@ class HubRelayIsolationTests(unittest.TestCase):
             backend.relay_hub_message(msg, sender_hash="c" * 32)
             pkt.assert_not_called()
 
+    def test_relay_sets_sender_when_missing(self):
+        backend, _, _, tcp_b = self._backend()
+        msg = MagicMock()
+        msg.hub_group = True
+        msg.sender = None
+        msg.to_json.return_value = '{"hub":true,"type":"text"}'
+        with patch("chatx5.core.messaging.backend.RNS.Packet"):
+            backend.relay_hub_message(msg, sender_hash="c" * 32)
+        self.assertEqual(msg.sender, "c" * 32)
+
+    def test_relay_preserves_existing_wire_sender(self):
+        backend, _, _, tcp_b = self._backend()
+        msg = MagicMock()
+        msg.hub_group = True
+        msg.sender = "a" * 32
+        msg.to_json.return_value = '{"hub":true,"type":"text"}'
+        with patch("chatx5.core.messaging.backend.RNS.Packet"):
+            backend.relay_hub_message(msg, sender_hash="c" * 32)
+        self.assertEqual(msg.sender, "a" * 32)
+
 
 class HubDefaultsAndSettingsTests(unittest.TestCase):
     def test_default_hub_role_is_off(self):

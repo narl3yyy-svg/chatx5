@@ -364,7 +364,10 @@ class MessagingBridgeMixin:
                     return name
         if self.discovery:
             for peer in self.discovery.get_peers():
-                if self._peers_equivalent(peer.get("hash"), peer_hash):
+                if (
+                    self._peers_equivalent(peer.get("hash"), peer_hash)
+                    or self._peers_equivalent(peer.get("identity_hash"), peer_hash)
+                ):
                     name = _sanitize_contact_name(peer.get("name"))
                     if name and name != peer_hash[:8]:
                         return name

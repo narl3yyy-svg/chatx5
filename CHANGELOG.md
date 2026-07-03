@@ -2,6 +2,19 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.23] — 2026-07-02
+
+### Added
+- **Emoji picker categories** — Smileys, hands, hearts, animals, food, and more grouped with sticky headers for faster browsing.
+- **Transport labels** — Peer header and connect toasts show UDP, TCP, or USB Serial so you know which path is active.
+
+### Fixed
+- **Shared folder browse** — Safer JSON parsing and HTTPS scheme on remote share proxy; fixes “Unexpected non-whitespace character after JSON” on sender and receiver.
+- **Hub listen interfaces** — Interface checkboxes no longer reset to 0.0.0.0 on every network poll; selection persists until you save.
+- **Hub group relay** — Wire sender hash preserved on inbound messages; server→client group messages and display names resolve correctly after restart.
+- **Voice message scrubbing** — Received voice notes use explicit audio MIME types and preload so seeking works without replaying from the start.
+- **Hub TCP port conflict** — Disables tcp_lan listener when hub server is on to avoid port 4242 bind failures.
+
 ## [0.6.22] — 2026-07-02
 
 ### Added

@@ -97,6 +97,19 @@ chatx5/web/static/
 Served at `/static/css/*` and `/static/js/*` via existing `handle_static` route.
 `tests/test_static_frontend.py` verifies all referenced assets exist.
 
+## v0.6.23 — Share JSON, hub UI, transport labels, emoji categories (done)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Share folder JSON parse | **done** | `safeJsonParse`/`readJsonResponse` in utils.js; remote share uses `scheme` |
+| Hub listen checkboxes | **done** | `ensureHubListenInterfacesRendered` — no re-render on every poll |
+| Hub group server→client | **done** | Wire sender preserved in `inbound_callbacks`; relay sets sender if missing |
+| Display names on restart | **done** | `_contact_name_for` matches `identity_hash` in discovery |
+| Emoji categories | **done** | Sticky category headers in picker |
+| Audio scrubbing | **done** | `<source type="audio/...">` + `preload="auto"` |
+| Transport visibility | **done** | `normalizeVia` keeps `tcp`; header/toasts show UDP/TCP/USB |
+| Hub/tcp_lan port 4242 | **done** | Extra tcp_lan listeners disabled; primary server iface reused |
+
 ## v0.6.22 — Hub interfaces + group sender + Android send (done)
 
 | Issue | Fix |
