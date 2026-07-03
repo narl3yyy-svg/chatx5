@@ -100,8 +100,18 @@ def _sanitize_contact_name(name, hashes=None):
     return cleaned
 
 
+def _has_persisted_display_name(entry):
+    """True when a contact has a stored label that should survive restarts."""
+    entry = normalize_contact(entry or {})
+    if entry.get("custom_name"):
+        return True
+    hashes = _contact_hashes(entry)
+    saved = _sanitize_contact_name(entry.get("name"), hashes)
+    return bool(saved and not _name_is_hash_like(saved, hashes))
+
+
 def _resolve_contact_name(existing, name=None, custom_name=False):
-    """Pick stored contact name; user-chosen names always win over discovery."""
+    """Pick stored contact name; saved labels win over discovery refresh."""
     entry = normalize_contact(existing or {})
     hashes = _contact_hashes(entry)
     incoming = _sanitize_contact_name(name, hashes) if name is not None else ""
@@ -110,12 +120,12 @@ def _resolve_contact_name(existing, name=None, custom_name=False):
     if entry.get("custom_name"):
         saved_custom = _sanitize_contact_name(entry.get("name"), hashes)
         return saved_custom or incoming
-    if incoming and not _name_is_hash_like(incoming, hashes):
-        return incoming
     saved = _sanitize_contact_name(entry.get("name"), hashes)
     if saved and not _name_is_hash_like(saved, hashes):
         return saved
-    return incoming or saved
+    if incoming and not _name_is_hash_like(incoming, hashes):
+        return incoming
+    return saved or incoming
 
 
 def contact_primary_hash(contact):
@@ -264,12 +274,11 @@ def sync_contact_from_discovery(
                 entry["identity_hash"] = peer_ident
                 changed = True
 
-        if peer_name:
+        if peer_name and not _has_persisted_display_name(entry):
             resolved = _resolve_contact_name(entry, peer_name)
             if resolved and resolved != (entry.get("name") or "").strip():
-                if not entry.get("custom_name"):
-                    entry["name"] = resolved
-                    changed = True
+                entry["name"] = resolved
+                changed = True
 
         if not changed:
             return entry
@@ -614,8 +623,12 @@ def _merge_contact_entries(primary, secondary):
         out["port"] = other.get("port")
     if other.get("custom_name"):
         out["custom_name"] = True
-        if (other.get("name") or "").strip():
-            out["name"] = other.get("name")
+    incoming_name = other.get("name") if other.get("custom_name") else None
+    if incoming_name is None and not _has_persisted_display_name(out):
+        incoming_name = other.get("name")
+    resolved = _resolve_contact_name(out, incoming_name)
+    if resolved:
+        out["name"] = resolved
     if not out.get("lan_hash") and out.get("hash"):
         out["lan_hash"] = out["hash"]
     return normalize_contact(out)

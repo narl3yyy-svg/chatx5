@@ -63,7 +63,15 @@ chatx5/web/
   share_browser.py       # shared-folder browse sessions
 ```
 
-**301 tests pass**. Public API unchanged.
+**305 tests pass**. Public API unchanged.
+
+## v0.6.14 — Contact names + live status UI (done)
+
+| Issue | Fix |
+|-------|-----|
+| Contact names change on restart | `_has_persisted_display_name` + discovery sync skips name overwrite; UI prefers saved label |
+| 10+ duplicate TCP clients in status | `summarize_rns_interfaces()` groups inbound hub relay clients; API adds `rns_interfaces_summary` |
+| Live status hard to read | Card-based status panel: hero, LAN/Serial/Hub/Discovery cards, grouped transports, deduped peers |
 
 ## v0.6.13 — Hub delivery, share browse, discovery supersede (done)
 

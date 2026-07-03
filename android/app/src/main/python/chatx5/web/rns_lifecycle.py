@@ -44,6 +44,7 @@ from chatx5.core.rns_interfaces import (
     serial_port_accessible,
     serial_port_status,
     serial_runtime_active,
+    summarize_rns_interfaces,
     tcp_client_target_warning,
     update_interface,
     user_has_serial_group_access,
@@ -84,6 +85,44 @@ class RNSLifecycleMixin:
                 row["port_accessible"] = serial_port_accessible(iface.get("port"))
                 row["serial_active"] = serial_runtime_active(iface)
             rows.append(row)
+        return rows
+
+    def _status_peers_display(self, peers):
+        """Dedupe discovered peers for the live status panel."""
+        from chatx5.core.discovery import normalize_hash
+
+        rows = []
+        seen = set()
+        for peer in peers or []:
+            peer = dict(peer or {})
+            via = (peer.get("via") or peer.get("transport") or "lan").strip().lower()
+            if via == "serial":
+                via = "serial"
+            else:
+                via = "lan"
+            ident = normalize_hash(peer.get("identity_hash") or "")
+            name = (peer.get("name") or "").strip().lower()
+            ip = (peer.get("ip") or "").strip()
+            h = normalize_hash(peer.get("hash") or "")
+            key = f"ident:{ident}" if ident else f"{via}:{name}:{ip}" if name and ip else f"{via}:{h}"
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append({
+                "name": peer.get("name") or (h[:8] if h else "peer"),
+                "hash": h or peer.get("hash"),
+                "via": via,
+                "ip": peer.get("ip"),
+                "rtt_ms": peer.get("rtt_ms"),
+                "rtt_avg_ms": peer.get("rtt_avg_ms"),
+                "connected": bool(peer.get("connected")),
+            })
+        rows.sort(
+            key=lambda row: (
+                0 if row.get("via") == "lan" else 1,
+                (row.get("name") or "").lower(),
+            )
+        )
         return rows
 
     def _write_rns_config(self, settings=None):
@@ -795,16 +834,28 @@ class RNSLifecycleMixin:
         except Exception:
             pass
         rns_interfaces = []
+        rns_interfaces_summary = []
         try:
-            for iface in getattr(RNS.Transport, "interfaces", []) or []:
+            raw_ifaces = getattr(RNS.Transport, "interfaces", []) or []
+            for iface in raw_ifaces:
                 rns_interfaces.append({
                     "type": type(iface).__name__,
                     "online": bool(getattr(iface, "online", False)),
-                    "name": str(getattr(iface, "name", "") or getattr(iface, "interface_name", "")),
+                    "name": str(
+                        getattr(iface, "name", "")
+                        or getattr(iface, "interface_name", "")
+                    ),
                 })
+            settings_early = self.load_settings()
+            rns_interfaces_summary = summarize_rns_interfaces(
+                raw_ifaces,
+                hub_role=settings_early.get("hub_role", "off"),
+                hub_port=int(settings_early.get("hub_port") or 4242),
+            )
         except Exception:
             pass
         peers = self._scoped_peers()
+        peers_display = self._status_peers_display(peers)
         linked_peers = self.messaging.linked_peers() if self.messaging else []
         link_active = False
         active_peer = None
@@ -964,6 +1015,8 @@ class RNSLifecycleMixin:
             "rns_ready": bool(self.messaging and self.messaging.destination),
             "rns_error": self.rns_init_error,
             "rns_interfaces": rns_interfaces,
+            "rns_interfaces_summary": rns_interfaces_summary,
+            "rns_interface_count": len(rns_interfaces),
             "configured_interfaces": self._interfaces_for_api(
                 self.load_settings().get("rns_interfaces")
             ),
@@ -976,7 +1029,9 @@ class RNSLifecycleMixin:
             ),
             "beacon": self.lan_beacon.status() if self.lan_beacon else None,
             "discovered_peers": peers,
+            "discovered_peers_display": peers_display,
             "discovered_count": len(peers),
+            "discovered_display_count": len(peers_display),
             "ws_clients": self._ws_client_count(),
             "link_active": link_active,
             "linked_peers": linked_peers,

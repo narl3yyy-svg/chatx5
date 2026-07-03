@@ -762,8 +762,7 @@ body::before {
   display: block; font-size: 12px; color: var(--text2); line-height: 1.45;
 }
 .network-status-block {
-  margin-top: 4px; padding: 14px 16px; border-radius: var(--radius-md);
-  border: 1px solid var(--border); background: rgba(0,0,0,0.18);
+  margin-top: 4px; padding: 0; border: none; background: transparent;
   font-size: 12px; line-height: 1.5;
 }
 .network-status-block .net-row {
@@ -771,6 +770,92 @@ body::before {
   padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .network-status-block .net-row:last-child { border-bottom: none; }
+.ns-wrap { display: flex; flex-direction: column; gap: 14px; }
+.ns-hero {
+  display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(124,106,239,0.14), rgba(88,196,220,0.08));
+  border: 1px solid rgba(124,106,239,0.24);
+}
+.ns-hero-icon {
+  width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(124,106,239,0.18); font-size: 20px;
+}
+.ns-hero-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 4px; }
+.ns-hero-sub { font-size: 12px; color: var(--text2); line-height: 1.5; margin: 0; }
+.ns-hero-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ns-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: 0.03em;
+  border: 1px solid var(--border); background: rgba(0,0,0,0.22); color: var(--text2);
+}
+.ns-badge.ok { border-color: rgba(72,187,120,0.35); color: var(--success); background: rgba(72,187,120,0.1); }
+.ns-badge.bad { border-color: rgba(239,68,68,0.35); color: var(--danger); background: rgba(239,68,68,0.08); }
+.ns-badge.warn { border-color: rgba(245,158,11,0.35); color: var(--warning); background: rgba(245,158,11,0.08); }
+.ns-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ns-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .ns-grid { grid-template-columns: 1fr; } }
+.ns-card {
+  padding: 14px 16px; border-radius: var(--radius-md);
+  border: 1px solid var(--border); background: rgba(0,0,0,0.2);
+}
+.ns-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 10px;
+}
+.ns-card-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--text3);
+}
+.ns-card-state { font-size: 11px; font-weight: 600; }
+.ns-kv { display: flex; flex-direction: column; gap: 6px; }
+.ns-kv-row { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.ns-kv-row span:first-child { color: var(--text3); }
+.ns-kv-row span:last-child { color: var(--text); text-align: right; word-break: break-all; }
+.ns-section {
+  padding: 14px 16px; border-radius: var(--radius-md);
+  border: 1px solid var(--border); background: rgba(0,0,0,0.16);
+}
+.ns-section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--text3); margin: 0 0 10px;
+}
+.ns-iface-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.ns-iface-table th, .ns-iface-table td {
+  padding: 8px 6px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.ns-iface-table th {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text3);
+}
+.ns-iface-table tr:last-child td { border-bottom: none; }
+.ns-iface-table .iface-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px;
+  vertical-align: middle;
+}
+.ns-iface-table .iface-dot.up { background: var(--success); }
+.ns-iface-table .iface-dot.down { background: var(--text3); }
+.ns-peer-grid { display: flex; flex-direction: column; gap: 8px; }
+.ns-peer {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+}
+.ns-peer-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.ns-peer-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.ns-peer-tags { display: flex; gap: 6px; flex-shrink: 0; }
+.ns-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text2);
+}
+.ns-tag.lan { border-color: rgba(88,196,220,0.35); color: var(--accent); }
+.ns-tag.serial { border-color: rgba(245,158,11,0.35); color: var(--warning); }
+.ns-tag.beacon { border-color: rgba(124,106,239,0.35); color: var(--primary); }
+.ns-empty { font-size: 11px; color: var(--text3); padding: 8px 0; }
+.ns-foot {
+  font-size: 10px; color: var(--text3); line-height: 1.55; padding: 4px 2px 0;
+}
 .network-status-actions {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
 }
@@ -5101,17 +5186,252 @@ function requestMicFromNetworkPanel() {
   }
 }
 
+function nsBadge(label, ok, warn) {
+  const cls = ok ? 'ok' : (warn ? 'warn' : 'bad');
+  return `<span class="ns-badge ${cls}"><span class="dot"></span>${escapeHtml(label)}</span>`;
+}
+
+function nsKv(label, value) {
+  return `<div class="ns-kv-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(String(value ?? '—'))}</span></div>`;
+}
+
+function nsCard(title, stateText, stateOk, rowsHtml) {
+  const stateCls = stateOk === undefined ? '' : netClass(stateOk);
+  return `<div class="ns-card">
+    <div class="ns-card-head">
+      <span class="ns-card-title">${escapeHtml(title)}</span>
+      <span class="ns-card-state ${stateCls}">${escapeHtml(stateText)}</span>
+    </div>
+    <div class="ns-kv">${rowsHtml}</div>
+  </div>`;
+}
+
+function summarizeRnsInterfacesClient(raw, summary) {
+  if (Array.isArray(summary) && summary.length) return summary;
+  if (!Array.isArray(raw) || !raw.length) return [];
+  const groups = {};
+  raw.forEach(iface => {
+    const type = iface.type || 'Interface';
+    const name = (iface.name || '').trim();
+    let key = type;
+    let label = type;
+    if (type === 'TCPClientInterface') {
+      const outbound = /→|TCP Client \d/.test(name) || /^TCP Client [0-9.]+:/.test(name);
+      if (outbound) {
+        key = `out:${name}`;
+        label = name || 'TCP client (outbound)';
+      } else {
+        key = 'inbound';
+        label = 'Hub relay clients (inbound)';
+      }
+    } else if (name) {
+      key = `${type}:${name}`;
+      label = name;
+    }
+    if (!groups[key]) groups[key] = { type, name: label, online: 0, total: 0 };
+    groups[key].total += 1;
+    if (iface.online) groups[key].online += 1;
+  });
+  return Object.values(groups).map(g => ({
+    type: g.type,
+    name: g.name,
+    online: g.online > 0,
+    count: g.total,
+    online_count: g.online,
+  }));
+}
+
+function renderNetworkStatusPanel(d) {
+  const platform = (window.chatx5Android?.isAndroid?.() ? 'android' : null) || d.platform || 'desktop';
+  const lanDiscovery = d.lan_discovery_configured !== false;
+  const serialOnly = !!d.serial_only_mode;
+  const lanConnected = lanDiscovery && d.lan_connected !== false && !!d.lan_ip && d.lan_ip !== 'not configured';
+  const hubRole = d.hub_role || 'off';
+  const linkLabel = d.link_active
+    ? `Encrypted session${d.active_peer ? ' · ' + truncateHash(d.active_peer) : ''}`
+    : (d.session_peer ? 'Reconnecting · ' + truncateHash(d.session_peer) : 'No active chat session');
+  const heroIcon = d.link_active ? '🔗' : (d.rns_ready ? '🛰️' : '⚠️');
+  let heroSub = `v${d.app_version || '—'} · ${platform} · HTTP ${d.http_bind || '—'}`;
+  if (d.http_webview) heroSub += ` (WebView ${d.http_webview})`;
+  if (d.rns_error) heroSub += ` · ${d.rns_error}`;
+
+  let badges = '';
+  badges += nsBadge(d.rns_ready ? 'RNS ready' : 'RNS starting', !!d.rns_ready);
+  badges += nsBadge(d.discovery_active ? 'Discovery on' : 'Discovery idle', !!d.discovery_active, !d.discovery_active);
+  badges += nsBadge(d.link_active ? 'Link active' : 'Link idle', !!d.link_active);
+  if (hubRole !== 'off') {
+    const hubOk = hubRole === 'server' ? !!d.tcp_hub_online : !!d.tcp_client_online;
+    const hubText = hubRole === 'server'
+      ? `Hub server${d.hub_clients_linked ? ' · ' + d.hub_clients_linked + ' client(s)' : ''}`
+      : `Hub client${d.hub_group_linked ? ' · linked' : ''}`;
+    badges += nsBadge(hubText, hubOk || !!d.hub_group_linked, !hubOk);
+  }
+
+  const lanRows = serialOnly
+    ? nsKv('Mode', 'Serial only')
+    : (!lanDiscovery
+      ? nsKv('Mode', 'Not configured')
+      : nsKv('IPv4', lanConnected ? d.lan_ip : 'Disconnected')
+        + nsKv('Broadcast', lanConnected ? (d.broadcast || 'none') : '—')
+        + nsKv('Pinned NIC', d.lan_interface ? formatLanInterfacePinned(d.lan_interface) : 'Auto'));
+  const lanState = serialOnly ? 'Serial only' : (lanConnected ? 'Online' : (lanDiscovery ? 'Offline' : 'Off'));
+
+  const serialRows = d.serial_configured_port
+    ? nsKv('Port', d.serial_configured_port)
+      + nsKv('In RNS', d.serial_in_rns ? 'Yes — failover ready' : 'Waiting for hot-add')
+    : nsKv('Port', 'Not configured');
+  const serialState = d.serial_in_rns ? 'Active' : (d.serial_configured_port ? 'Configured' : 'Off');
+
+  let hubRows = nsKv('Role', hubRole === 'off' ? 'Disabled' : hubRole);
+  if (hubRole === 'server') {
+    hubRows += nsKv('Listen', `0.0.0.0:${d.hub_port || 4242}`);
+    hubRows += nsKv('Clients linked', String(d.hub_clients_linked || 0));
+    hubRows += nsKv('Group relay', d.hub_group_linked ? 'Ready' : 'Waiting');
+  } else if (hubRole === 'client') {
+    hubRows += nsKv('Hub host', d.hub_host || '—');
+    hubRows += nsKv('TCP client', d.tcp_client_online ? 'Connected' : 'Connecting');
+    hubRows += nsKv('Group relay', d.hub_group_linked ? 'Linked' : 'Not linked');
+  }
+
+  let sessionHtml = '';
+  if (d.link_active || d.session_peer || (Array.isArray(d.linked_peers) && d.linked_peers.length)) {
+    const rows = nsKv('Status', d.link_active ? 'Active' : 'Reconnecting')
+      + (d.active_peer ? nsKv('Peer', truncateHash(d.active_peer)) : '')
+      + (d.link_rns_interface ? nsKv('RNS path', d.link_rns_interface) : '')
+      + (Array.isArray(d.linked_peers) && d.linked_peers.length
+        ? nsKv('Linked transports', d.linked_peers.join(', '))
+        : '');
+    sessionHtml = `<div class="ns-section"><h4 class="ns-section-title">Active session</h4><div class="ns-kv">${rows}</div></div>`;
+  }
+
+  const ifaceRows = summarizeRnsInterfacesClient(d.rns_interfaces, d.rns_interfaces_summary);
+  let ifaceTable = '';
+  if (ifaceRows.length) {
+    const body = ifaceRows.map(row => {
+      const count = row.count > 1 ? ` <span style="color:var(--text3)">×${row.count}</span>` : '';
+      const online = row.online_count > 1 ? `${row.online_count}/${row.count} online` : (row.online ? 'Online' : 'Offline');
+      return `<tr>
+        <td><span class="iface-dot ${row.online ? 'up' : 'down'}"></span>${escapeHtml(row.name)}${count}</td>
+        <td>${escapeHtml(row.type)}</td>
+        <td class="${netClass(row.online)}">${escapeHtml(online)}</td>
+      </tr>`;
+    }).join('');
+    const rawNote = (d.rns_interface_count || 0) > ifaceRows.length
+      ? `<div class="ns-foot">${d.rns_interface_count} runtime interface(s) collapsed into ${ifaceRows.length} group(s).</div>`
+      : '';
+    ifaceTable = `<div class="ns-section"><h4 class="ns-section-title">Runtime transports</h4>
+      <table class="ns-iface-table"><thead><tr><th>Interface</th><th>Type</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>${rawNote}</div>`;
+  }
+
+  let presetHtml = '';
+  if (Array.isArray(d.configured_interfaces) && d.configured_interfaces.length) {
+    const rows = d.configured_interfaces.map(iface => {
+      let status = iface.enabled ? 'Enabled' : 'Disabled';
+      if (iface.preset === 'serial' || iface.type === 'SerialInterface') {
+        if (iface.serial_active) status = 'Active';
+        else if (iface.port_status === 'permission_denied') status = 'No access';
+        else if (iface.port) status = 'Port ' + iface.port;
+        else status = 'No port';
+      }
+      return nsKv(iface.name || iface.type, status + ' · ' + (iface.preset || iface.type));
+    }).join('');
+    presetHtml = `<div class="ns-section"><h4 class="ns-section-title">Configured presets</h4><div class="ns-kv">${rows}</div></div>`;
+  }
+
+  const peers = (Array.isArray(d.discovered_peers_display) && d.discovered_peers_display.length)
+    ? d.discovered_peers_display
+    : (Array.isArray(d.discovered_peers) ? d.discovered_peers : []);
+  let peersHtml = '';
+  if (peers.length) {
+    const items = peers.map(p => {
+      const via = (p.via || '') === 'serial' ? 'serial' : ((p.via || '') === 'beacon' ? 'beacon' : 'lan');
+      const tag = via === 'serial' ? 'USB' : (via === 'beacon' ? 'Beacon' : 'LAN');
+      const rtt = formatRtt(p.rtt_avg_ms || p.rtt_ms);
+      const meta = [
+        truncateHash(p.hash),
+        p.ip ? '@ ' + p.ip : '',
+        rtt ? rtt : '',
+        p.connected ? 'linked' : '',
+      ].filter(Boolean).join(' · ');
+      return `<div class="ns-peer">
+        <div><div class="ns-peer-name">${escapeHtml(p.name || truncateHash(p.hash))}</div>
+        <div class="ns-peer-meta">${escapeHtml(meta)}</div></div>
+        <div class="ns-peer-tags"><span class="ns-tag ${via}">${tag}</span></div>
+      </div>`;
+    }).join('');
+    const countNote = (d.discovered_count || 0) > peers.length
+      ? `<div class="ns-foot">${peers.length} unique peer(s) shown (${d.discovered_count} raw discovery rows).</div>`
+      : '';
+    peersHtml = `<div class="ns-section"><h4 class="ns-section-title">Discovered peers</h4><div class="ns-peer-grid">${items}</div>${countNote}</div>`;
+  } else {
+    peersHtml = `<div class="ns-section"><h4 class="ns-section-title">Discovered peers</h4><div class="ns-empty">No peers yet — tap Announce LAN or Serial.</div></div>`;
+  }
+
+  let beaconHtml = '';
+  if (d.beacon) {
+    beaconHtml = `<div class="ns-section"><h4 class="ns-section-title">Beacon counters (this session)</h4><div class="ns-kv">`
+      + nsKv('Mode', d.beacon.interval_sec ? 'Auto' : 'Manual')
+      + nsKv('Sent', String(d.beacon.packets_sent ?? 0))
+      + nsKv('Received', String(d.beacon.packets_received ?? 0))
+      + nsKv('Last announce', String(d.beacon.last_announce_sent ?? 0) + ' packet(s)')
+      + `</div></div>`;
+  }
+
+  let extraHtml = `<div class="ns-section"><h4 class="ns-section-title">Service ports</h4><div class="ns-kv">`
+    + nsKv('RNS UDP', String(d.rns_udp_port || 4242))
+    + nsKv('Beacon UDP', String(d.beacon_udp_port || 8743))
+    + nsKv('WS clients', String(d.ws_clients ?? 0) + ' tab(s) on this device')
+    + `</div></div>`;
+
+  if (platform === 'android' && window.chatx5Android) {
+    const micOk = window.chatx5Android.hasAudioPermission();
+    extraHtml += `<div class="ns-section"><h4 class="ns-section-title">Android</h4><div class="ns-kv">`
+      + (micOk
+        ? nsKv('Microphone', 'Allowed')
+        : `<div class="net-row net-row-action" onclick="requestMicFromNetworkPanel()"><span class="net-label">Microphone</span><span class="net-value net-bad">Denied — tap to request</span></div>`)
+      + (d.usb_serial_ready != null ? nsKv('USB serial ready', String(d.usb_serial_ready) + ' device(s)') : '')
+      + `</div></div>`;
+  } else if (d.serial_group_access === false) {
+    extraHtml += `<div class="ns-foot">Serial groups: dialout not active — launch with <code>./run.sh web</code>.</div>`;
+  }
+
+  if (d.debug_log_path) {
+    extraHtml += `<div class="ns-foot">Debug log: <code>${escapeHtml(d.debug_log_path)}</code></div>`;
+  }
+
+  return `<div class="ns-wrap">
+    <div class="ns-hero">
+      <div class="ns-hero-icon">${heroIcon}</div>
+      <div>
+        <h4 class="ns-hero-title">${escapeHtml(linkLabel)}</h4>
+        <p class="ns-hero-sub">${escapeHtml(heroSub)}</p>
+        <div class="ns-hero-badges">${badges}</div>
+      </div>
+    </div>
+    <div class="ns-grid">
+      ${nsCard('LAN', lanState, lanConnected && !serialOnly, lanRows)}
+      ${nsCard('Serial / USB', serialState, !!d.serial_in_rns, serialRows)}
+      ${hubRole !== 'off' ? nsCard('Hub relay', hubRole === 'server' ? (d.tcp_hub_online ? 'Listening' : 'Starting') : (d.tcp_client_online ? 'Connected' : 'Dialing'), hubRole === 'server' ? !!d.tcp_hub_online : !!d.tcp_client_online, hubRows) : ''}
+      ${nsCard('Discovery', (d.discovered_display_count ?? d.discovered_count ?? 0) + ' peer(s)', (d.discovered_count || 0) > 0, nsKv('Listening', d.discovery_active ? 'Yes' : 'Tap Announce') + nsKv('Queue', String(d.queue_size ?? 0)))}
+    </div>
+    ${sessionHtml}
+    ${ifaceTable}
+    ${presetHtml}
+    ${peersHtml}
+    ${beaconHtml}
+    ${extraHtml}
+    <div class="ns-foot">HTTP ${escapeHtml(String(d.http_bind || '—'))} is this web UI only. RNS UDP 4242 + serial/LAN/TCP paths carry encrypted chat. Inbound hub TCP clients are grouped — each remote connection creates one relay interface.</div>
+  </div>`;
+}
+
 function refreshNetworkStatus(silent) {
   const panel = document.getElementById('network-status-panel');
   if (!panel) return;
-  if (!silent) panel.textContent = 'Loading...';
+  if (!silent) panel.innerHTML = '<div class="ns-empty">Loading network status…</div>';
   const url = silent ? '/api/network-status' : '/api/network-status?refresh=1';
   fetch(url)
     .then(r => r.json())
     .then(d => {
-      let html = '';
-      const row = (label, value, ok) =>
-        `<div class="net-row"><span class="net-label">${label}</span><span class="net-value ${ok === undefined ? '' : netClass(ok)}">${escapeHtml(String(value ?? '—'))}</span></div>`;
       const platform = (window.chatx5Android?.isAndroid?.() ? 'android' : null) || d.platform;
       if (platform) appPlatform = platform;
       window._tcpHubOnline = !!d.tcp_hub_online;
@@ -5124,135 +5444,13 @@ function refreshNetworkStatus(silent) {
       }
       if (viewingPeer === HUB_GROUP_PEER) updatePeerHeader();
       if (d.lan_ip && d.lan_ip !== 'not configured') window._localLanIp = d.lan_ip;
-      html += row('Platform', platform);
-      html += row('HTTP bind', d.http_webview ? `${d.http_bind} (WebView ${d.http_webview})` : d.http_bind);
-      html += row('Discovery listening', d.discovery_active ? 'yes' : 'no (tap Announce)', !!d.discovery_active);
-      if (d.lan_discovery_configured === false) {
-        html += row('LAN beacon', 'off (no UDP interface configured)', false);
-      }
-      html += row('RNS UDP', d.rns_udp_port ? d.rns_udp_port + ' (required for chat)' : '4242', true);
-      html += row('Beacon UDP', d.beacon_udp_port || 8743);
       if (settingsShown && Array.isArray(d.available_interfaces)) {
         populateLanInterfaceSelect(d.available_interfaces, d.lan_interface || '');
       }
-      if (d.lan_interface) {
-        html += row('LAN IPv4', formatLanInterfacePinned(d.lan_interface), !!d.lan_connected);
-      } else {
-        html += row('LAN IPv4', 'not pinned', false);
-      }
       updateSerialAnnounceVisibility(!!d.serial_in_rns || !!(Array.isArray(d.configured_interfaces) && d.configured_interfaces.some(i =>
         (i.preset === 'serial' || i.type === 'SerialInterface') && i.serial_active)));
-      const lanDiscovery = d.lan_discovery_configured !== false;
-      const serialOnly = !!d.serial_only_mode;
-      const lanConnected = lanDiscovery && d.lan_connected !== false && !!d.lan_ip
-        && d.lan_ip !== 'not configured';
-      if (serialOnly) {
-        html += row('LAN IP', 'not configured (serial only)', false);
-        html += row('Broadcast', 'not configured (serial only)', false);
-      } else if (!lanDiscovery) {
-        html += row('LAN IP', 'not configured', false);
-        html += row('Broadcast', 'not configured', false);
-      } else {
-        html += row('LAN IP', lanConnected ? d.lan_ip : 'disconnected', lanConnected);
-        html += row('Broadcast', lanConnected ? (d.broadcast || 'none') : 'disconnected', lanConnected);
-      }
-      if (serialOnly) {
-        html += row('Transport mode', 'serial only — add UDP LAN preset for Wi-Fi/Ethernet', false);
-      }
-      html += row('RNS ready', d.rns_ready ? 'yes' : 'no', d.rns_ready);
-      if (d.rns_error) html += row('RNS error', d.rns_error, false);
-      html += row('Link active', d.link_active ? 'yes — encrypted chat session' : 'no — not connected to a peer', d.link_active);
-      if (d.active_peer) html += row('Active peer', truncateHash(d.active_peer), true);
-      if (d.link_rns_interface) html += row('Link path (RNS)', d.link_rns_interface, true);
-      if (d.serial_configured_port) {
-        html += row('Serial port', d.serial_configured_port, !!d.serial_in_rns);
-        html += row('Serial in RNS', d.serial_in_rns ? 'yes — failover ready' : 'no — plug USB & restart or wait for hot-add', d.serial_in_rns);
-        if (d.serial_only_mode) {
-          html += '<div style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.45">Serial-only: tap <strong>Announce</strong> on <em>both</em> devices within a few seconds, then <strong>Connect</strong>. USB OTG + matching baud (57600). Android needs USB permission + Serial in RNS: yes.</div>';
-        }
-      }
-      if (!d.link_active && d.session_peer) {
-        html += row('Session peer', truncateHash(d.session_peer) + ' (reconnecting)', false);
-      }
-      html += row('Discovered peers', d.discovered_count ?? 0, (d.discovered_count || 0) > 0);
-      if (Array.isArray(d.discovered_peers) && d.discovered_peers.length) {
-        d.discovered_peers.forEach(p => {
-          const name = p.name || truncateHash(p.hash);
-          const rtt = formatRtt(p.rtt_avg_ms || p.rtt_ms);
-          const via = (p.via || '') === 'serial' ? 'USB' : 'LAN';
-          html += row(
-            'Probe · ' + name,
-            rtt ? (rtt + ' avg · ' + via) : ('no reply · ' + via),
-            !!rtt && rtt !== '>10s',
-          );
-        });
-      }
-      html += row('WS clients', (d.ws_clients ?? 0) + ' (browser tabs on this device)', true);
-      if (platform === 'android' && window.chatx5Android) {
-        const micOk = window.chatx5Android.hasAudioPermission();
-        if (micOk) {
-          html += row('Microphone', 'allowed', true);
-        } else {
-          html += '<div class="net-row net-row-action" onclick="requestMicFromNetworkPanel()"><span class="net-label">Microphone</span><span class="net-value net-bad">denied — tap to request</span></div>';
-        }
-      }
-      if (d.beacon) {
-        html += row('Beacon mode', (d.beacon.interval_sec ? 'auto' : 'manual only'), !d.beacon.interval_sec);
-        html += row('Broadcasts (last announce)', d.beacon.last_broadcast_sent ?? 0);
-        if ((d.beacon.last_subnet_probes ?? 0) > 0) {
-          html += row('Unicast probes (last announce)', d.beacon.last_subnet_probes);
-        }
-        html += row('Total sent (last announce)', d.beacon.last_announce_sent ?? 0);
-        html += row('Beacon sent (session)', d.beacon.packets_sent ?? 0);
-        html += row('Beacon received (session)', d.beacon.packets_received ?? 0, (d.beacon.packets_received || 0) > 0);
-      }
-      const probeHint = 'One Announce sends directed broadcasts plus a small unicast sweep (~45 hosts on Android, ~25 on desktop) — not a full /24 scan.';
-      html += '<div style="margin-top:8px;font-size:10px;color:var(--text3);line-height:1.45">' + probeHint + ' Counters start at 0 on launch. <strong>Reset network</strong> zeros session counters. <strong>Received</strong> counts foreign peers only.</div>';
-      html += '<div style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.45"><strong>Link active</strong> = encrypted RNS session open. <strong>Inactive</strong> = no session — connect to a peer or wait for incoming. Connect waits for RNS announce, then times out in ~10s if the peer is offline.</div>';
-      html += '<div style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.45">Use <strong>Announce LAN</strong> and <strong>Announce Serial</strong> for manual discovery (or set auto-announce intervals in Network settings). Connect uses reverse-connect for Android when outbound link fails.</div>';
-      html += '<div style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.45"><strong>Dual-path failover:</strong> with USB serial + LAN both configured, chat auto-reconnects over the other path when one drops (serial unplugged → LAN/AutoInterface; LAN lost → serial). Both machines need the same version. Serial must show <strong>Serial in RNS: yes</strong> before LAN→serial failover works.</div>';
-      html += '<div style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.45"><strong>AutoInterface</strong> is RNS LAN mesh (IPv6 link-local on your NIC) — not a bypass. VPN disconnect does not kill physical LAN; chat may stay up on enp2s0/wlan0.</div>';
-      html += '<div style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.45">Beacon UDP 8743 = LAN discovery helper. RNS UDP 4242 + AutoInterface + Serial = encrypted chat paths. HTTP 8742 = this web UI only.</div>';
-      html += '<div style="margin-top:6px;font-size:10px;color:var(--text3);line-height:1.45"><strong>WS clients</strong> counts open browser tabs connected to <em>this</em> machine\'s web UI — not remote peers. One tab on Arch = 1; Ubuntu has its own count.</div>';
-      if (Array.isArray(d.configured_interfaces) && d.configured_interfaces.length) {
-        html += '<div style="margin-top:8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Configured presets</div>';
-        d.configured_interfaces.forEach(iface => {
-          let status = iface.enabled ? 'enabled' : 'waiting';
-          if (iface.preset === 'serial' || iface.type === 'SerialInterface') {
-            if (iface.serial_active) status = 'active';
-            else if (iface.port_status === 'permission_denied') status = 'no access';
-            else if (iface.port) status = 'port ' + iface.port;
-            else status = 'no port';
-          }
-          const ok = iface.serial_active || (iface.enabled && iface.preset !== 'serial');
-          html += row(iface.name || iface.type, status + ' · ' + (iface.preset || iface.type), ok);
-        });
-        if (platform === 'android') {
-          const ready = d.usb_serial_ready ?? 0;
-          html += row('USB serial ready', ready + ' device(s)', ready > 0);
-        } else if (d.serial_group_access === false) {
-          html += row('Serial groups', 'dialout not active — use ./run.sh web', false);
-        }
-      }
-      if (Array.isArray(d.rns_interfaces) && d.rns_interfaces.length) {
-        html += '<div style="margin-top:8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">RNS interfaces</div>';
-        d.rns_interfaces.forEach(iface => {
-          html += row(iface.type + (iface.name ? ` (${iface.name})` : ''), iface.online ? 'online' : 'offline', iface.online);
-        });
-      }
-      if (Array.isArray(d.discovered_peers) && d.discovered_peers.length) {
-        html += '<div style="margin-top:8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Discovered</div>';
-        d.discovered_peers.forEach(p => {
-          const label = (p.name || p.hash || '').slice(0, 16);
-          const ip = p.ip ? ` @ ${p.ip}` : '';
-          html += row(label, (p.via || 'peer') + ip, true);
-        });
-      }
-      if (d.debug_log_path) {
-        html += row('Debug log file', d.debug_log_path, true);
-        updateAndroidDebugLogHint(d.debug_log_path);
-      }
-      panel.innerHTML = html;
+      if (d.debug_log_path) updateAndroidDebugLogHint(d.debug_log_path);
+      panel.innerHTML = renderNetworkStatusPanel(d);
     })
     .catch(() => { panel.textContent = 'Failed to load network status.'; });
 }
@@ -5694,10 +5892,10 @@ function contactDisplayName(c) {
   const raw = (c?.name || '').trim();
   const cleanRaw = isCorruptContactName(raw, hashes) ? '' : raw;
   if (c?.custom_name && cleanRaw) return cleanRaw;
-  if (cleanRaw && !hashes.has(peerKey(cleanRaw)) && cleanRaw.length <= 24) return cleanRaw;
+  if (cleanRaw && !hashes.has(peerKey(cleanRaw)) && cleanRaw.length <= 48) return cleanRaw;
   const disc = bestPeerForContact(window._discoveredPeers || [], c);
   const discName = (disc?.name || '').trim();
-  if (!c?.custom_name && discName && !isCorruptContactName(discName, hashes) && !hashes.has(peerKey(discName))) return discName;
+  if (!cleanRaw && discName && !isCorruptContactName(discName, hashes) && !hashes.has(peerKey(discName))) return discName;
   if (cleanRaw && cleanRaw.length <= 16) return cleanRaw;
   return truncateHash(c?.lan_hash || c?.serial_hash || c?.hash || cleanRaw);
 }

@@ -1,5 +1,6 @@
 """Contact name persistence and dual-hash save behavior."""
 
+import json
 import os
 import sys
 import tempfile
@@ -9,6 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from chatx5.core.contacts import (
     _contact_matches_discovery_peer,
+    _contact_path,
+    _has_persisted_display_name,
     _is_corrupt_contact_name,
     _resolve_contact_name,
     _sanitize_contact_name,
@@ -145,6 +148,55 @@ class ContactNamePersistenceTests(unittest.TestCase):
             "238e575a12a97fc8\nLAN\n287ms",
         )
         self.assertEqual(resolved, "330s")
+
+    def test_saved_name_not_overwritten_by_discovery_sync(self):
+        lan = "5386ea6054eaaa291518c47732e85127"
+        save_contact(
+            self.tmp,
+            lan,
+            name="Arch",
+            ip="10.0.30.112",
+            via="lan",
+            custom_name=True,
+        )
+        sync_contact_from_discovery(
+            self.tmp,
+            {
+                "hash": lan,
+                "name": "330",
+                "ip": "10.0.30.112",
+                "via": "lan",
+            },
+        )
+        contact = find_contact_by_hash(self.tmp, lan)
+        self.assertEqual(contact.get("name"), "Arch")
+
+    def test_legacy_saved_name_persists_without_custom_flag(self):
+        lan = "5386ea6054eaaa291518c47732e85127"
+        save_contact(
+            self.tmp,
+            lan,
+            name="Arch",
+            ip="10.0.30.112",
+            via="lan",
+            custom_name=True,
+        )
+        contact = find_contact_by_hash(self.tmp, lan)
+        contact.pop("custom_name", None)
+        with open(_contact_path(self.tmp, lan), "w") as fh:
+            json.dump(contact, fh)
+        self.assertTrue(_has_persisted_display_name(contact))
+        sync_contact_from_discovery(
+            self.tmp,
+            {
+                "hash": lan,
+                "name": "330",
+                "ip": "10.0.30.112",
+                "via": "lan",
+            },
+        )
+        contact = find_contact_by_hash(self.tmp, lan)
+        self.assertEqual(contact.get("name"), "Arch")
 
     def test_save_serial_then_lan_keeps_distinct_hashes(self):
         save_contact(

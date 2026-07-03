@@ -2,6 +2,15 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.14] — 2026-07-02
+
+### Fixed
+- **Contact name persistence** — saved contact labels survive server restarts and stay put when the peer is offline; discovery sync no longer overwrites a stored display name unless you explicitly rename the contact.
+- **Live network status accuracy** — duplicate inbound hub `TCPClientInterface` rows are collapsed into grouped summaries (e.g. “Hub relay clients (inbound) ×N”); discovered peers are deduped for the status panel.
+
+### Changed
+- **Live network status UI** — Settings → Live network status redesigned with session hero, transport cards (LAN / Serial / Hub / Discovery), grouped runtime interface table, and cleaner discovered-peer list.
+
 ## [0.6.13] — 2026-07-02
 
 ### Fixed

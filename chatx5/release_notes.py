@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.14": [
+        "Fix: Saved contact names persist across restarts — discovery no longer overwrites your stored labels when a peer is offline.",
+        "Fix: Live network status groups duplicate hub TCP client interfaces instead of listing each inbound relay separately.",
+        "New: Live network status UI overhaul — session hero, transport cards, grouped interface table, deduped peer list.",
+    ],
     "0.6.13": [
         "Fix: Hub group chat delivers faster — hub TCP connects no longer compete with USB serial path setup; queued group messages drain in under a second when the link comes up.",
         "Fix: Shared folder offers in group chat use share_browse (Browse folder button) instead of raw JSON text.",
