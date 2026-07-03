@@ -129,10 +129,14 @@ class HubRuntimeMixin:
                 server = next(
                     i for i in interfaces if self._is_tcp_server_iface(i)
                 )
+            from chatx5.core.rns_interfaces import normalize_hub_listen_interfaces
+
             server["enabled"] = True
             server["type"] = "TCPServerInterface"
-            server["listen_ip"] = (server.get("listen_ip") or "0.0.0.0").strip() or "0.0.0.0"
+            listen_ips = normalize_hub_listen_interfaces(settings)
+            server["listen_ip"] = listen_ips[0]
             server["listen_port"] = hub_port
+            settings["hub_listen_interfaces"] = listen_ips
             for iface in interfaces:
                 if self._is_tcp_client_iface(iface):
                     iface["enabled"] = False
@@ -185,7 +189,6 @@ class HubRuntimeMixin:
                 remove_tcp_client_interfaces,
                 remove_tcp_client_to_host,
                 tcp_client_interface_online,
-                tcp_server_interface_online,
             )
             if hub_role == "server":
                 remove_tcp_client_interfaces()
@@ -193,18 +196,27 @@ class HubRuntimeMixin:
                 if iface and messaging:
                     messaging._silent_announce()
                     messaging._schedule_hub_queue_drain()
-                online = tcp_server_interface_online(int(settings.get("hub_port") or 4242))
-                if online:
-                    print(
-                        f"[hub] TCP hub server listening on 0.0.0.0:"
-                        f"{settings.get('hub_port', 4242)}"
+                from chatx5.core.rns_interfaces import (
+                    normalize_hub_listen_interfaces,
+                    tcp_server_interfaces_online,
+                )
+
+                hub_port = int(settings.get("hub_port") or 4242)
+                listen_ips = normalize_hub_listen_interfaces(settings)
+                online_rows = tcp_server_interfaces_online(hub_port)
+                if online_rows:
+                    bound = ", ".join(
+                        f"{getattr(i, 'listen_ip', '0.0.0.0')}:{hub_port}"
+                        for i in online_rows
                     )
+                    print(f"[hub] TCP hub server listening on {bound}")
                     if messaging:
                         messaging._schedule_hub_link_ensure(delay=1.0)
                 else:
+                    want = ", ".join(f"{ip}:{hub_port}" for ip in listen_ips)
                     print(
-                        f"[hub] TCP hub server not online yet on port "
-                        f"{settings.get('hub_port', 4242)} — check hub role and restart"
+                        f"[hub] TCP hub server not online yet ({want}) "
+                        f"— check hub role and restart"
                     )
             elif hub_role == "client":
                 settings = self._ensure_hub_host_in_scope(settings, persist=True)

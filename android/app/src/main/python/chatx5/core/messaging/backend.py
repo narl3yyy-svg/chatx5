@@ -865,6 +865,16 @@ class MessagingBackend(
         except Exception:
             pass
 
+    def _fire_sent_receipt(self, msg_id, receipt_callback=None):
+        """Notify UI immediately after the packet leaves — before remote ack."""
+        cb = receipt_callback or self._receipt_callbacks.get(msg_id)
+        if not cb:
+            return
+        try:
+            cb("sent", {"msg_id": msg_id, "status": "sent"})
+        except Exception:
+            pass
+
     def send_read_receipt(self, link, msg_id):
         try:
             receipt = json.dumps({"msg_id": msg_id})
@@ -1110,6 +1120,7 @@ class MessagingBackend(
             self._pending_sends[msg.msg_id] = time.time()
             if receipt_callback:
                 self._receipt_callbacks[msg.msg_id] = receipt_callback
+                self._fire_sent_receipt(msg.msg_id, receipt_callback)
             return msg
         except Exception as e:
             print(f"[messaging] Send failed: {e}")
@@ -1146,6 +1157,7 @@ class MessagingBackend(
             self._pending_sends[chat_msg.msg_id] = time.time()
             if receipt_callback:
                 self._receipt_callbacks[chat_msg.msg_id] = receipt_callback
+                self._fire_sent_receipt(chat_msg.msg_id, receipt_callback)
             return chat_msg
         except Exception as e:
             print(f"[messaging] Send failed: {e}")

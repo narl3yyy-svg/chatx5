@@ -110,6 +110,9 @@ function applySettingsToForm(s, ifaces) {
   if (hubHost) hubHost.value = s.hub_host || '';
   const hubPort = document.getElementById('settings-hub-port');
   if (hubPort) hubPort.value = s.hub_port || 4242;
+  window._hubListenInterfaces = Array.isArray(s.hub_listen_interfaces) && s.hub_listen_interfaces.length
+    ? s.hub_listen_interfaces.slice()
+    : ['0.0.0.0'];
   applyBrandTitle(s.brand_title);
   trackAppVersion(s);
   const brandTitleEl = document.getElementById('settings-brand-title');
@@ -164,11 +167,13 @@ function refreshLanInterfaces(showToast, btn, forceRefresh) {
     })
     .then(d => {
       const ifaces = d.interfaces || [];
+      window._lanInterfaces = ifaces;
       const sel = document.getElementById('settings-lan-interface');
       const pinned = sel?.value || '';
       populateLanInterfaceSelect(ifaces, pinned);
       populateSetupLanSelect(ifaces, document.getElementById('setup-lan-interface')?.value || '');
       renderLanInterfaceSummary(ifaces);
+      if (currentHubRole() === 'server') renderHubListenInterfaces(ifaces);
       if (showToast) toast(ifaces.length ? `Refreshed — ${ifaces.length} network card(s)` : 'Refreshed — no network cards found');
       return ifaces;
     })
@@ -716,6 +721,59 @@ function currentHubRole() {
   return document.getElementById('settings-hub-role')?.value || window._hubRole || 'off';
 }
 
+function hubListenSelection() {
+  const selected = [];
+  document.querySelectorAll('[data-hub-listen-ip]').forEach(el => {
+    if (el.checked) selected.push(el.getAttribute('data-hub-listen-ip'));
+  });
+  if (!selected.length) return ['0.0.0.0'];
+  if (selected.includes('0.0.0.0')) return ['0.0.0.0'];
+  return selected;
+}
+
+function renderHubListenInterfaces(ifaces) {
+  const host = document.getElementById('hub-listen-interfaces');
+  if (!host) return;
+  const saved = window._hubListenInterfaces || ['0.0.0.0'];
+  const allOn = saved.includes('0.0.0.0');
+  const rows = [{name: 'All interfaces', ip: '0.0.0.0', up: true}];
+  (ifaces || []).forEach(entry => {
+    const ip = (entry.ip || '').trim();
+    if (!ip || ip === 'disconnected' || ip.startsWith('127.') || ip.startsWith('169.254.')) return;
+    if (rows.some(r => r.ip === ip)) return;
+    rows.push({
+      name: entry.name || ip,
+      ip,
+      up: entry.up !== false,
+    });
+  });
+  host.innerHTML = rows.map(row => {
+    const checked = allOn ? row.ip === '0.0.0.0' : saved.includes(row.ip);
+    const label = row.ip === '0.0.0.0'
+      ? 'All interfaces (0.0.0.0)'
+      : `${escapeHtml(row.name)} (${escapeHtml(row.ip)})`;
+    const dim = row.up === false ? ' style="opacity:0.55"' : '';
+    return `<label class="settings-toggle-card hub-listen-row"${dim}>
+      <input type="checkbox" data-hub-listen-ip="${escapeHtml(row.ip)}" ${checked ? 'checked' : ''} onchange="onHubListenChange(this)">
+      <div class="toggle-text"><strong>${label}</strong></div>
+    </label>`;
+  }).join('');
+}
+
+function onHubListenChange(el) {
+  const ip = el.getAttribute('data-hub-listen-ip');
+  if (ip === '0.0.0.0' && el.checked) {
+    document.querySelectorAll('[data-hub-listen-ip]').forEach(box => {
+      if (box.getAttribute('data-hub-listen-ip') !== '0.0.0.0') box.checked = false;
+    });
+    return;
+  }
+  if (ip !== '0.0.0.0' && el.checked) {
+    const allBox = document.querySelector('[data-hub-listen-ip="0.0.0.0"]');
+    if (allBox) allBox.checked = false;
+  }
+}
+
 function updateHubUi() {
   // Sidebar Hub Group entry reflects the *saved* role — group chat only works
   // once the setting is persisted and the runtime applies it.
@@ -732,8 +790,11 @@ function updateHubUi() {
   const selectedRole = currentHubRole();
   const clientFields = document.getElementById('hub-client-fields');
   if (clientFields) clientFields.style.display = selectedRole === 'client' ? 'block' : 'none';
+  const serverFields = document.getElementById('hub-server-fields');
+  if (serverFields) serverFields.style.display = selectedRole === 'server' ? 'block' : 'none';
   const serverHint = document.getElementById('hub-server-hint');
   if (serverHint) serverHint.style.display = selectedRole === 'server' ? 'block' : 'none';
+  if (selectedRole === 'server') renderHubListenInterfaces(window._lanInterfaces || []);
   updateLanTransportHubHint();
 }
 
@@ -769,13 +830,17 @@ function saveHubSettings() {
   const hub_role = document.getElementById('settings-hub-role')?.value || 'off';
   const hub_host = document.getElementById('settings-hub-host')?.value.trim() || '';
   const hub_port = parseInt(document.getElementById('settings-hub-port')?.value, 10) || 4242;
+  const hub_listen_interfaces = hub_role === 'server' ? hubListenSelection() : undefined;
   return fetch('/api/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({hub_role, hub_host, hub_port}),
+    body: JSON.stringify({hub_role, hub_host, hub_port, hub_listen_interfaces}),
   }).then(r => r.json()).then(d => {
     if (d.status === 'ok') {
       window._hubRole = d.settings?.hub_role || hub_role;
+      if (Array.isArray(d.settings?.hub_listen_interfaces)) {
+        window._hubListenInterfaces = d.settings.hub_listen_interfaces.slice();
+      }
       if (d.settings?.lan_transport_hub_tcp) window._lanTransportHubTcp = d.settings.lan_transport_hub_tcp;
       updateHubUi();
       toast(appPlatform === 'android'

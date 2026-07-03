@@ -136,11 +136,21 @@ class RNSLifecycleMixin:
         for iface in interfaces:
             if iface.get("type") == "UDPInterface" and bcast:
                 iface["forward_ip"] = bcast
+        from chatx5.core.rns_interfaces import normalize_hub_listen_interfaces
+
+        hub_role = settings.get("hub_role") or "off"
+        hub_listen_ips = (
+            normalize_hub_listen_interfaces(settings)
+            if hub_role == "server"
+            else None
+        )
         config_text = render_rns_config(
             interfaces,
             broadcast_ip=bcast,
             android=is_android(),
             auto_interface_enabled=settings.get("auto_interface_enabled", True),
+            hub_listen_ips=hub_listen_ips,
+            hub_port=int(settings.get("hub_port") or 4242),
         )
         with open(rns_config_path, "w") as f:
             f.write(config_text)

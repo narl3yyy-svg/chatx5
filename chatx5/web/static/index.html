@@ -245,7 +245,7 @@
             <button class="input-btn desktop-only" id="share-btn" onclick="pickShareFolder()" title="Share folder to browse">🗂️</button>
             <input type="file" id="file-input" style="display:none" multiple onchange="uploadFiles(this.files);this.value=''">
             <input type="file" id="folder-input" style="display:none" webkitdirectory multiple onchange="uploadFolder(this.files);this.value=''">
-            <button class="input-btn" id="send-btn" onclick="sendMessage()" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault()" title="Send">➤</button>
+            <button type="button" class="input-btn" id="send-btn" onclick="sendMessage()" title="Send">➤</button>
           </div>
         </div>
         <div id="attach-submenu" class="attach-submenu">
@@ -482,10 +482,14 @@
               <option value="client">Hub client — connect to hub IP</option>
             </select>
           </div>
+          <div id="hub-server-fields" class="settings-section" style="display:none">
+            <label>Listen on interfaces</label>
+            <p class="field-hint" style="margin:4px 0 8px">Select one or more local addresses for the hub TCP relay. Choose <strong>All interfaces (0.0.0.0)</strong> to bind every NIC, or pick specific IPs (e.g. LAN only).</p>
+            <div id="hub-listen-interfaces" class="hub-listen-list"></div>
+          </div>
           <p class="field-hint" id="hub-server-hint" style="display:none;margin:8px 0 0">
-            Hub server listens on <strong>0.0.0.0:4242</strong> on this machine (all interfaces).
             P2P LAN discovery and 1:1 chat still use your configured LAN transport (UDP is correct).
-            This is separate from the LAN discovery IPv4 pin below.
+            Hub listen addresses are separate from the LAN discovery IPv4 pin below.
           </p>
           <div id="hub-client-fields" class="settings-section" style="display:none">
             <label>Hub host (IP)</label>

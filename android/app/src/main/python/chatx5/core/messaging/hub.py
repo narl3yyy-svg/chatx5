@@ -528,7 +528,11 @@ class HubMixin:
         if not self._hub_tcp_linked_peers():
             self.ensure_hub_link(background=(role == "server"))
         wire_type = msg_type or MESSAGE_TYPE_TEXT
-        msg = ChatMessage(wire_type, text, msg_id=msg_id)
+        sender_hex = normalize_hash(self.my_dest_hash or "")
+        msg = ChatMessage(
+            wire_type, text, msg_id=msg_id,
+            sender=sender_hex if len(sender_hex) == 32 else None,
+        )
         msg.hub_group = True
         data = msg.to_json().encode("utf-8")
         targets = self._hub_send_targets(
@@ -565,6 +569,7 @@ class HubMixin:
         self._pending_sends[msg.msg_id] = time.time()
         if receipt_callback:
             self._receipt_callbacks[msg.msg_id] = receipt_callback
+            self._fire_sent_receipt(msg.msg_id, receipt_callback)
         return msg
 
     _HUB_FILE_TYPES = (

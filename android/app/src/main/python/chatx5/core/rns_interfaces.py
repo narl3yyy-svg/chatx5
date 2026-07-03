@@ -1034,22 +1034,105 @@ def summarize_rns_interfaces(interfaces=None, hub_role="off", hub_port=4242):
     return out
 
 
-def tcp_server_interface_online(listen_port=None):
-    """Return an online TCPServerInterface, optionally matching listen_port."""
+def _tcp_server_listen_ip(iface):
+    return (getattr(iface, "listen_ip", None) or "0.0.0.0").strip() or "0.0.0.0"
+
+
+def _tcp_server_listen_port(iface):
+    port = getattr(iface, "listen_port", None) or getattr(iface, "port", None)
+    return int(port or 4242)
+
+
+def find_tcp_server_interface(listen_ip="0.0.0.0", listen_port=4242):
+    """Return TCPServerInterface matching listen_ip:port, if present."""
+    listen_ip = (listen_ip or "0.0.0.0").strip() or "0.0.0.0"
+    listen_port = int(listen_port or 4242)
+    try:
+        import RNS
+        for iface in getattr(RNS.Transport, "interfaces", []) or []:
+            if type(iface).__name__ != "TCPServerInterface":
+                continue
+            if (
+                _tcp_server_listen_ip(iface) == listen_ip
+                and _tcp_server_listen_port(iface) == listen_port
+            ):
+                return iface
+    except Exception:
+        pass
+    return None
+
+
+def tcp_server_interfaces_online(listen_port=None):
+    """All online TCPServerInterface rows, optionally filtered by port."""
+    out = []
     try:
         import RNS
         for iface in getattr(RNS.Transport, "interfaces", []) or []:
             if type(iface).__name__ != "TCPServerInterface":
                 continue
             if listen_port is not None:
-                port = getattr(iface, "listen_port", None) or getattr(iface, "port", None)
-                if port is not None and int(port) != int(listen_port):
+                if _tcp_server_listen_port(iface) != int(listen_port):
                     continue
             if getattr(iface, "online", False):
-                return iface
+                out.append(iface)
     except Exception:
         pass
-    return None
+    return out
+
+
+def tcp_server_interface_online(listen_port=None):
+    """Return an online TCPServerInterface, optionally matching listen_port."""
+    rows = tcp_server_interfaces_online(listen_port)
+    return rows[0] if rows else None
+
+
+def normalize_hub_listen_interfaces(settings=None, raw=None):
+    """Normalize hub server bind addresses from settings (default all interfaces)."""
+    if raw is None and settings:
+        raw = settings.get("hub_listen_interfaces")
+    if not raw:
+        return ["0.0.0.0"]
+    if isinstance(raw, str):
+        raw = [part.strip() for part in raw.split(",") if part.strip()]
+    ips = []
+    for item in raw or []:
+        ip = (item or "").strip()
+        if not ip:
+            continue
+        if ip == "0.0.0.0":
+            return ["0.0.0.0"]
+        if ip not in ips:
+            ips.append(ip)
+    return ips or ["0.0.0.0"]
+
+
+def remove_tcp_hub_listeners(listen_port, keep_ips=None):
+    """Remove hub TCP listeners on listen_port except addresses in keep_ips."""
+    keep = set(normalize_hub_listen_interfaces(raw=keep_ips or ["0.0.0.0"]))
+    removed = 0
+    try:
+        import RNS
+        for iface in list(getattr(RNS.Transport, "interfaces", []) or []):
+            if type(iface).__name__ != "TCPServerInterface":
+                continue
+            lip = _tcp_server_listen_ip(iface)
+            port = _tcp_server_listen_port(iface)
+            if port != int(listen_port or 4242):
+                continue
+            name = (getattr(iface, "name", None) or "").strip()
+            if name and not name.startswith("TCP Hub"):
+                continue
+            if lip in keep:
+                continue
+            try:
+                RNS.Transport.remove_interface(iface)
+                removed += 1
+                print(f"[hub] Removed TCP hub listener {lip}:{port}")
+            except Exception as exc:
+                print(f"[hub] Could not remove TCP hub listener {lip}:{port}: {exc}")
+    except Exception:
+        pass
+    return removed
 
 
 def tcp_client_interface_online():
@@ -1066,9 +1149,10 @@ def tcp_client_interface_online():
 
 def hot_add_tcp_server_interface(
     listen_ip="0.0.0.0", listen_port=4242, ifac_size=16, name=None, log_tag="hub",
+    replace_existing=False,
 ):
     """Attach TCPServerInterface when hub server or TCP LAN is enabled after RNS started."""
-    listen_ip = (listen_ip or "0.0.0.0").strip()
+    listen_ip = (listen_ip or "0.0.0.0").strip() or "0.0.0.0"
     listen_port = int(listen_port or 4242)
     try:
         import RNS
@@ -1077,19 +1161,21 @@ def hot_add_tcp_server_interface(
         print(f"[{log_tag}] TCP server hot-add unavailable: {exc}")
         return None
 
-    existing = tcp_server_interface_online(listen_port)
-    if existing:
+    existing = find_tcp_server_interface(listen_ip, listen_port)
+    if existing and getattr(existing, "online", False) and not replace_existing:
         return existing
 
-    for iface in list(getattr(RNS.Transport, "interfaces", []) or []):
-        if type(iface).__name__ != "TCPServerInterface":
-            continue
+    if existing and replace_existing:
         try:
-            RNS.Transport.remove_interface(iface)
+            RNS.Transport.remove_interface(existing)
         except Exception:
             pass
 
-    iface_name = name or f"TCP Hub {listen_port}"
+    iface_name = name or (
+        f"TCP Hub {listen_ip}:{listen_port}"
+        if log_tag == "hub"
+        else f"TCP LAN {listen_port}"
+    )
     try:
         iface = TCPServerInterface(RNS.Transport, {
             "name": iface_name,
@@ -1279,7 +1365,7 @@ def ensure_tcp_client_to_peer(peer_ip, port=None, settings=None, config_dir=None
 
 
 def ensure_runtime_tcp_hub(settings=None, config_dir=None):
-    """Start TCP hub listener when hub_role is server (runtime hot-add)."""
+    """Start TCP hub listener(s) when hub_role is server (runtime hot-add)."""
     if not settings:
         try:
             import json
@@ -1298,7 +1384,7 @@ def ensure_runtime_tcp_hub(settings=None, config_dir=None):
             return None
     except Exception:
         return None
-    listen_ip = "0.0.0.0"
+    listen_ips = normalize_hub_listen_interfaces(settings)
     listen_port = int(settings.get("hub_port") or 4242)
     ifac_size = 16
     for iface in normalize_interface_list(settings.get("rns_interfaces")):
@@ -1306,13 +1392,18 @@ def ensure_runtime_tcp_hub(settings=None, config_dir=None):
             continue
         if not iface.get("enabled", True):
             continue
-        listen_ip = (iface.get("listen_ip") or listen_ip).strip() or "0.0.0.0"
         listen_port = int(iface.get("listen_port") or listen_port)
         ifac_size = int(iface.get("ifac_size") or ifac_size)
         break
-    return hot_add_tcp_server_interface(
-        listen_ip=listen_ip, listen_port=listen_port, ifac_size=ifac_size,
-    )
+    remove_tcp_hub_listeners(listen_port, keep_ips=listen_ips)
+    first = None
+    for lip in listen_ips:
+        iface = hot_add_tcp_server_interface(
+            listen_ip=lip, listen_port=listen_port, ifac_size=ifac_size,
+        )
+        if iface and first is None:
+            first = iface
+    return first
 
 
 def ensure_runtime_serial(settings_interfaces=None):
@@ -1352,6 +1443,7 @@ def ensure_runtime_serial(settings_interfaces=None):
 
 def render_rns_config(
     interfaces, broadcast_ip=None, android=False, log=print, auto_interface_enabled=True,
+    hub_listen_ips=None, hub_port=None,
 ):
     normalized = normalize_interface_list(interfaces)
     has_tcp_server = any(
@@ -1386,6 +1478,9 @@ def render_rns_config(
     seen_serial_ports = set()
     seen_udp = False
     seen_tcp_lan = False
+    seen_tcp_hub = False
+    hub_ips = normalize_hub_listen_interfaces(raw=hub_listen_ips) if hub_listen_ips else []
+    hub_listen_port = int(hub_port or 4242)
     for iface in normalized:
         itype = iface.get("type", "")
         if itype == "SerialInterface":
@@ -1419,6 +1514,23 @@ def render_rns_config(
             if seen_udp:
                 continue
             seen_udp = True
+        elif preset == "tcp_server" or (
+            itype == "TCPServerInterface" and preset == "tcp_server"
+        ):
+            if seen_tcp_hub:
+                continue
+            seen_tcp_hub = True
+            if hub_ips:
+                for lip in hub_ips:
+                    lines.append(f"  [[TCP Hub {lip}:{hub_listen_port}]]")
+                    lines.append("    type = TCPServerInterface")
+                    lines.append("    enabled = Yes")
+                    lines.append(f"    listen_ip = {lip}")
+                    lines.append(f"    listen_port = {hub_listen_port}")
+                    if iface.get("ifac_size"):
+                        lines.append(f"    ifac_size = {iface.get('ifac_size')}")
+                    lines.append("")
+                continue
         elif preset == "tcp_lan" or (
             itype == "TCPServerInterface" and preset not in ("tcp_server",)
         ):

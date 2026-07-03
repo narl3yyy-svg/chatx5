@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.22": [
+        "New: Hub server — pick which local network interfaces the TCP relay listens on (multi-select).",
+        "Fix: Group chat shows the real sender on all clients — not the hub server name after relay.",
+        "Fix: Android send button works again in the chat composer.",
+        "Fix: Sent messages show ✓ right away instead of a long pending clock.",
+    ],
     "0.6.21": [
         "Fix: Opening a chat starts at the latest messages — no scroll-from-top flash.",
         "Fix: USB serial links stay up — skip redundant reconnects and keep the path pinned.",

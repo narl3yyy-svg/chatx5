@@ -110,7 +110,7 @@ function buildMessageNode(data) {
   } else if (data.type === 'system') {
     html += escapeHtml(data.content);
   }
-  const icon = receiptIcon(data.status || (isSelf && data.type !== 'system' ? 'sending' : ''));
+  const icon = receiptIcon(data.status || (isSelf && data.type !== 'system' ? 'sent' : ''));
   html += `<div class="time">${time}${icon ? ' <span class="receipt" style="font-size:11px;margin-left:4px">' + icon + '</span>' : ''}</div>`;
   div.innerHTML = html;
   return div;

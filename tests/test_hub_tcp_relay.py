@@ -448,6 +448,17 @@ class HubTcpLinkSelectionTests(unittest.TestCase):
             self.assertEqual(parsed.get("type"), MESSAGE_TYPE_SHARE_BROWSE)
             self.assertTrue(parsed.get("hub"))
 
+    def test_send_hub_message_includes_sender_on_wire(self):
+        sender = "a" * 32
+        backend, _, _ = self._backend(hub_role="client")
+        backend.my_dest_hash = sender
+        with patch("chatx5.core.messaging.hub.RNS.Packet") as pkt:
+            backend.send_hub_message("group hello")
+            payload = pkt.call_args.args[1]
+            parsed = json.loads(payload.decode("utf-8"))
+            self.assertEqual(parsed.get("sender"), sender)
+            self.assertTrue(parsed.get("hub"))
+
     def test_hub_path_connect_ready_for_configured_server(self):
         backend, _, _ = self._backend()
         with patch.object(backend, "_hub_tcp_transport_online", return_value=True):
@@ -730,6 +741,40 @@ class HubHostPersistTests(unittest.TestCase):
         )
         self.assertEqual(out["hub_host"], "10.0.30.112")
         self.assertEqual(saved.get("hub_host"), "10.0.30.112")
+
+
+class HubListenInterfaceTests(unittest.TestCase):
+    def test_normalize_hub_listen_interfaces_defaults(self):
+        self.assertEqual(ri.normalize_hub_listen_interfaces(raw=[]), ["0.0.0.0"])
+        self.assertEqual(
+            ri.normalize_hub_listen_interfaces(raw=["10.0.30.112", "10.0.30.101"]),
+            ["10.0.30.112", "10.0.30.101"],
+        )
+        self.assertEqual(
+            ri.normalize_hub_listen_interfaces(raw=["10.0.30.112", "0.0.0.0"]),
+            ["0.0.0.0"],
+        )
+
+    def test_apply_hub_settings_persists_listen_interfaces(self):
+        from chatx5.web.server import ChatWebServer
+
+        server = ChatWebServer.__new__(ChatWebServer)
+        settings = {
+            "hub_role": "server",
+            "hub_port": 4242,
+            "hub_listen_interfaces": ["10.0.30.112", "10.0.30.101"],
+            "rns_interfaces": ri.default_interface_list(),
+        }
+        out = server._apply_hub_settings(settings)
+        self.assertEqual(
+            out.get("hub_listen_interfaces"),
+            ["10.0.30.112", "10.0.30.101"],
+        )
+        tcp_srv = next(
+            i for i in out["rns_interfaces"]
+            if i.get("type") == "TCPServerInterface"
+        )
+        self.assertEqual(tcp_srv.get("listen_ip"), "10.0.30.112")
 
 
 class HubHeadlessSpecTests(unittest.TestCase):

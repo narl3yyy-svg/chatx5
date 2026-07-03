@@ -2,6 +2,16 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.22] — 2026-07-02
+
+### Added
+- **Hub server interface picker** — Choose one or more local IPv4 addresses (or all interfaces) for the hub TCP relay listener.
+
+### Fixed
+- **Hub group sender attribution** — Group messages carry the original sender hash on the wire; relayed messages no longer show as the hub server on other clients.
+- **Android send button** — Removed touch `preventDefault` on the send button that blocked taps in the WebView.
+- **Send receipt UX** — Outgoing messages show ✓ immediately after the packet is sent; queue receipt wait shortened to 10s.
+
 ## [0.6.21] — 2026-07-02
 
 ### Fixed

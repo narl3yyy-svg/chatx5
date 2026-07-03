@@ -107,6 +107,7 @@ function saveSettings() {
   const hub_role = document.getElementById('settings-hub-role')?.value || 'off';
   const hub_host = document.getElementById('settings-hub-host')?.value.trim() || '';
   const hub_port = parseInt(document.getElementById('settings-hub-port')?.value, 10) || 4242;
+  const hub_listen_interfaces = hub_role === 'server' ? hubListenSelection() : undefined;
   const lan_probe_interval_s = clampIntervalInput(document.getElementById('settings-lan-probe-interval'), 30);
   let serial_probe_interval_s = clampIntervalInput(document.getElementById('settings-serial-probe-interval'), 30);
   if (serial_probe_interval_s > 0 && serial_probe_interval_s < 3) serial_probe_interval_s = 3;
@@ -122,6 +123,7 @@ function saveSettings() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       name, history_retention: retention, received_dir, hub_role, hub_host, hub_port,
+      hub_listen_interfaces,
       lan_probe_interval_s, serial_probe_interval_s,
       brand_title: (document.getElementById('settings-brand-title')?.value || '').trim().slice(0, 18),
       lan_announce_interval_s, serial_announce_interval_s, max_peer_links,

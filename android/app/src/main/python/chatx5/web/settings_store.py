@@ -47,6 +47,7 @@ class SettingsStoreMixin:
             "hub_role": "off",
             "hub_host": "",
             "hub_port": 4242,
+            "hub_listen_interfaces": ["0.0.0.0"],
             "hub_server_hash": "",
             "auto_announce": False,
             "probe_interval_s": 30,
@@ -305,6 +306,12 @@ class SettingsStoreMixin:
                     settings["hub_port"] = int(data["hub_port"])
                 except (TypeError, ValueError):
                     pass
+            if "hub_listen_interfaces" in data:
+                from chatx5.core.rns_interfaces import normalize_hub_listen_interfaces
+
+                settings["hub_listen_interfaces"] = normalize_hub_listen_interfaces(
+                    raw=data.get("hub_listen_interfaces"),
+                )
             if "hub_server_hash" in data:
                 settings["hub_server_hash"] = (data.get("hub_server_hash") or "").strip()
             config_dirty = False

@@ -13,6 +13,7 @@ from chatx5.core.contacts import (
     find_contact_by_hash,
     list_contacts,
 )
+from chatx5.core.discovery import normalize_hash
 from chatx5.core.messaging import HUB_GROUP_PEER, is_hub_peer_hash
 from chatx5.utils.android_notify import show_message_notification
 from chatx5.utils.helpers import (
@@ -183,7 +184,16 @@ class MessagingBridgeMixin:
                     print("[hub] Dropped group message (hub disabled)")
                 return
             chat_peer = HUB_GROUP_PEER
-            if sender_hash and sender_hash != "system":
+            wire_sender = normalize_hash(getattr(chat_msg, "sender", None) or "")
+            if len(wire_sender) == 32:
+                if self.messaging:
+                    sender = (
+                        self.messaging.canonical_connect_hash(wire_sender)
+                        or self._peer_dest_hash(wire_sender)
+                    )
+                else:
+                    sender = self._peer_dest_hash(wire_sender)
+            elif sender_hash and sender_hash != "system":
                 if self.messaging:
                     sender = (
                         self.messaging.canonical_connect_hash(sender_hash)

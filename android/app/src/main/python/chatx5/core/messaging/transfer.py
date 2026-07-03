@@ -602,6 +602,7 @@ class TransferMixin:
             self._pending_sends[msg.msg_id] = time.time()
             if receipt_callback:
                 self._receipt_callbacks[msg.msg_id] = receipt_callback
+                self._fire_sent_receipt(msg.msg_id, receipt_callback)
             return msg
         except Exception as e:
             print(f"[messaging] Long text resource send failed: {e}")
@@ -805,7 +806,15 @@ class TransferMixin:
                 return False
             fname = os.path.basename(file_path)
             fsize = os.path.getsize(file_path)
-            chat_msg = ChatMessage(msg_type, str(time.time()), file_name=fname, file_size=fsize, msg_id=transfer_id)
+            sender_hex = ""
+            if hub_group:
+                from chatx5.core.discovery import normalize_hash
+                sender_hex = normalize_hash(self.my_dest_hash or "")
+            chat_msg = ChatMessage(
+                msg_type, str(time.time()), file_name=fname, file_size=fsize,
+                msg_id=transfer_id,
+                sender=sender_hex if len(sender_hex) == 32 else None,
+            )
             if hub_group:
                 chat_msg.hub_group = True
             transfer_id = chat_msg.msg_id

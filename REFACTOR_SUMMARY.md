@@ -97,6 +97,15 @@ chatx5/web/static/
 Served at `/static/css/*` and `/static/js/*` via existing `handle_static` route.
 `tests/test_static_frontend.py` verifies all referenced assets exist.
 
+## v0.6.22 — Hub interfaces + group sender + Android send (done)
+
+| Issue | Fix |
+|-------|-----|
+| Hub server bind address | Multi-select `hub_listen_interfaces` in settings; runtime hot-adds one TCP listener per selected IP |
+| Group message wrong sender on relay | Wire `sender` hash in hub payloads; `_on_message` prefers `chat_msg.sender` over link identity |
+| Android send button dead | Removed `preventDefault` on send button touch/mousedown |
+| Long pending send icon | Immediate `sent` receipt callback; default UI status `sent`; queue receipt timeout 10s |
+
 ## v0.6.21 — Chat UX + serial stability (done)
 
 | Issue | Fix |
@@ -196,7 +205,7 @@ Chaquopy still needs `android/app/src/main/python/chatx5/` on disk. Strategy:
 | 9 | Tooling + import hygiene + Android build sync | **done** |
 | 10 | Hub client fix + `FailoverMixin` split + CI on every push | **done** |
 | 11 | Frontend modularization (`index.html` → css + js/) | **done** |
-| 12 | Oversized Python module splits (`http_peer.py` started) | **in progress** |
+| 12 | Oversized Python module splits (`http_peer.py` started) | **in progress** — hub hash fetch + wake/connect on `http_peer`; multi-listener helpers in `rns_interfaces.py` |
 | 13 | Android bundle untracked | future |
 | 14 | Perf (peer hash index, probe cache, WS debounce) | **partial** — connect debounce in UI (v0.6.21) |
 
