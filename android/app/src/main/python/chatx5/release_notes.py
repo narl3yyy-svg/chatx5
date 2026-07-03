@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.17": [
+        "Fix: Large P2P file transfers work again with --share HTTPS — LAN fast-path uses https:// and self-signed cert trust.",
+        "Fix: WAN secure mode checkbox saves and sticks after refresh.",
+        "New: Serial RF quality refresh interval (Settings → Network) — live % updates while on USB serial.",
+    ],
     "0.6.16": [
         "Fix: Group chat file transfers — images, video, voice, and large files send over hub TCP; hub server relays to other clients.",
         "Fix: Serial/USB links no longer auto-switch to LAN (or vice versa) — the transport you tap stays active.",

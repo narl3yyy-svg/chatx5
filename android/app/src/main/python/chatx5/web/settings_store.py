@@ -57,6 +57,7 @@ class SettingsStoreMixin:
             "last_release_notes_seen": "",
             "max_peer_links": 0,
             "wan_secure_mode": False,
+            "serial_quality_interval_s": 5,
         }
         try:
             with open(SETTINGS_FILE) as f:
@@ -370,6 +371,13 @@ class SettingsStoreMixin:
                 except (TypeError, ValueError):
                     limit = 0
                 settings["max_peer_links"] = max(0, min(64, limit))
+            if "wan_secure_mode" in data:
+                settings["wan_secure_mode"] = bool(data.get("wan_secure_mode"))
+            if "serial_quality_interval_s" in data:
+                from chatx5.core.peer_probe import clamp_serial_quality_interval
+                settings["serial_quality_interval_s"] = clamp_serial_quality_interval(
+                    data.get("serial_quality_interval_s"),
+                )
             hub_changed = any(
                 k in data for k in ("hub_role", "hub_host", "hub_port")
             )
@@ -386,6 +394,11 @@ class SettingsStoreMixin:
             if setup_fast:
                 if self.messaging:
                     self.messaging.display_name = effective_display_name(settings)
+                    if "wan_secure_mode" in data:
+                        self.messaging.lan_transfer_enabled = (
+                            self.host in ("0.0.0.0", "::")
+                            and not bool(settings.get("wan_secure_mode"))
+                        )
                     if "max_peer_links" in data and settings.get("max_peer_links", 0) > 0:
                         self.messaging._enforce_max_peer_links()
                 if lan_scope_changed:
@@ -444,6 +457,11 @@ class SettingsStoreMixin:
                 self._schedule_peers_broadcast()
             if self.messaging:
                 self.messaging.display_name = effective_display_name(settings)
+                if "wan_secure_mode" in data:
+                    self.messaging.lan_transfer_enabled = (
+                        self.host in ("0.0.0.0", "::")
+                        and not bool(settings.get("wan_secure_mode"))
+                    )
                 if "max_peer_links" in data:
                     self.messaging.max_peer_links = int(settings.get("max_peer_links") or 0)
                     if settings.get("max_peer_links", 0) > 0:

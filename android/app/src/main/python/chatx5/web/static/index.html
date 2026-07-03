@@ -421,6 +421,12 @@
             <p class="field-hint">How often to ping USB serial peers and refresh RTT. 0 = off, min 3s when enabled.</p>
           </div>
           <div class="settings-section">
+            <label for="settings-serial-quality-interval">Serial RF quality refresh (seconds)</label>
+            <input type="number" id="settings-serial-quality-interval" min="3" max="18000" step="1" value="5"
+              onchange="saveSerialQualityInterval()" onblur="saveSerialQualityInterval()">
+            <p class="field-hint">How often to refresh link quality % while connected over USB serial. 0 = off, min 3s.</p>
+          </div>
+          <div class="settings-section">
             <label for="settings-serial-announce-interval">Serial auto-announce interval (seconds)</label>
             <input type="number" id="settings-serial-announce-interval" min="0" max="18000" step="1" value="0"
               onchange="saveSerialAnnounceInterval()" onblur="saveSerialAnnounceInterval()">
@@ -501,7 +507,7 @@
               <span>Require encrypted transports only — no LAN HTTP file bypass. Pair with <code>--share --tls</code> for HTTPS UI.</span>
             </div>
             <div class="toggle-switch">
-              <input type="checkbox" id="settings-wan-secure-mode">
+              <input type="checkbox" id="settings-wan-secure-mode" onchange="saveSettings()">
             </div>
           </label>
         </div>

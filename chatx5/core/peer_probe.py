@@ -52,6 +52,17 @@ def clamp_probe_interval(seconds):
     return max(PROBE_INTERVAL_MIN_S, min(PROBE_INTERVAL_MAX_S, value))
 
 
+def clamp_serial_quality_interval(seconds):
+    """RF link quality refresh interval for active serial sessions (0 = off, min 3s)."""
+    try:
+        value = int(seconds)
+    except (TypeError, ValueError):
+        value = 5
+    if value <= 0:
+        return 0
+    return max(PROBE_INTERVAL_SERIAL_MIN_S, min(PROBE_INTERVAL_MAX_S, value))
+
+
 def clamp_serial_probe_interval(seconds):
     """Serial probe interval — minimum 3s between USB path checks (0 = off)."""
     try:

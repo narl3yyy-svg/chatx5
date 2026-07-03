@@ -86,7 +86,7 @@ class MessagingBackend(
                  display_name="", auto_announce=False,
                  receive_dir=None, peer_resolver=None, on_queue_sent=None,
                  on_transfer_revoked=None,
-                 http_port=8742, lan_transfer_enabled=False,
+                 http_port=8742, http_scheme="http", lan_transfer_enabled=False,
                  peer_endpoint_resolver=None, peer_scope_checker=None,
                  peer_transport_resolver=None, identity_serial=None,
                  dual_identity_mode=True):
@@ -139,6 +139,9 @@ class MessagingBackend(
         self._send_link = None
         self.peer_resolver = peer_resolver
         self.http_port = int(http_port or 8742)
+        self.http_scheme = (http_scheme or "http").strip().lower()
+        if self.http_scheme not in ("http", "https"):
+            self.http_scheme = "http"
         self.lan_transfer_enabled = bool(lan_transfer_enabled)
         self.peer_endpoint_resolver = peer_endpoint_resolver
         self.peer_scope_checker = peer_scope_checker

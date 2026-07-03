@@ -10,8 +10,11 @@ _offers_lock = threading.Lock()
 _offers: dict[str, dict] = {}
 
 
-def register_offer(transfer_id, file_path, peer_hash, host, port, ttl=7200):
+def register_offer(transfer_id, file_path, peer_hash, host, port, ttl=7200, scheme="http"):
     token = secrets.token_urlsafe(24)
+    clean_scheme = (scheme or "http").strip().lower()
+    if clean_scheme not in ("http", "https"):
+        clean_scheme = "http"
     with _offers_lock:
         _offers[transfer_id] = {
             "path": file_path,
@@ -19,6 +22,7 @@ def register_offer(transfer_id, file_path, peer_hash, host, port, ttl=7200):
             "peer": normalize_hash(peer_hash),
             "host": host,
             "port": int(port or 8742),
+            "scheme": clean_scheme,
             "expires": time.time() + ttl,
             "bytes_sent": 0,
         }

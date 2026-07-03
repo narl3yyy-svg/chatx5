@@ -2,6 +2,16 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.17] — 2026-07-03
+
+### Fixed
+- **HTTPS LAN file transfers** — `--share` auto-TLS no longer breaks large-file fast-path, peer wake/connect, hub hash fetch, or shared-folder browse (offers include `scheme: https`; clients trust self-signed certs).
+- **WAN secure mode** — checkbox now persists in `settings.json` and applies immediately (disables LAN HTTP fast-path without restart).
+
+### Added
+- **Serial RF quality refresh** — Settings → Network: interval (seconds) for live link quality % updates while connected over USB serial (default 5s).
+- **Phase 12 start** — `chatx5/core/http_peer.py` centralizes HTTP/HTTPS peer requests.
+
 ## [0.6.16] — 2026-07-02
 
 ### Fixed

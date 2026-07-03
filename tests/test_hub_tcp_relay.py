@@ -305,7 +305,10 @@ class HubClientLinkTests(unittest.TestCase):
             def __exit__(self, *args):
                 return False
 
-        with patch("chatx5.core.messaging.hub.urlrequest.urlopen", return_value=FakeResp()):
+        with patch(
+            "chatx5.core.http_peer.peer_get_with_fallback",
+            return_value=(payload, "http"),
+        ):
             got = backend._fetch_hub_server_hash_from_peer("10.0.30.112", 8742)
         self.assertEqual(got, "b" * 32)
 
@@ -342,8 +345,8 @@ class HubClientLinkTests(unittest.TestCase):
                 return_value=dest_hash,
             ):
                 with patch(
-                    "chatx5.core.messaging.hub.urlrequest.urlopen",
-                    return_value=FakeResp(),
+                    "chatx5.core.http_peer.peer_get_with_fallback",
+                    return_value=(payload, "http"),
                 ):
                     got = backend._fetch_hub_server_hash_from_peer("10.0.30.112", 8742)
         self.assertEqual(got, dest_hash)

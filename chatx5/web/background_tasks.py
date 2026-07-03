@@ -118,6 +118,63 @@ class BackgroundTasksMixin:
             self._schedule_peers_broadcast()
         return removed, bool(rtt_updated)
 
+    def _serial_quality_interval_s(self, settings=None):
+        from chatx5.core.peer_probe import clamp_serial_quality_interval
+        settings = settings or self.load_settings()
+        return clamp_serial_quality_interval(settings.get("serial_quality_interval_s", 5))
+
+    def _refresh_active_serial_quality(self):
+        if not self.messaging or not self.discovery:
+            return False
+        from chatx5.core.peer_probe import link_rtt_ms, serial_link_quality_percent
+
+        updated = False
+        for peer_hash in list(self.messaging.linked_peers() or []):
+            link = self.messaging._link_for_peer(peer_hash, transport="serial")
+            if not link:
+                continue
+            resolved = self.messaging.canonical_connect_hash(peer_hash, link=link) or peer_hash
+            rtt = link_rtt_ms(self.messaging, resolved, transport="serial")
+            if rtt is None:
+                continue
+            quality = serial_link_quality_percent(rtt)
+            self.discovery.update_peer_probe(
+                resolved, rtt_ms=rtt, ok=True, via="serial",
+            )
+            updated = True
+            if self.websockets and self._loop:
+                import asyncio
+                asyncio.run_coroutine_threadsafe(
+                    self._broadcast({
+                        "type": "link_quality",
+                        "data": {
+                            "hash": resolved,
+                            "via": "serial",
+                            "rtt_ms": rtt,
+                            "link_quality_pct": quality,
+                        },
+                    }),
+                    self._loop,
+                )
+        return updated
+
+    async def _serial_quality_loop(self):
+        await asyncio.sleep(4)
+        while not self._shutting_down:
+            interval = self._serial_quality_interval_s()
+            if interval > 0:
+                try:
+                    updated = await asyncio.to_thread(self._refresh_active_serial_quality)
+                    if updated:
+                        self._schedule_peers_broadcast()
+                except Exception as exc:
+                    print(f"[serial] RF quality refresh failed: {exc}")
+            try:
+                wait = interval if interval > 0 else 30
+                await asyncio.sleep(wait)
+            except asyncio.CancelledError:
+                return
+
     async def _peer_probe_loop(self):
         await asyncio.sleep(6)
         while not self._shutting_down:

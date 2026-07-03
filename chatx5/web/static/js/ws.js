@@ -176,6 +176,16 @@ function handleWSMessage(msg) {
       }
       pollQueue();
     }
+  } else if (msg.type === 'link_quality') {
+    if (msg.data?.hash) {
+      const h = msg.data.hash;
+      const linkVia = msg.data.via || 'serial';
+      if (msg.data.rtt_ms != null) applyLinkRttToDiscovered(h, msg.data.rtt_ms, linkVia);
+      if (msg.data.link_quality_pct != null) applyLinkQuality(h, msg.data.link_quality_pct, linkVia);
+      if (viewingPeer && peersMatch(viewingPeer, h) && normalizeVia(viewingVia) === 'serial') {
+        updatePeerHeader();
+      }
+    }
   } else if (msg.type === 'link_closed') {
     if (msg.data?.linked_peers) {
       syncLinkedPeers(msg.data.linked_peers);

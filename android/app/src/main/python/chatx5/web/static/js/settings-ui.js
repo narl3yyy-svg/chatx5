@@ -110,6 +110,8 @@ function saveSettings() {
   const lan_probe_interval_s = clampIntervalInput(document.getElementById('settings-lan-probe-interval'), 30);
   let serial_probe_interval_s = clampIntervalInput(document.getElementById('settings-serial-probe-interval'), 30);
   if (serial_probe_interval_s > 0 && serial_probe_interval_s < 3) serial_probe_interval_s = 3;
+  let serial_quality_interval_s = clampIntervalInput(document.getElementById('settings-serial-quality-interval'), 5);
+  if (serial_quality_interval_s > 0 && serial_quality_interval_s < 3) serial_quality_interval_s = 3;
   const lan_announce_interval_s = clampIntervalInput(document.getElementById('settings-lan-announce-interval'), 0);
   const serial_announce_interval_s = clampIntervalInput(document.getElementById('settings-serial-announce-interval'), 0);
   let max_peer_links = parseInt(document.getElementById('settings-max-peer-links')?.value, 10);
@@ -124,6 +126,7 @@ function saveSettings() {
       brand_title: (document.getElementById('settings-brand-title')?.value || '').trim().slice(0, 18),
       lan_announce_interval_s, serial_announce_interval_s, max_peer_links,
       wan_secure_mode: !!document.getElementById('settings-wan-secure-mode')?.checked,
+      serial_quality_interval_s,
     })
   }).then(async r => {
     const d = await r.json();

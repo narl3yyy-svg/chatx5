@@ -3,7 +3,6 @@
 import asyncio
 import json
 import threading
-from urllib import request as urlrequest
 
 from aiohttp import web
 
@@ -66,10 +65,16 @@ class HubRuntimeMixin:
             return host
         for _seen, ip, _name in sorted(candidates, reverse=True):
             try:
-                url = f"http://{ip}:{int(settings.get('http_port') or 8742)}/api/network-status"
-                req = urlrequest.Request(url, method="GET")
-                with urlrequest.urlopen(req, timeout=2) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
+                from chatx5.core.http_peer import peer_get_with_fallback
+
+                scheme = "https" if getattr(self, "use_tls", False) else "http"
+                raw, _used = peer_get_with_fallback(
+                    ip, int(settings.get("http_port") or self.port or 8742),
+                    "/api/network-status",
+                    primary_scheme=scheme,
+                    timeout=2.0,
+                )
+                data = json.loads(raw.decode("utf-8"))
                 if (data.get("hub_role") or "").strip().lower() == "server":
                     return ip
             except Exception:

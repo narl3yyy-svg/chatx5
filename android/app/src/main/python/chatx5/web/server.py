@@ -337,6 +337,7 @@ class ChatWebServer(
         for coro in (
             self._discovery_broadcaster(),
             self._peer_probe_loop(),
+            self._serial_quality_loop(),
             self._history_maintenance_loop(),
             self._serial_watchdog_loop(),
             self._queue_retry_loop(),

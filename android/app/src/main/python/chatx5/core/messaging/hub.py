@@ -4,7 +4,6 @@ import json
 import os
 import threading
 import time
-from urllib import request as urlrequest
 
 import RNS
 
@@ -313,11 +312,15 @@ class HubMixin:
         if not hub_host:
             return ""
         port = int(http_port or getattr(self, "http_port", None) or 8742)
-        url = f"http://{hub_host}:{port}/api/network-status"
+        scheme = getattr(self, "http_scheme", "http") or "http"
         try:
-            req = urlrequest.Request(url, method="GET")
-            with urlrequest.urlopen(req, timeout=4) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+            from chatx5.core.http_peer import peer_get_with_fallback
+
+            raw, _used = peer_get_with_fallback(
+                hub_host, port, "/api/network-status",
+                primary_scheme=scheme, timeout=4.0,
+            )
+            data = json.loads(raw.decode("utf-8"))
             if (data.get("hub_role") or "").strip().lower() != "server":
                 print(
                     f"[hub] {hub_host}:{port} is not a hub server "

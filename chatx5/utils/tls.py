@@ -45,3 +45,7 @@ def build_ssl_context(cert_path, key_path):
     ctx.load_cert_chain(cert_path, key_path)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     return ctx
+
+
+def server_http_scheme(use_tls=False):
+    return "https" if use_tls else "http"

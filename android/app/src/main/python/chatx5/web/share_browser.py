@@ -135,6 +135,7 @@ class ShareBrowserMixin:
             "root_name": os.path.basename(root) or root,
             "host": host,
             "port": int(self.port),
+            "scheme": "https" if getattr(self, "use_tls", False) else "http",
             "writable": writable,
             "owner": self._my_sender_hash(),
             "hub_group": hub_group,
@@ -252,17 +253,27 @@ class ShareBrowserMixin:
             return None
         if port_n <= 0 or port_n > 65535:
             return None
-        return {"host": host, "port": port_n, "session_id": session_id, "token": token}
+        scheme = (request.query.get("scheme") or "http").strip().lower()
+        if scheme not in ("http", "https"):
+            scheme = "https" if getattr(self, "use_tls", False) else "http"
+        return {
+            "host": host, "port": port_n, "session_id": session_id,
+            "token": token, "scheme": scheme,
+        }
 
     async def _share_remote_fetch(self, params, path_suffix, query=None):
         query = dict(query or {})
         query["token"] = params["token"]
+        scheme = (params.get("scheme") or "http").strip().lower()
+        if scheme not in ("http", "https"):
+            scheme = "https" if getattr(self, "use_tls", False) else "http"
         url = (
-            f"http://{params['host']}:{params['port']}"
+            f"{scheme}://{params['host']}:{params['port']}"
             f"/api/share/{params['session_id']}/{path_suffix}?{urlencode(query)}"
         )
         timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        connector = aiohttp.TCPConnector(ssl=False) if scheme == "https" else None
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
             async with session.get(url) as resp:
                 body = await resp.read()
                 return resp.status, resp.headers.get("Content-Type", ""), body
@@ -301,8 +312,11 @@ class ShareBrowserMixin:
         params = self._share_remote_params(request)
         if not params:
             return web.json_response({"error": "host, port, session_id, token required"}, status=400)
+        scheme = (params.get("scheme") or "http").strip().lower()
+        if scheme not in ("http", "https"):
+            scheme = "https" if getattr(self, "use_tls", False) else "http"
         url = (
-            f"http://{params['host']}:{params['port']}"
+            f"{scheme}://{params['host']}:{params['port']}"
             f"/api/share/{params['session_id']}/upload"
         )
         reader = await request.multipart()

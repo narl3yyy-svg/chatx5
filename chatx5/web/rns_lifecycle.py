@@ -280,6 +280,7 @@ class RNSLifecycleMixin:
             receive_dir=received_dir,
             peer_resolver=self._resolve_incoming_peer,
             http_port=self.port,
+            http_scheme="https" if getattr(self, "use_tls", False) else "http",
             lan_transfer_enabled=(
                 self.host in ("0.0.0.0", "::")
                 and not bool(settings.get("wan_secure_mode"))

@@ -124,6 +124,10 @@ function applySettingsToForm(s, ifaces) {
     const v = s.serial_probe_interval_s != null ? s.serial_probe_interval_s : s.probe_interval_s;
     serialProbeEl.value = String(v != null ? v : 30);
   }
+  const serialQualityEl = document.getElementById('settings-serial-quality-interval');
+  if (serialQualityEl) {
+    serialQualityEl.value = String(s.serial_quality_interval_s != null ? s.serial_quality_interval_s : 5);
+  }
   const lanAnnEl = document.getElementById('settings-lan-announce-interval');
   if (lanAnnEl) {
     let v = s.lan_announce_interval_s;
@@ -347,6 +351,23 @@ function saveSerialProbeInterval() {
     if (d.status === 'ok') {
       window._appSettings = d.settings || {};
       toast(sec ? ('Serial link ping: ' + sec + 's') : 'Serial link ping: off');
+    } else toast('Save failed: ' + (d.error || ''));
+  }).catch(() => toast('Save failed'));
+}
+
+function saveSerialQualityInterval() {
+  const el = document.getElementById('settings-serial-quality-interval');
+  let sec = clampIntervalInput(el, 5);
+  if (sec > 0 && sec < 3) sec = 3;
+  if (el) el.value = String(sec);
+  fetch('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({serial_quality_interval_s: sec}),
+  }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') {
+      window._appSettings = d.settings || {};
+      toast(sec ? ('Serial RF quality refresh: ' + sec + 's') : 'Serial RF quality refresh: off');
     } else toast('Save failed: ' + (d.error || ''));
   }).catch(() => toast('Save failed'));
 }

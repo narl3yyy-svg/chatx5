@@ -188,7 +188,7 @@ Chaquopy still needs `android/app/src/main/python/chatx5/` on disk. Strategy:
 | 9 | Tooling + import hygiene + Android build sync | **done** |
 | 10 | Hub client fix + `FailoverMixin` split + CI on every push | **done** |
 | 11 | Frontend modularization (`index.html` → css + js/) | **done** |
-| 12 | Oversized Python module splits | future |
+| 12 | Oversized Python module splits (`http_peer.py` started) | **in progress** |
 | 13 | Android bundle untracked | future |
 | 14 | Perf (peer hash index, probe cache, WS debounce) | future |
 

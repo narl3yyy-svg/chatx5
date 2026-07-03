@@ -1,10 +1,8 @@
 """Outbound connect, path priming, wake, and identity wait helpers."""
 
-import json
 import threading
 import time
 from contextlib import contextmanager
-from urllib import request as urlrequest
 
 import RNS
 
@@ -182,16 +180,20 @@ class ConnectMixin:
         if self.shutdown_requested:
             timeout = min(timeout, 0.5)
         port = int(peer_port or 8742)
-        url = f"http://{peer_ip}:{port}{path}"
+        scheme = getattr(self, "http_scheme", "http") or "http"
         try:
-            data = None
-            headers = {}
-            if payload is not None:
-                data = json.dumps(payload).encode("utf-8")
-                headers["Content-Type"] = "application/json"
-            req = urlrequest.Request(url, data=data, headers=headers, method="POST")
-            with urlrequest.urlopen(req, timeout=timeout) as resp:
-                return 200 <= resp.status < 300
+            from chatx5.core.http_peer import peer_request_with_fallback
+
+            ok, used = peer_request_with_fallback(
+                peer_ip, port, path,
+                primary_scheme=scheme,
+                method="POST",
+                payload=payload,
+                timeout=timeout,
+            )
+            if ok and used != scheme:
+                print(f"[connect] Peer {peer_ip} answered on {used} (local is {scheme})")
+            return ok
         except Exception as exc:
             print(f"[connect] HTTP {path} to {peer_ip} failed: {exc}")
             return False

@@ -622,15 +622,17 @@ class TransferMixin:
         host_ip = lan_ip()
         if not peer_ip or not host_ip:
             return None
+        scheme = getattr(self, "http_scheme", "http") or "http"
         token = register_offer(
             transfer_id, file_path, peer,
-            host=host_ip, port=self.http_port,
+            host=host_ip, port=self.http_port, scheme=scheme,
         )
         offer = {
             "transfer_id": transfer_id,
             "token": token,
             "host": host_ip,
             "port": self.http_port,
+            "scheme": scheme,
             "file_name": fname,
             "file_size": fsize,
             "msg_type": msg_type,
@@ -646,7 +648,7 @@ class TransferMixin:
         packet.send()
         print(
             f"[transfer] LAN HTTP offer {fname} ({fsize} bytes) "
-            f"http://{host_ip}:{self.http_port}/api/lan-transfer/{transfer_id}"
+            f"{scheme}://{host_ip}:{self.http_port}/api/lan-transfer/{transfer_id}"
         )
         threading.Thread(
             target=self._watch_lan_http_send,
@@ -674,6 +676,9 @@ class TransferMixin:
             return
         host = (offer.get("host") or "").strip()
         port = int(offer.get("port") or self.http_port)
+        scheme = (offer.get("scheme") or getattr(self, "http_scheme", "http") or "http").strip().lower()
+        if scheme not in ("http", "https"):
+            scheme = "http"
         transfer_id = offer.get("transfer_id") or chat_msg.msg_id
         token = offer.get("token") or ""
         fname = safe_basename(offer.get("file_name") or chat_msg.file_name or f"file_{int(time.time())}")
@@ -681,7 +686,7 @@ class TransferMixin:
         if not host or not token:
             print("[transfer] LAN HTTP offer missing host/token")
             return
-        url = f"http://{host}:{port}/api/lan-transfer/{transfer_id}?token={token}"
+        path = f"/api/lan-transfer/{transfer_id}?token={token}"
         os.makedirs(self.receive_dir, exist_ok=True)
         save_path = safe_path_under(self.receive_dir, fname)
         if not save_path:
@@ -690,21 +695,41 @@ class TransferMixin:
         self._emit_progress(fname, 0, fsize, direction="receive", transfer_id=transfer_id, status="active")
         received = 0
         try:
-            req = urlrequest.Request(url, method="GET")
-            with urlrequest.urlopen(req, timeout=max(60, fsize // (512 * 1024))) as resp:
-                with open(save_path, "wb") as out:
-                    while True:
-                        chunk = resp.read(LAN_HTTP_CHUNK)
-                        if not chunk:
-                            break
-                        out.write(chunk)
-                        received += len(chunk)
-                        pct = int((received / fsize) * 100) if fsize else 0
-                        speed = self._calc_transfer_speed(transfer_id, received)
-                        self._emit_progress(
-                            fname, pct, fsize, speed=speed,
-                            direction="receive", transfer_id=transfer_id,
-                        )
+            from chatx5.core.http_peer import insecure_ssl_context, peer_url
+
+            schemes = [scheme]
+            alt = "https" if scheme == "http" else "http"
+            if alt not in schemes:
+                schemes.append(alt)
+            timeout = max(60, fsize // (512 * 1024))
+            last_exc = None
+            for try_scheme in schemes:
+                try:
+                    url = peer_url(host, port, path, scheme=try_scheme)
+                    req = urlrequest.Request(url, method="GET")
+                    ctx = insecure_ssl_context() if try_scheme == "https" else None
+                    with urlrequest.urlopen(req, timeout=timeout, context=ctx) as resp:
+                        with open(save_path, "wb") as out:
+                            while True:
+                                chunk = resp.read(LAN_HTTP_CHUNK)
+                                if not chunk:
+                                    break
+                                out.write(chunk)
+                                received += len(chunk)
+                                pct = int((received / fsize) * 100) if fsize else 0
+                                speed = self._calc_transfer_speed(transfer_id, received)
+                                self._emit_progress(
+                                    fname, pct, fsize, speed=speed,
+                                    direction="receive", transfer_id=transfer_id,
+                                )
+                    last_exc = None
+                    break
+                except Exception as exc:
+                    last_exc = exc
+                    received = 0
+                    continue
+            if last_exc is not None:
+                raise last_exc
             print(f"[transfer] LAN HTTP saved {fname} -> {save_path} ({received} bytes)")
             self._emit_progress(fname, 100, fsize, direction="receive", transfer_id=transfer_id, status="complete")
             if self.on_message:
