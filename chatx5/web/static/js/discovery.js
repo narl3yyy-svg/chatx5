@@ -339,8 +339,6 @@ function announceSelf(transport) {
           hint = d.serial_port ? ` on ${d.serial_port}` : ' on USB serial';
           if (d.serial_announced) {
             hint += ' — USB RNS sent';
-            if (d.companion_beacon_sent) hint += ` + LAN beacon (${d.companion_beacon_sent})`;
-            else hint += ' (LAN beacon skipped — no LAN)';
           } else {
             hint += ' — USB announce failed (check cable/port)';
           }
