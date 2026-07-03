@@ -3,6 +3,10 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.15": [
+        "Refactor: Web UI split into css/app.css + 15 js modules — easier to maintain; same features and layout.",
+        "Fix: Static assets (CSS/JS) packaged correctly for pip installs and Android WebView.",
+    ],
     "0.6.14": [
         "Fix: Saved contact names persist across restarts — discovery no longer overwrites your stored labels when a peer is offline.",
         "Fix: Live network status groups duplicate hub TCP client interfaces instead of listing each inbound relay separately.",

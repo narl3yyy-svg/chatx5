@@ -2,7 +2,7 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
-## [Unreleased]
+## [0.6.15] — 2026-07-03
 
 ### Changed
 - **Frontend modularization (Phase 11)** — `index.html` is now a ~600-line shell; styles live in `web/static/css/app.css` and client logic in 15 scripts under `web/static/js/`. No user-visible behavior change; static asset integrity covered by `tests/test_static_frontend.py`.

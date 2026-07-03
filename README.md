@@ -7,7 +7,7 @@ Encrypted peer-to-peer chat over the [Reticulum Network Stack](https://reticulum
 
 Forked from [chatxz v0.5.13](https://github.com/narl3yyy-svg/chatxz/releases/tag/v0.5.13), rebranded as chatx5.
 
-**Current version:** 0.6.14
+**Current version:** 0.6.15
 
 ## How chatx5 works
 
@@ -284,9 +284,16 @@ chatx5/web/
   routes/register.py     # HTTP route table
   routes/*_routes.py     # domain handler mixins (identity, contacts, transfers, …)
   ws/manager.py          # WebSocket connect, broadcast, protocol dispatch
+  static/
+    index.html           # HTML shell (~600 lines)
+    css/app.css          # styles
+    js/                  # 15 client modules (state, ws, contacts, chat, …)
 ```
 
-See [REFACTOR_SUMMARY.md](REFACTOR_SUMMARY.md) for the full modular refactor history (messaging package + web server split).
+Static files are served at `/static/css/*` and `/static/js/*`. Edit modules under
+`chatx5/web/static/` only (canonical); Android picks them up via `sync-android.sh`.
+
+See [REFACTOR_SUMMARY.md](REFACTOR_SUMMARY.md) for the full modular refactor history (messaging package + web server + frontend split).
 
 ---
 

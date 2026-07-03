@@ -97,6 +97,11 @@ chatx5/web/static/
 Served at `/static/css/*` and `/static/js/*` via existing `handle_static` route.
 `tests/test_static_frontend.py` verifies all referenced assets exist.
 
+## v0.6.15 — Phase 11 release (done)
+
+Shipped frontend modularization (`index.html` → `css/` + `js/`); README architecture
+section updated; APK via tag `v0.6.15`.
+
 ## v0.6.14 — Contact names + live status UI (done)
 
 | Issue | Fix |
