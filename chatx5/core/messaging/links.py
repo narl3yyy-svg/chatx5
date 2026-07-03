@@ -85,9 +85,10 @@ class PeerLinkMixin:
         peer = self.dest_hash_for(peer_hash)
         if not peer or peer == "unknown":
             return None
-        if self.peer_transport_resolver:
+        resolver = getattr(self, "peer_transport_resolver", None)
+        if resolver:
             try:
-                return self.peer_transport_resolver(peer)
+                return resolver(peer)
             except Exception:
                 return None
         return None
@@ -102,7 +103,7 @@ class PeerLinkMixin:
 
     def _peer_discovery_meta_serial(self, peer_hash):
         peer = self.dest_hash_for(peer_hash)
-        if not peer or peer == "unknown" or not self.peer_transport_resolver:
+        if not peer or peer == "unknown" or not getattr(self, "peer_transport_resolver", None):
             return None
         try:
             row = self.peer_transport_resolver(peer, via="serial")
@@ -121,7 +122,7 @@ class PeerLinkMixin:
 
     def _peer_has_lan_discovery_row(self, peer_hash):
         peer = self.dest_hash_for(peer_hash)
-        if not peer or peer == "unknown" or not self.peer_transport_resolver:
+        if not peer or peer == "unknown" or not getattr(self, "peer_transport_resolver", None):
             return False
         for via in ("lan", "rns"):
             try:
@@ -223,6 +224,26 @@ class PeerLinkMixin:
         if self._peer_has_path_on_family(peer, "udp") or self._peer_has_path_on_family(peer, "tcp"):
             return {"udp", "lan", "tcp"}
         return set()
+
+    def _peers_share_contact(self, hash_a, hash_b):
+        """True when two hashes refer to the same saved dual-transport contact."""
+        a = self.dest_hash_for(hash_a)
+        b = self.dest_hash_for(hash_b)
+        if not a or not b or a == "unknown" or b == "unknown":
+            return False
+        if self.hashes_equivalent(a, b):
+            return True
+        try:
+            from chatx5.core.contacts import _contact_hashes, find_contact_by_hash
+        except Exception:
+            return False
+        contact = find_contact_by_hash(self.config_dir, a)
+        if not contact:
+            contact = find_contact_by_hash(self.config_dir, b)
+        if not contact:
+            return False
+        hashes = _contact_hashes(contact)
+        return a in hashes and b in hashes
 
     def _link_remote_peer_hash(self, link):
         """Resolved destination hash for a link's remote party (authoritative when known)."""
@@ -876,8 +897,12 @@ class PeerLinkMixin:
         if not peer or peer == "unknown":
             return None
         session_transport = None
-        if self._session_peer_hash and self.hashes_equivalent(peer, self._session_peer_hash):
-            session_transport = self._session_transport
+        if self._session_peer_hash and self._session_transport:
+            if (
+                self.hashes_equivalent(peer, self._session_peer_hash)
+                or self._peers_share_contact(peer, self._session_peer_hash)
+            ):
+                session_transport = self._session_transport
         if session_transport:
             preferred = self._link_for_peer(peer, transport=session_transport)
             if preferred and self._link_interface_healthy(preferred):

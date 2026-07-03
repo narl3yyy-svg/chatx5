@@ -53,6 +53,7 @@ class ContactRoutesMixin:
                     self._ui_state.get("viewing_peer"), peer_hash
                 ):
                     self._ui_state["viewing_peer"] = None
+                    self._ui_state["viewing_via"] = None
                 self._schedule_contacts_broadcast()
                 return web.json_response({"status": "ok"})
             return web.json_response({"error": "not found"}, status=404)

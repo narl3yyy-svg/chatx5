@@ -760,6 +760,7 @@ def migrate_contact_hash(
                 pass
     if name is not None and str(name).strip():
         entry["name"] = _resolve_contact_name(entry, name)
+    contacts_dir(config_dir)
     file_key = contact_primary_hash(entry) or new_clean
     path = _contact_path(config_dir, file_key)
     with open(path, "w") as fh:

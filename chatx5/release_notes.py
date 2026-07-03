@@ -3,6 +3,12 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.20": [
+        "Fix: Messages and file transfers follow the chat tab you opened (LAN vs USB serial) — no more sends on the wrong transport when both links are up.",
+        "Fix: LAN large-file transfers use the fast HTTP path again instead of USB serial (~300 KB/s).",
+        "Fix: Hub TCP duplicate links consolidated — fewer decryption/HMAC errors.",
+        "Fix: Contact delete updates the list immediately.",
+    ],
     "0.6.17": [
         "Fix: Large P2P file transfers work again with --share HTTPS — LAN fast-path uses https:// and self-signed cert trust.",
         "Fix: WAN secure mode checkbox saves and sticks after refresh.",

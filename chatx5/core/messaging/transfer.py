@@ -74,13 +74,41 @@ class TransferMixin:
                 status="failed",
             )
 
-    def _best_transfer_link(self, peer_hash=None):
+    def _best_transfer_link(self, peer_hash=None, prefer_transport=None):
         """Pick the best link for bulk transfer, respecting serial/LAN transport zones."""
         peer = self.dest_hash_for(
             peer_hash or self.active_peer_hash or self._session_peer_hash or ""
         )
         if not peer or peer == "unknown":
             return None
+        preferred_transport = (
+            self._normalize_transport(prefer_transport) if prefer_transport else None
+        )
+        session_transport = None
+        if not preferred_transport and self._session_transport and self._session_peer_hash:
+            if (
+                self.hashes_equivalent(peer, self._session_peer_hash)
+                or self._peers_share_contact(peer, self._session_peer_hash)
+            ):
+                session_transport = self._session_transport
+        if preferred_transport:
+            preferred = self._link_for_peer(peer, transport=preferred_transport)
+            if (
+                preferred
+                and self._link_interface_healthy(preferred)
+                and self._link_matches_peer(preferred, peer)
+                and self._link_acceptable_for_peer(preferred, peer)
+            ):
+                return preferred
+        if session_transport:
+            preferred = self._link_for_peer(peer, transport=session_transport)
+            if (
+                preferred
+                and self._link_interface_healthy(preferred)
+                and self._link_matches_peer(preferred, peer)
+                and self._link_acceptable_for_peer(preferred, peer)
+            ):
+                return preferred
         expected = self._peer_expected_transport_families(peer)
         if expected == {"serial"}:
             prefer = ("serial",)
@@ -752,9 +780,15 @@ class TransferMixin:
                 pass
 
     def send_file(self, file_path, msg_type=MESSAGE_TYPE_FILE, progress_callback=None,
-                  transfer_id=None, target_peer=None, link=None, hub_group=False):
+                  transfer_id=None, target_peer=None, link=None, hub_group=False,
+                  prefer_transport=None):
         peer = self.dest_hash_for(target_peer or self.active_peer_hash or "")
-        link = link or self._best_transfer_link(peer) or self._outgoing_link(peer)
+        transport = self._normalize_transport(prefer_transport) if prefer_transport else None
+        link = (
+            link
+            or self._best_transfer_link(peer, prefer_transport=transport)
+            or self._outgoing_link(peer)
+        )
         if link:
             self._optimise_link_mtu(link)
         if not link or not os.path.exists(file_path):

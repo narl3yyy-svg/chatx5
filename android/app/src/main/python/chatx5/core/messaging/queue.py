@@ -60,7 +60,9 @@ class QueueMixin:
             return False
         if is_hub_peer_hash(tgt) != is_hub_peer_hash(target_hash):
             return False
-        return self.hashes_equivalent(tgt, target_hash)
+        if self.hashes_equivalent(tgt, target_hash):
+            return True
+        return self._peers_share_contact(tgt, target_hash)
 
     def _remove_queue_entry(self, msg_id):
         if not msg_id:
@@ -80,8 +82,12 @@ class QueueMixin:
         if not peer or peer == "unknown":
             return None
         transport = self._normalize_transport(prefer_transport) if prefer_transport else None
-        if not transport and self._session_peer_hash and self.hashes_equivalent(peer, self._session_peer_hash):
-            transport = self._session_transport
+        if not transport and self._session_transport and self._session_peer_hash:
+            if (
+                self.hashes_equivalent(peer, self._session_peer_hash)
+                or self._peers_share_contact(peer, self._session_peer_hash)
+            ):
+                transport = self._session_transport
         if transport:
             preferred = self._link_for_peer(peer, transport=transport)
             if preferred and self._link_interface_healthy(preferred) and self._link_matches_peer(preferred, peer):

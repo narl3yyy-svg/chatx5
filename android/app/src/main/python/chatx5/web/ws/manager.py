@@ -197,9 +197,15 @@ class WebSocketMixin:
                             "data": f"Message queued ({qsize} pending)",
                         }))
                     return
-                prefer_via = (data.get("via") or "").strip() or None
-                target_hash = self._peer_dest_hash(peer_hint) if peer_hint else (
-                    self._queue_target_hash()
+                prefer_via = (
+                    (data.get("via") or "").strip()
+                    or (self._ui_state.get("viewing_via") or "").strip()
+                    or None
+                )
+                target_hash = (
+                    self._resolve_send_target(peer_hint, prefer_via=prefer_via)
+                    if peer_hint
+                    else self._queue_target_hash()
                 )
                 if not target_hash and self.messaging._session_peer_hash:
                     target_hash = self.messaging._session_peer_hash
@@ -361,6 +367,13 @@ class WebSocketMixin:
         elif msg_type == "viewing":
             peer = data.get("peer") or ""
             self._ui_state["viewing_peer"] = self._peer_dest_hash(peer) if peer else None
+            via = (data.get("via") or "").strip().lower()
+            if via in ("serial", "usb"):
+                self._ui_state["viewing_via"] = "serial"
+            elif via in ("lan", "rns", "beacon", "udp", "tcp"):
+                self._ui_state["viewing_via"] = "lan"
+            elif not peer:
+                self._ui_state["viewing_via"] = None
         elif msg_type == "visibility":
             self._ui_state["hidden"] = bool(data.get("hidden"))
         elif msg_type == "announce":

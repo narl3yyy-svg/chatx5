@@ -29,7 +29,11 @@ class TransferRoutesMixin:
             return False
         if is_hub_peer_hash(queue_target):
             return bool(self.messaging._hub_tcp_linked_peers())
-        return bool(self.messaging._peer_link_active(queue_target))
+        via = self._ui_state.get("viewing_via")
+        target = self._resolve_send_target(queue_target, prefer_via=via)
+        return bool(
+            self.messaging.peer_send_ready(target or queue_target, prefer_transport=via)
+        )
 
     def _hub_transfer_settings(self):
         settings = self.load_settings()
@@ -53,12 +57,15 @@ class TransferRoutesMixin:
                 hub_server_hash=hub_hash,
                 hub_server_mode=hub_server_mode,
             )
+        via = self._ui_state.get("viewing_via")
+        target = self._resolve_send_target(queue_target, prefer_via=via) or queue_target
         return self.messaging.send_file(
             save_path,
             msg_type,
             progress_callback=self._make_progress_callback(fname, size, transfer_id),
             transfer_id=transfer_id,
-            target_peer=queue_target,
+            target_peer=target,
+            prefer_transport=via,
         )
 
     async def handle_file_upload(self, request):

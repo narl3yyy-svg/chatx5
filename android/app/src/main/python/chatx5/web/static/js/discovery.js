@@ -208,6 +208,12 @@ function actionDelete() {
             localStorage.removeItem(LS_VIEWING_PEER);
           }
         } catch (_) {}
+        allContacts = (allContacts || []).filter(c =>
+          peerKey(c.hash) !== deletedKey &&
+          peerKey(c.lan_hash) !== deletedKey &&
+          peerKey(c.serial_hash) !== deletedKey
+        );
+        renderContacts(allContacts);
         toast('Contact deleted');
         fetchIdentity();
       })

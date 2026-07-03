@@ -387,6 +387,7 @@ class HubMixin:
             return ""
         self._cache_link_peer(link, peer)
         self._register_peer_link(link, peer, transport="tcp")
+        self._consolidate_peer_links(peer, keep_link=link, transport="tcp")
         role, _ = self._load_hub_settings()
         if role == "client":
             self._learn_hub_server_from_link(link)

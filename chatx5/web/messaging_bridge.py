@@ -265,10 +265,28 @@ class MessagingBridgeMixin:
                 name = self._contact_name_for(chat_peer) or chat_peer[:8]
             show_message_notification(name, preview, notify_peer)
 
+    def _resolve_send_target(self, peer_hash, prefer_via=None):
+        """Map UI/contact hash to the transport-specific connect hash for sends."""
+        clean = self._peer_dest_hash(peer_hash)
+        if not clean or clean == "unknown":
+            return ""
+        via = (prefer_via or self._ui_state.get("viewing_via") or "").strip() or None
+        transport_hash = self._contact_hash_for_transport(clean, via)
+        if transport_hash:
+            clean = transport_hash
+        peer_ip = None
+        if self.messaging:
+            meta = self._discovery_peer_for_connect(None, clean, via=via)
+            if meta:
+                peer_ip = meta.get("ip")
+        return self._resolve_current_peer_hash(clean, peer_ip, prefer_via=via)
+
     def _queue_target_hash(self):
         viewing = self._ui_state.get("viewing_peer")
         if viewing:
-            return self._peer_dest_hash(viewing)
+            return self._resolve_send_target(
+                viewing, prefer_via=self._ui_state.get("viewing_via"),
+            )
         return (
             self._session_chat_peer()
             or self._peer_dest_hash(self.active_peer)

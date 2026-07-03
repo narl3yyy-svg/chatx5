@@ -747,6 +747,8 @@ class ConnectMixin:
                 if prefer_transport
                 else None
             )
+            if not requested_transport and self._peer_hash_is_serial_endpoint(clean):
+                requested_transport = "serial"
             if len(clean) != 32:
                 print(f"[connect] Invalid hash length ({len(clean)} chars, expected 32)")
                 return False

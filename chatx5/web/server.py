@@ -137,7 +137,7 @@ class ChatWebServer(
         self._background_tasks = []
         self._progress_last = {}
         self._progress_throttle_ms = 250
-        self._ui_state = {"viewing_peer": None, "hidden": False}
+        self._ui_state = {"viewing_peer": None, "viewing_via": None, "hidden": False}
         self._live_scope_ip = None
         self._init_share_sessions()
 

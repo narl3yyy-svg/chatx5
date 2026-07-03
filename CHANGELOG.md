@@ -2,6 +2,15 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.20] — 2026-07-02
+
+### Fixed
+- **Dual-transport send routing** — Web UI `viewing_via` (LAN vs USB serial tab) now drives message sends, file transfers, and queue drains to the correct transport-specific peer hash; fixes Arch→Ubuntu messages failing when both transports are connected.
+- **LAN file transfer speed** — Large files on the LAN tab use the LAN link (and HTTP fast-path) instead of silently falling back to the USB serial link (~300 KB/s cap).
+- **Hub duplicate links** — Inbound hub TCP links are consolidated immediately, reducing “Token HMAC was invalid” decryption errors from stale parallel links.
+- **Queue alias matching** — Queued messages match dual-transport contact aliases (lan_hash ↔ serial_hash).
+- **Contact delete** — Deleted contacts disappear from the list immediately; contact migration no longer fails when the contacts directory is missing.
+
 ## [0.6.19] — 2026-07-03
 
 ### Fixed
