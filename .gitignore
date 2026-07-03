@@ -22,6 +22,7 @@ htmlcov/
 coverage.xml
 
 # Android / Gradle
+android/app/src/main/python/chatx5/
 android/.gradle/
 android/app/build/
 android/build/

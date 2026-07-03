@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 import time
 import uuid
 
@@ -14,6 +15,8 @@ from chatx5.utils.platform import lan_ip as detect_lan_ip
 
 class WebSocketMixin:
     """WebSocket clients, peer/contact broadcasts, and WS protocol handlers."""
+
+    _PEERS_BROADCAST_DEBOUNCE_S = 0.25
 
     def _prune_websockets(self):
         """Drop closed sockets (Android WebView reloads leave zombie connections)."""
@@ -36,10 +39,30 @@ class WebSocketMixin:
     def _schedule_peers_broadcast(self, authoritative=False):
         if not (self.websockets and self._loop):
             return
-        asyncio.run_coroutine_threadsafe(
-            self._broadcast_peers(authoritative=authoritative),
-            self._loop,
-        )
+        pending = getattr(self, "_peers_broadcast_pending", None)
+        if pending:
+            timer, pending_auth = pending
+            if authoritative:
+                pending_auth = True
+                self._peers_broadcast_pending = (timer, pending_auth)
+            return
+        pending_auth = bool(authoritative)
+
+        def _flush():
+            pending = getattr(self, "_peers_broadcast_pending", None)
+            self._peers_broadcast_pending = None
+            if not (self.websockets and self._loop):
+                return
+            auth = pending[1] if pending else pending_auth
+            asyncio.run_coroutine_threadsafe(
+                self._broadcast_peers(authoritative=auth),
+                self._loop,
+            )
+
+        timer = threading.Timer(self._PEERS_BROADCAST_DEBOUNCE_S, _flush)
+        timer.daemon = True
+        self._peers_broadcast_pending = (timer, pending_auth)
+        timer.start()
 
     async def _broadcast(self, data):
         msg = json.dumps(data)

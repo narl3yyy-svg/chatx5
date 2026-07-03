@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Sync main chatx5 Python sources into the Android Chaquopy bundle.
+# Legacy no-op: Chaquopy reads repo-root chatx5/ directly (Phase 13).
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="$ROOT/chatx5"
-DST="$ROOT/android/app/src/main/python/chatx5"
-
-echo "Syncing $SRC -> $DST"
-rm -rf "$DST"
-mkdir -p "$DST"
-
-copy_tree() {
-  local from="$1" to="$2"
-  mkdir -p "$to"
-  for entry in "$from"/*; do
-    base="$(basename "$entry")"
-    case "$base" in
-      __pycache__) continue ;;
-    esac
-    if [ -d "$entry" ]; then
-      copy_tree "$entry" "$to/$base"
-    elif [[ "$entry" == *.pyc ]]; then
-      continue
-    else
-      cp "$entry" "$to/$base"
-    fi
-  done
-}
-
-copy_tree "$SRC" "$DST"
-count="$(find "$DST" -name '*.py' | wc -l | tr -d ' ')"
-echo "Android Python bundle synced ($count Python files)."
+echo "sync-android.sh: skipped — Chaquopy uses canonical chatx5/ via build.gradle.kts srcDir"

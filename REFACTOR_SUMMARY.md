@@ -1,11 +1,12 @@
 # chatx5 Refactor Summary
 
-**Cleanliness score:** **9.2 / 10** (up from 4.5 pre-refactor) — messaging and web
+**Cleanliness score:** **9.5 / 10** (up from 4.5 pre-refactor) — messaging and web
 Python layers fully modularized; frontend split from a 7.3k-line monolith into
-`index.html` shell + `css/app.css` + 15 focused JS modules; failover logic split
-out of the backend orchestrator; lint + types + tests + Android-sync gated by CI
-on every push and PR. Remaining: a few Python files still >1k lines; Android
-bundle copy in git (Phase 13).
+`index.html` shell + `css/app.css` + 15 focused JS modules; `rns_interfaces`
+split into a package; Chaquopy reads canonical `chatx5/` directly (no tracked
+Android bundle); discovery hash index + probe cache + WS debounce; lint + types +
+tests gated by CI on every push and PR. Remaining: `connect.py`, `rns_lifecycle.py`,
+`platform.py`, `discovery.py`, `backend.py` still >1k lines.
 
 Baseline (pre-refactor): **4.5 / 10** — two 5k+ line god-modules, duplicated Android tree, minimal tooling.
 
@@ -96,6 +97,14 @@ chatx5/web/static/
 
 Served at `/static/css/*` and `/static/js/*` via existing `handle_static` route.
 `tests/test_static_frontend.py` verifies all referenced assets exist.
+
+## v0.6.25 — Phases 12–14: rns_interfaces split, Android srcDir, perf (done)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Phase 12 `rns_interfaces/` package | **done** | `presets`, `serial_ports`, `serial_runtime`, `tcp_iface`, `iface_list`, `config`, `summary`; `__init__.py` re-exports preserve import paths |
+| Phase 13 Android bundle untracked | **done** | `chaquopy.sourceSets { srcDir("../../chatx5") }`; bundle gitignored; `verify-android-sync.sh` checks Gradle config |
+| Phase 14 perf | **done** | `_hash_index` in `discovery.py`; 8s probe TTL cache in `peer_probe.py`; 250ms peers WS debounce in `ws/manager.py` |
 
 ## v0.6.24 — Hub file sender, serial transport labels, group sync (done)
 
@@ -205,20 +214,17 @@ pre-commit install
 bash scripts/check.sh
 ```
 
-## Android duplication (improved, not eliminated)
+## Android Python sources (Phase 13 — done)
 
-Chaquopy still needs `android/app/src/main/python/chatx5/` on disk. Strategy:
+Chaquopy reads canonical `chatx5/` directly — no tracked bundle copy in git.
 
 | Layer | Role |
 |-------|------|
 | **Canonical source** | `chatx5/` at repo root — edit here only |
-| **Tracked bundle** | `android/.../chatx5/` — committed for CI/offline APK builds |
-| **`sync-android.sh`** | Copies canonical → bundle |
-| **`verify-android-sync.sh`** | Fails `check.sh` if trees diverge |
-| **Gradle `syncPythonSources`** | Auto-sync before every Android build |
-| **`bump-version.sh`** | Syncs after version bump |
-
-**Future (Phase 10+):** Point Chaquopy `src` at repo-root `chatx5/` and stop tracking the bundle in git (needs Chaquopy path + CI validation).
+| **Chaquopy `srcDir`** | `android/app/build.gradle.kts` → `../../chatx5` |
+| **`verify-android-sync.sh`** | Fails `check.sh` if Gradle srcDir is missing |
+| **`sync-android.sh`** | Legacy no-op (older workflows may still call it) |
+| **`.gitignore`** | `android/app/src/main/python/chatx5/` ignored if present locally |
 
 ## Planned phases
 
@@ -227,24 +233,23 @@ Chaquopy still needs `android/app/src/main/python/chatx5/` on disk. Strategy:
 | 9 | Tooling + import hygiene + Android build sync | **done** |
 | 10 | Hub client fix + `FailoverMixin` split + CI on every push | **done** |
 | 11 | Frontend modularization (`index.html` → css + js/) | **done** |
-| 12 | Oversized Python module splits (`http_peer.py` started) | **in progress** — hub hash fetch + wake/connect on `http_peer`; multi-listener helpers in `rns_interfaces.py` |
-| 13 | Android bundle untracked | future |
-| 14 | Perf (peer hash index, probe cache, WS debounce) | **partial** — connect debounce in UI (v0.6.21) |
+| 12 | Oversized Python module splits (`rns_interfaces/` package) | **done** — v0.6.25 |
+| 13 | Android bundle untracked (Chaquopy `srcDir`) | **done** — v0.6.25 |
+| 14 | Perf (peer hash index, probe cache, WS debounce) | **done** — v0.6.25 |
 
 ## Remaining technical debt
 
-- `backend.py` ~1,150 lines; `connect.py`, `rns_interfaces.py`, `rns_lifecycle.py`,
-  `platform.py`, `discovery.py` still >1k lines (Phase 12 Python splits).
+- `backend.py` ~1,150 lines; `connect.py`, `rns_lifecycle.py`, `platform.py`,
+  `discovery.py` still >1k lines (future Python splits).
 - Frontend JS uses classic global scripts (not ES modules) — Phase 11b could add
   `type="module"` with explicit exports once onclick handlers move to listeners.
-- Android Python tree still duplicated in git (sync is automated and verified;
-  Phase 13 would drop the tracked copy).
+- Further Python splits: `connect.py`, `rns_lifecycle.py`, `platform.py`, `discovery.py`.
 
 ## How to verify
 
 ```bash
 bash scripts/check.sh
-bash scripts/sync-android.sh   # after editing chatx5/ (Gradle also runs this)
+bash scripts/sync-android.sh   # legacy no-op; Chaquopy uses chatx5/ via srcDir
 pre-commit run --all-files     # optional local hook pass
 ```
 

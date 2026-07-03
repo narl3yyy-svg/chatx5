@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.25": [
+        "Internal: rns_interfaces split into focused modules — same behavior, easier maintenance.",
+        "Internal: Android builds use repo-root Python sources directly (no duplicate tree in git).",
+        "Internal: Faster peer lookups, probe caching, and smoother WebSocket peer list updates.",
+    ],
     "0.6.24": [
         "Fix: Group chat photos and files show the real sender — not the hub server name after relay.",
         "Fix: File transfer progress shows USB when sending/receiving over serial (not LAN).",

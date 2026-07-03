@@ -42,9 +42,6 @@ jobs:
           echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
 
-      - name: Sync Python sources into Android bundle
-        run: bash scripts/sync-android.sh
-
       - name: Determine release version
         id: version
         run: |

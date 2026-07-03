@@ -120,6 +120,24 @@ def link_rtt_ms(messaging, hash_hex, transport=None):
 
 _pending_probes: dict[str, dict] = {}
 _pending_lock = threading.Lock()
+_PROBE_RESULT_CACHE: dict[str, tuple[float, int | None]] = {}
+_PROBE_CACHE_TTL_S = 8.0
+_PROBE_CACHE_MISS = object()
+
+
+def _probe_cache_get(key):
+    entry = _PROBE_RESULT_CACHE.get(key)
+    if entry is None:
+        return _PROBE_CACHE_MISS
+    ts, value = entry
+    if time.time() - ts > _PROBE_CACHE_TTL_S:
+        _PROBE_RESULT_CACHE.pop(key, None)
+        return _PROBE_CACHE_MISS
+    return value
+
+
+def _probe_cache_put(key, value):
+    _PROBE_RESULT_CACHE[key] = (time.time(), value)
 
 
 def register_probe_ack(probe_id, rtt_ms, source_ip=""):
@@ -155,6 +173,10 @@ def probe_udp_peer(host, timeout_s=PROBE_TIMEOUT_S, packet_bytes=None):
     host = (host or "").strip()
     if not host:
         return None
+    cache_key = f"udp:{host}:{int(packet_bytes or probe_packet_bytes())}"
+    cached = _probe_cache_get(cache_key)
+    if cached is not _PROBE_CACHE_MISS:
+        return cached
     probe_id = uuid.uuid4().hex[:12]
     event = threading.Event()
     ts = time.time()
@@ -171,11 +193,14 @@ def probe_udp_peer(host, timeout_s=PROBE_TIMEOUT_S, packet_bytes=None):
         with _pending_lock:
             entry = _pending_probes.pop(probe_id, None)
         if entry and entry.get("rtt_ms") is not None:
-            return int(entry["rtt_ms"])
+            rtt = int(entry["rtt_ms"])
+            _probe_cache_put(cache_key, rtt)
+            return rtt
     except OSError:
         pass
     finally:
         sock.close()
+    _probe_cache_put(cache_key, None)
     return None
 
 
@@ -183,11 +208,16 @@ def probe_serial_path(hash_hex, timeout_s=PROBE_TIMEOUT_S):
     clean = (hash_hex or "").replace(":", "").strip().lower()
     if len(clean) != 32:
         return None
+    cache_key = f"serial:{clean}"
+    cached = _probe_cache_get(cache_key)
+    if cached is not _PROBE_CACHE_MISS:
+        return cached
     # A path already in the local table is not a round-trip measurement — timing
     # a cached lookup yields a bogus ~0 ms value. Only measure the time for a
     # freshly requested serial path to appear; if one is already cached, report
     # None (the caller keeps the link's handshake RTT, or shows no number).
     if peer_path_on_family(clean, "serial"):
+        _probe_cache_put(cache_key, None)
         return None
     start = time.time()
     try:
@@ -197,8 +227,11 @@ def probe_serial_path(hash_hex, timeout_s=PROBE_TIMEOUT_S):
     deadline = start + timeout_s
     while time.time() < deadline:
         if peer_path_on_family(clean, "serial"):
-            return int((time.time() - start) * 1000)
+            rtt = int((time.time() - start) * 1000)
+            _probe_cache_put(cache_key, rtt)
+            return rtt
         time.sleep(0.08)
+    _probe_cache_put(cache_key, None)
     return None
 
 

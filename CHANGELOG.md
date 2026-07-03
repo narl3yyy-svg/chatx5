@@ -2,6 +2,13 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.25] — 2026-07-02
+
+### Changed
+- **Phase 12** — `rns_interfaces.py` split into `chatx5/core/rns_interfaces/` package (presets, serial, TCP, config); import paths unchanged.
+- **Phase 13** — Chaquopy reads canonical `chatx5/` via `srcDir`; Android bundle copy no longer tracked in git.
+- **Phase 14** — Peer hash index for O(1) discovery lookups; 8s probe result cache; 250ms WebSocket peers broadcast debounce.
+
 ## [0.6.24] — 2026-07-02
 
 ### Fixed

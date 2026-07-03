@@ -82,6 +82,7 @@ class AnnounceHandler:
 class PeerDiscovery:
     def __init__(self, on_peer_seen=None, on_peer_evicted=None):
         self.peers = {}
+        self._hash_index = {}
         self.running = False
         self._handler = None
         self.on_peer_seen = on_peer_seen
@@ -89,6 +90,60 @@ class PeerDiscovery:
         self._last_log = {}
         self.accept_peers = False
         self._local_hashes = set()
+
+    def _index_hashes_for_peer(self, storage_key, peer):
+        hashes = {
+            normalize_hash(storage_key.split(":", 1)[0]),
+            normalize_hash(peer.get("hash")),
+            normalize_hash(peer.get("identity_hash")),
+        }
+        return {h for h in hashes if h}
+
+    def _index_peer(self, storage_key, peer):
+        for h in self._index_hashes_for_peer(storage_key, peer):
+            self._hash_index.setdefault(h, set()).add(storage_key)
+
+    def _unindex_peer(self, storage_key, peer):
+        for h in self._index_hashes_for_peer(storage_key, peer):
+            keys = self._hash_index.get(h)
+            if not keys:
+                continue
+            keys.discard(storage_key)
+            if not keys:
+                del self._hash_index[h]
+
+    def _peer_keys_for_hash(self, hash_hex):
+        clean = normalize_hash(hash_hex)
+        if not clean:
+            return []
+        keys = {k for k in self._hash_index.get(clean, set()) if k in self.peers}
+        if clean in self.peers:
+            keys.add(clean)
+        if keys:
+            return list(keys)
+        for key, peer in self.peers.items():
+            if normalize_hash(peer.get("hash")) == clean:
+                keys.add(key)
+        if keys:
+            for key in keys:
+                peer = self.peers.get(key)
+                if peer:
+                    self._index_peer(key, peer)
+        return list(keys)
+
+    def _peers_for_hash(self, hash_hex):
+        rows = []
+        for key in self._peer_keys_for_hash(hash_hex):
+            peer = self.peers.get(key)
+            if peer:
+                rows.append(peer)
+        return rows
+
+    def _pop_peer_key(self, key):
+        entry = self.peers.pop(key, None)
+        if entry:
+            self._unindex_peer(key, entry)
+        return entry
 
     def set_local_hashes(self, *hashes):
         """Ignore our own LAN/serial destination and identity hashes in discovery."""
@@ -133,6 +188,7 @@ class PeerDiscovery:
 
     def clear_peers(self):
         self.peers.clear()
+        self._hash_index.clear()
         self._last_log.clear()
 
     def _scope_ip(self):
@@ -182,7 +238,7 @@ class PeerDiscovery:
             ip = (peer.get("ip") or "").strip()
             if ip and not same_lan_scope(ip, scope):
                 unregister_udp_peer_ip(ip)
-                del self.peers[key]
+                self._pop_peer_key(key)
                 removed += 1
         return removed
 
@@ -260,9 +316,7 @@ class PeerDiscovery:
         clean = normalize_hash(hash_hex)
         if not clean:
             return
-        for peer in self.peers.values():
-            if normalize_hash(peer.get("hash")) != clean:
-                continue
+        for peer in self._peers_for_hash(clean):
             peer["probe_failures"] = 0
             peer["last_probe_ok"] = float(peer.get("last_seen") or time.time())
 
@@ -294,9 +348,7 @@ class PeerDiscovery:
         if not clean:
             return False
         changed = False
-        for peer in self.peers.values():
-            if normalize_hash(peer.get("hash")) != clean:
-                continue
+        for peer in self._peers_for_hash(clean):
             if not self._probe_via_matches(peer, via):
                 continue
             for key in ("rtt_ms", "rtt_avg_ms", "rtt_samples"):
@@ -311,9 +363,7 @@ class PeerDiscovery:
         if not clean:
             return
         now = time.time()
-        for peer in self.peers.values():
-            if normalize_hash(peer.get("hash")) != clean:
-                continue
+        for peer in self._peers_for_hash(clean):
             if not self._probe_via_matches(peer, via):
                 continue
             last_seen = float(peer.get("last_seen") or 0)
@@ -378,7 +428,7 @@ class PeerDiscovery:
                 continue
             if (peer.get("ip") or "").strip():
                 continue
-            del self.peers[key]
+            self._pop_peer_key(key)
             removed += 1
         return removed
 
@@ -400,7 +450,7 @@ class PeerDiscovery:
             pkt_fam = interface_family(pkt_iface) if pkt_iface else ""
             if pkt_fam == "serial" or not pkt_iface:
                 continue
-            del self.peers[key]
+            self._pop_peer_key(key)
             self._last_log.pop(hash_hex, None)
             removed += 1
         return removed
@@ -415,7 +465,7 @@ class PeerDiscovery:
             if (peer.get("via") or "").strip() != "serial":
                 continue
             hash_hex = normalize_hash(peer.get("hash") or key)
-            del self.peers[key]
+            self._pop_peer_key(key)
             self._last_log.pop(hash_hex, None)
             removed += 1
         return removed
@@ -436,7 +486,7 @@ class PeerDiscovery:
                 normalize_hash(peer.get("identity_hash")),
             }
             if peer_hashes & targets:
-                del self.peers[key]
+                self._pop_peer_key(key)
                 removed += 1
         for target in targets:
             self._last_log.pop(target, None)
@@ -511,7 +561,7 @@ class PeerDiscovery:
                 continue
             if same_ident or same_pubkey:
                 removed.append(normalize_hash(existing.get("hash")) or key)
-                del self.peers[key]
+                self._pop_peer_key(key)
                 continue
             if serial_discovery_active() and same_name and not same_host:
                 continue
@@ -522,7 +572,7 @@ class PeerDiscovery:
                     continue
             if same_host or same_name:
                 removed.append(normalize_hash(existing.get("hash")) or key)
-                del self.peers[key]
+                self._pop_peer_key(key)
         return removed, peer
 
     def _notify_peer_evicted(self, removed_hashes, new_peer):
@@ -540,18 +590,14 @@ class PeerDiscovery:
             return None
         if via:
             return self.peers.get(self._peer_storage_key({"hash": clean, "via": via}))
-        for peer in self.peers.values():
-            if normalize_hash(peer.get("hash")) == clean:
-                return peer
-        return self.peers.get(clean)
+        rows = self._peers_for_hash(clean)
+        return rows[0] if rows else self.peers.get(clean)
 
     def has_peer_hash(self, hash_hex):
         clean = normalize_hash(hash_hex)
         if not clean:
             return False
-        if clean in self.peers:
-            return True
-        return any(normalize_hash(p.get("hash")) == clean for p in self.peers.values())
+        return bool(self._peer_keys_for_hash(clean))
 
     @staticmethod
     def _peer_storage_key(peer):
@@ -579,6 +625,8 @@ class PeerDiscovery:
                 return
             key = clean
         entry = self.peers.pop(key)
+        if entry:
+            self._unindex_peer(key, entry)
         removed_ip = (entry or {}).get("ip")
         if removed_ip:
             unregister_udp_peer_ip(removed_ip)
@@ -676,6 +724,7 @@ class PeerDiscovery:
             peer = existing
         else:
             self.peers[storage_key] = peer
+            self._index_peer(storage_key, peer)
         if peer.get("ip"):
             register_udp_peer_ip(peer["ip"])
         self.reset_peer_probe_state(hash_hex)
@@ -1054,7 +1103,7 @@ class PeerDiscovery:
         ttl = discovery_timeout_s()
         stale = [h for h, p in self.peers.items() if now - p["last_seen"] > ttl]
         for h in stale:
-            del self.peers[h]
+            self._pop_peer_key(h)
 
         deduped = {}
         for peer in self.peers.values():
