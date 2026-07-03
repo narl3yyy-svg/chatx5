@@ -1000,6 +1000,11 @@ class PeerLinkMixin:
             return False, None
         if transport and not self._link_transport_matches(adopt, transport):
             return False, None
-        if not self._link_interface_healthy(adopt) or not self._peer_has_path(dest_hex):
+        if not self._link_interface_healthy(adopt):
+            return False, adopt
+        iface = self._link_attached_interface(adopt)
+        if transport == "serial" or is_serial_interface(iface):
+            return True, adopt
+        if not self._peer_has_path(dest_hex):
             return False, adopt
         return True, adopt

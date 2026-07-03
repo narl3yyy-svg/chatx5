@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.21": [
+        "Fix: Opening a chat starts at the latest messages — no scroll-from-top flash.",
+        "Fix: USB serial links stay up — skip redundant reconnects and keep the path pinned.",
+        "Fix: Switching peers quickly no longer breaks the server; redundant connects are skipped.",
+    ],
     "0.6.20": [
         "Fix: Messages and file transfers follow the chat tab you opened (LAN vs USB serial) — no more sends on the wrong transport when both links are up.",
         "Fix: LAN large-file transfers use the fast HTTP path again instead of USB serial (~300 KB/s).",

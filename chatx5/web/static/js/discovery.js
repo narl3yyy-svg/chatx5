@@ -246,10 +246,19 @@ function clearPeerHistory(peerHash) {
   }).catch(() => toast('Failed to clear history'));
 }
 
+let lastConnectAt = 0;
+let lastConnectKey = '';
+
 function connectTo(hash, ip, port, via, opts) {
   opts = opts || {};
   const wake = !!opts.wake;
   const myGen = ++connectGeneration;
+  const connectKey = peerKey(hash) + ':' + (via ? normalizeVia(via) : 'auto');
+  const now = Date.now();
+  if (!wake && isPeerLinked(hash, via) && (now - lastConnectAt) < 2500 && lastConnectKey === connectKey) {
+    openChat(hash, false, {via});
+    return;
+  }
   if (connectInFlight) {
     connectInFlight = false;
   }
@@ -306,6 +315,8 @@ function connectTo(hash, ip, port, via, opts) {
     if (myGen !== connectGeneration) return;
     if (d.status === 'ok') {
       const connected = d.hash || hash;
+      lastConnectAt = Date.now();
+      lastConnectKey = peerKey(connected) + ':' + (via ? normalizeVia(via) : 'auto');
       if (connected !== hash) registerPeerAliases(connected, hash);
       setLinkPeer(connected, true, via);
       if (d.linked_peers) syncLinkedPeers(d.linked_peers);

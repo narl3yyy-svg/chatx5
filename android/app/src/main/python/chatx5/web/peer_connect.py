@@ -127,6 +127,8 @@ class PeerConnectMixin:
             peer_ip = (data.get("ip") or "").strip() or None
             peer_port = data.get("port") or 8742
             prefer_via = (data.get("via") or "").strip() or None
+            if prefer_via in ("serial", "usb"):
+                peer_ip = None
             transport_hash = self._contact_hash_for_transport(peer_hash, prefer_via)
             if transport_hash:
                 peer_hash = transport_hash

@@ -42,24 +42,9 @@ function parseShareOfferContent(content) {
   return null;
 }
 
-function addMessage(data, opts) {
-  const scroll = !opts || opts.scroll !== false;
-  const msgs = document.getElementById('messages');
-  if (msgs.style.display === 'none' || !viewingPeer) return;
-  if (isSessionSystemMessage(data)) return;
-  if (!messageBelongsToPeer(data)) return;
-
-  if (data.msg_id) {
-    const existing = document.querySelector(`.msg[data-msgid="${data.msg_id}"]`);
-    if (existing) {
-      const statusEl = existing.querySelector('.receipt');
-      if (statusEl) statusEl.textContent = receiptIcon(data.status || '');
-      if (data.status === 'received' || data.status === 'read') {
-        data.type === 'text' && !data.outgoing && sendReadReceipt(data.msg_id);
-      }
-      return;
-    }
-  }
+function buildMessageNode(data) {
+  if (isSessionSystemMessage(data)) return null;
+  if (!messageBelongsToPeer(data)) return null;
 
   const div = document.createElement('div');
   const isSelf = data.outgoing === true;
@@ -128,10 +113,34 @@ function addMessage(data, opts) {
   const icon = receiptIcon(data.status || (isSelf && data.type !== 'system' ? 'sending' : ''));
   html += `<div class="time">${time}${icon ? ' <span class="receipt" style="font-size:11px;margin-left:4px">' + icon + '</span>' : ''}</div>`;
   div.innerHTML = html;
-  msgs.appendChild(div);
-  if (scroll) msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
 
-  if (isSelf && data.msg_id && (data.status === 'received' || data.status === 'read')) {
+function addMessage(data, opts) {
+  const scroll = !opts || opts.scroll !== false;
+  const msgs = document.getElementById('messages');
+  if (msgs.style.display === 'none' || !viewingPeer) return;
+  if (isSessionSystemMessage(data)) return;
+  if (!messageBelongsToPeer(data)) return;
+
+  if (data.msg_id) {
+    const existing = document.querySelector(`.msg[data-msgid="${data.msg_id}"]`);
+    if (existing) {
+      const statusEl = existing.querySelector('.receipt');
+      if (statusEl) statusEl.textContent = receiptIcon(data.status || '');
+      if (data.status === 'received' || data.status === 'read') {
+        data.type === 'text' && !data.outgoing && sendReadReceipt(data.msg_id);
+      }
+      return;
+    }
+  }
+
+  const div = buildMessageNode(data);
+  if (!div) return;
+  msgs.appendChild(div);
+  if (scroll) scrollMessagesToBottom(msgs);
+
+  if (data.outgoing === true && data.msg_id && (data.status === 'received' || data.status === 'read')) {
     data.type === 'text' && sendReadReceipt(data.msg_id);
   }
 }

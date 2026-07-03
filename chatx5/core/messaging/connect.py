@@ -336,7 +336,14 @@ class ConnectMixin:
         if not self._serial_transport_ready():
             print("[connect] Serial path blocked — Serial in RNS: no")
             return False
+        usable, adopt = self._peer_link_usable(dest_hex, clean, transport="serial")
+        if usable:
+            ensure_serial_path_pinned(dest_hex)
+            reinforce_serial_peer_path(dest_hex)
+            print(f"[connect] Serial link already active to {dest_hex[:16]}...")
+            return True
         pin_serial_path(dest_hex)
+        connected = False
         try:
             clear_peer_path_unless_family(dest_hex, "serial")
             prune_lan_path_for_peer(dest_hex)
@@ -360,6 +367,7 @@ class ConnectMixin:
             ):
                 adopt = self._link_for_peer(dest_hex, transport="serial") or self.active_link
                 if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    connected = True
                     return True
             ensure_serial_path_pinned(dest_hex)
             print(f"[connect] Serial outbound ({SERIAL_LINK_CONNECT_TIMEOUT_S}s)...")
@@ -369,10 +377,12 @@ class ConnectMixin:
             ):
                 adopt = self._link_for_peer(dest_hex, transport="serial") or self.active_link
                 if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    connected = True
                     return True
             if self._peer_link_active(dest_hex, clean, transport="serial"):
                 adopt = self._link_for_peer(dest_hex, transport="serial")
                 if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    connected = True
                     return True
             print(f"[connect] Waiting for serial inbound ({SERIAL_INBOUND_WAIT_S}s)...")
             if self._wait_for_peer_link(
@@ -380,10 +390,15 @@ class ConnectMixin:
             ):
                 adopt = self._link_for_peer(dest_hex, transport="serial") or self.active_link
                 if adopt and self._serial_outbound_link_valid(adopt, dest_hex):
+                    connected = True
                     return True
             return False
         finally:
-            unpin_serial_path(dest_hex)
+            if connected:
+                ensure_serial_path_pinned(dest_hex)
+                reinforce_serial_peer_path(dest_hex)
+            else:
+                unpin_serial_path(dest_hex)
 
     def _serial_outbound_link_valid(self, link, dest_hex):
         """True when an outbound link for a serial connect uses a healthy USB iface."""
@@ -793,6 +808,7 @@ class ConnectMixin:
                 self._teardown_other_peer_links(session_hash)
                 if (
                     peer_ip
+                    and requested_transport != "serial"
                     and physical_lan_reachable()
                     and not respond_to_wake
                     and not self._peer_lan_recently_unreachable(peer_ip)

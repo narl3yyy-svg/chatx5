@@ -787,19 +787,31 @@ function saveHubSettings() {
   });
 }
 
+function scrollMessagesToBottom(msgsEl) {
+  if (!msgsEl) return;
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
 function loadHistoryForPeer(peerHash) {
   const peer = peerHash.replace(/:/g, '');
   const msgsEl = document.getElementById('messages');
+  msgsEl.classList.add('history-loading');
   msgsEl.innerHTML = '';
   fetch('/api/history?limit=500&peer=' + encodeURIComponent(peer))
     .then(r => r.json())
     .then(msgs => {
-      msgs.forEach(m => addMessage(m, { scroll: false }));
-      requestAnimationFrame(() => {
-        msgsEl.scrollTop = msgsEl.scrollHeight;
+      const frag = document.createDocumentFragment();
+      msgs.forEach(m => {
+        const node = buildMessageNode(m);
+        if (node) frag.appendChild(node);
       });
+      msgsEl.appendChild(frag);
+      scrollMessagesToBottom(msgsEl);
+      msgsEl.classList.remove('history-loading');
     })
-    .catch(() => {});
+    .catch(() => {
+      msgsEl.classList.remove('history-loading');
+    });
 }
 
 function updateSerialAnnounceVisibility(active) {

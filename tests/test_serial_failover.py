@@ -404,6 +404,23 @@ class FailoverPreferenceTests(unittest.TestCase):
         self.assertFalse(needs)
         self.assertEqual(reason, "")
 
+    def test_serial_link_usable_without_rns_path_row(self):
+        backend = self._backend()
+        peer = "f1c2ac9061239f7c096701f02969729c"
+        serial_iface = MagicMock()
+        link = _FakeLink("11" * 16, iface=serial_iface)
+        backend.links[link.link_id] = link
+        backend.peer_links[backend._link_map_key(peer, "serial")] = link
+        with patch("chatx5.core.messaging.backend.interface_family", return_value="serial"):
+            with patch.object(backend, "_link_interface_healthy", return_value=True):
+                with patch.object(backend, "_link_matches_peer", return_value=True):
+                    with patch.object(backend, "_link_acceptable_for_peer", return_value=True):
+                        with patch.object(backend, "_peer_has_path", return_value=False):
+                            with patch("chatx5.core.messaging.backend.is_serial_interface", return_value=True):
+                                usable, adopt = backend._peer_link_usable(peer, transport="serial")
+        self.assertTrue(usable)
+        self.assertIs(adopt, link)
+
     def test_reconnect_active_peer_skips_during_connect(self):
         backend = self._backend()
         backend._connect_in_progress = True

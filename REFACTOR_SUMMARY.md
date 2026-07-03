@@ -97,6 +97,14 @@ chatx5/web/static/
 Served at `/static/css/*` and `/static/js/*` via existing `handle_static` route.
 `tests/test_static_frontend.py` verifies all referenced assets exist.
 
+## v0.6.21 — Chat UX + serial stability (done)
+
+| Issue | Fix |
+|-------|-----|
+| Chat opens at top then scrolls down | `history-loading` batch render; `scroll-behavior: auto`; `buildMessageNode()` |
+| Serial USB drops and reconnect loops | Fast-path active serial link; pin path on success; relax `_peer_link_usable` for serial |
+| Fast peer switch breaks server | Connect debounce (2.5s); skip LAN wake on serial; clear LAN IP on serial connect API |
+
 ## v0.6.15 — Phase 11 release (done)
 
 Shipped frontend modularization (`index.html` → `css/` + `js/`); README architecture
@@ -190,7 +198,7 @@ Chaquopy still needs `android/app/src/main/python/chatx5/` on disk. Strategy:
 | 11 | Frontend modularization (`index.html` → css + js/) | **done** |
 | 12 | Oversized Python module splits (`http_peer.py` started) | **in progress** |
 | 13 | Android bundle untracked | future |
-| 14 | Perf (peer hash index, probe cache, WS debounce) | future |
+| 14 | Perf (peer hash index, probe cache, WS debounce) | **partial** — connect debounce in UI (v0.6.21) |
 
 ## Remaining technical debt
 

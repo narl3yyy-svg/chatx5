@@ -2,6 +2,14 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.21] — 2026-07-02
+
+### Fixed
+- **Chat opens at bottom** — History loads without smooth-scroll flash; message enter animations disabled during bulk history render.
+- **Serial USB stability** — Healthy serial links skip full re-prime/reconnect; path stays pinned after success; serial links count as usable without a stale RNS path row.
+- **Serial connect** — USB connects no longer trigger LAN HTTP wake; `/api/connect` clears LAN IP when `via=serial`.
+- **Fast peer switching** — Redundant connect attempts within 2.5s reuse the active link instead of tearing down and reconnecting.
+
 ## [0.6.20] — 2026-07-02
 
 ### Fixed
