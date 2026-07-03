@@ -12,8 +12,12 @@ from chatx5.core.discovery import normalize_hash
 from chatx5.core.lan_rns import interface_family, request_paths_for_hash
 from chatx5.core.messaging.constants import (
     HUB_GROUP_PEER,
+    MESSAGE_TYPE_FILE,
+    MESSAGE_TYPE_IMAGE,
     MESSAGE_TYPE_SHARE_BROWSE,
     MESSAGE_TYPE_TEXT,
+    MESSAGE_TYPE_VIDEO,
+    MESSAGE_TYPE_VOICE,
     QUEUE_DRAIN_DELAY_S,
 )
 from chatx5.core.messaging.models import ChatMessage
@@ -559,6 +563,89 @@ class HubMixin:
             self._receipt_callbacks[msg.msg_id] = receipt_callback
         return msg
 
+    _HUB_FILE_TYPES = (
+        MESSAGE_TYPE_FILE,
+        MESSAGE_TYPE_IMAGE,
+        MESSAGE_TYPE_VIDEO,
+        MESSAGE_TYPE_VOICE,
+    )
+
+    def send_hub_file(self, file_path, msg_type=MESSAGE_TYPE_FILE, progress_callback=None,
+                      transfer_id=None, hub_server_hash=None, hub_server_mode=False):
+        """Send a file over hub TCP link(s) for group chat."""
+        role, _ = self._load_hub_settings()
+        if role == "off":
+            return False
+        if not self._hub_tcp_transport_online():
+            self.ensure_hub_link(background=(role == "server"))
+        if not self._hub_tcp_linked_peers():
+            self.ensure_hub_link(background=True)
+        targets = self._hub_send_targets(
+            hub_server_hash=hub_server_hash,
+            hub_server_mode=hub_server_mode,
+        )
+        if hub_server_mode and not targets:
+            targets = self._hub_tcp_linked_peers()
+        last_result = False
+        sent_any = False
+        for peer in targets:
+            if not peer or is_hub_peer_hash(peer):
+                continue
+            link = self._hub_link_for_peer(peer)
+            if not link:
+                continue
+            last_result = self.send_file(
+                file_path,
+                msg_type,
+                progress_callback=progress_callback,
+                transfer_id=transfer_id,
+                target_peer=peer,
+                link=link,
+                hub_group=True,
+            )
+            if last_result:
+                sent_any = True
+        if not sent_any:
+            print("[hub] send_hub_file: no active hub link")
+            self._schedule_hub_queue_drain(delay=0.15)
+            self.ensure_hub_link(background=(role == "server"))
+            return False
+        return last_result
+
+    def relay_hub_file(self, chat_msg, sender_hash, file_path):
+        """Hub server re-sends a received group file to other linked clients."""
+        if not file_path or not os.path.isfile(file_path):
+            return 0
+        msg_type = chat_msg.msg_type
+        if msg_type not in self._HUB_FILE_TYPES:
+            return 0
+        role, _ = self._load_hub_settings()
+        if role != "server":
+            return 0
+        relayed = 0
+        for peer in self._hub_tcp_linked_peers():
+            if is_hub_peer_hash(peer) or self.hashes_equivalent(peer, sender_hash):
+                continue
+            link = self._hub_link_for_peer(peer)
+            if not link:
+                continue
+            try:
+                result = self.send_file(
+                    file_path,
+                    msg_type,
+                    transfer_id=chat_msg.msg_id,
+                    target_peer=peer,
+                    link=link,
+                    hub_group=True,
+                )
+                if result:
+                    relayed += 1
+            except Exception as exc:
+                print(f"[hub] relay file failed to {peer[:16]}: {exc}")
+        if relayed:
+            print(f"[hub] Relayed group file {chat_msg.file_name} to {relayed} peer(s)")
+        return relayed
+
     def relay_hub_message(self, chat_msg, sender_hash):
         if not getattr(chat_msg, "hub_group", False):
             return
@@ -594,17 +681,35 @@ class HubMixin:
                 remaining.append(entry)
                 continue
             entry_type = entry.get("type")
-            if entry_type not in ("text", "emoji", MESSAGE_TYPE_SHARE_BROWSE):
+            file_types = (
+                "file", "image", "video", "voice",
+                MESSAGE_TYPE_FILE, MESSAGE_TYPE_IMAGE, MESSAGE_TYPE_VIDEO, MESSAGE_TYPE_VOICE,
+            )
+            if entry_type not in ("text", "emoji", MESSAGE_TYPE_SHARE_BROWSE) and entry_type not in file_types:
                 remaining.append(entry)
                 continue
             msg_id = entry.get("msg_id")
-            result = self.send_hub_message(
-                entry["content"],
-                msg_id=msg_id,
-                hub_server_hash=hub_server_hash,
-                hub_server_mode=hub_server_mode,
-                msg_type=entry_type if entry_type != "emoji" else MESSAGE_TYPE_TEXT,
-            )
+            if entry_type in file_types:
+                fp = entry.get("file_path") or entry.get("content")
+                if not fp or not os.path.isfile(fp):
+                    print(f"[queue] Hub file no longer exists: {fp}")
+                    remaining.append(entry)
+                    continue
+                result = self.send_hub_file(
+                    fp,
+                    entry_type if entry_type in file_types else MESSAGE_TYPE_FILE,
+                    transfer_id=msg_id,
+                    hub_server_hash=hub_server_hash,
+                    hub_server_mode=hub_server_mode,
+                )
+            else:
+                result = self.send_hub_message(
+                    entry["content"],
+                    msg_id=msg_id,
+                    hub_server_hash=hub_server_hash,
+                    hub_server_mode=hub_server_mode,
+                    msg_type=entry_type if entry_type != "emoji" else MESSAGE_TYPE_TEXT,
+                )
             if result:
                 sent += 1
                 if self.on_queue_sent:

@@ -22,7 +22,6 @@ from chatx5.core.messaging.constants import (
 )
 from chatx5.core.messaging.models import ChatMessage
 from chatx5.core.messaging.peers import is_hub_peer_hash
-from chatx5.utils.platform import physical_lan_reachable
 
 
 class InboundCallbacksMixin:
@@ -138,20 +137,11 @@ class InboundCallbacksMixin:
                 prefer_serial = (
                     incoming_fam == "serial"
                     and peer_expected == {"serial"}
-                ) or (
-                    incoming_fam == "serial"
-                    and not peer_expected
-                    and (
-                        self._failover_in_progress
-                        or not physical_lan_reachable()
-                        or self._peer_has_path_on_family(peer_hash, "serial")
-                        or (old_fam in ("udp", "lan") and not old_healthy)
-                    )
                 )
                 if (
                     prefer_serial
-                    or new_score > old_score + 8
-                    or (not old_healthy and new_score >= old_score)
+                    or (incoming_fam == old_fam and new_score > old_score + 8)
+                    or (not old_healthy and incoming_fam == old_fam and new_score >= old_score)
                 ):
                     self._handoff_to_link(link, peer_hash)
                 else:

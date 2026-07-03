@@ -244,7 +244,18 @@ class MessagingBridgeMixin:
             )
         settings = self.load_settings()
         if hub_group and settings.get("hub_role") == "server" and self.messaging and sender_hash:
-            self.messaging.relay_hub_message(chat_msg, sender_hash)
+            if chat_msg.msg_type in ("file", "image", "video", "voice"):
+                import threading
+
+                fp = chat_msg.content
+                threading.Thread(
+                    target=self.messaging.relay_hub_file,
+                    args=(chat_msg, sender_hash, fp),
+                    daemon=True,
+                    name=f"hub-relay-file-{chat_msg.msg_id[:8]}",
+                ).start()
+            else:
+                self.messaging.relay_hub_message(chat_msg, sender_hash)
         notify_peer = HUB_GROUP_PEER if hub_group else chat_peer
         if sender_hash and sender_hash != "system" and self._should_android_notify(notify_peer, entry):
             preview = self._notification_preview(entry)
@@ -579,6 +590,7 @@ class MessagingBridgeMixin:
             resolved, peer_ip=peer_ip or None, link=link,
         )
         link_rtt = None
+        link_quality = None
         if self.discovery and self.messaging:
             from chatx5.core.peer_probe import link_rtt_ms
             link_via = None
@@ -587,7 +599,11 @@ class MessagingBridgeMixin:
                     link_via = self.messaging._transport_from_link(link)
                 except Exception:
                     link_via = None
+            from chatx5.core.peer_probe import serial_link_quality_percent
+
             link_rtt = link_rtt_ms(self.messaging, resolved, transport=link_via)
+            if link_via == "serial" and link_rtt is not None:
+                link_quality = serial_link_quality_percent(link_rtt)
             if link_rtt is not None:
                 self.discovery.update_peer_probe(
                     resolved, rtt_ms=link_rtt, ok=True, via=link_via,
@@ -631,6 +647,7 @@ class MessagingBridgeMixin:
                         "passive": passive,
                         "user_disconnected": user_disconnected,
                         "rtt_ms": link_rtt,
+                        "link_quality_pct": link_quality,
                         "linked_peers": (
                             self.messaging.linked_peers() if self.messaging else []
                         ),

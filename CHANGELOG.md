@@ -2,6 +2,17 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.16] — 2026-07-02
+
+### Fixed
+- **Hub group file transfer** — large files, images, video, and voice in Group Chat now send over hub TCP (`send_hub_file`); the hub server relays received files to other linked clients; queued hub files drain correctly.
+- **Serial transport stability** — removed cross-transport serial↔LAN auto-failover when you pick a transport; links stay on the path you chose (same-transport reconnect only).
+
+### Added
+- **Serial RF link quality** — when connected over USB serial, the peer header and contact row show link quality % derived from handshake RTT.
+- **HTTPS with `--share`** — LAN sharing auto-enables TLS with a self-signed cert when OpenSSL is available (`--tls`, `--cert`/`--key`, `--no-tls` to opt out).
+- **WAN secure mode** — Settings → System toggles encrypted-only transfers (disables plain HTTP LAN file fast-path) for internet-facing use.
+
 ## [0.6.15] — 2026-07-03
 
 ### Changed

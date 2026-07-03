@@ -493,6 +493,19 @@
 
       <section id="settings-section-system" class="settings-pane">
         <div class="settings-block">
+          <h3>Internet / WAN security</h3>
+          <p class="block-lead">Use when chatx5 will reach peers over the public internet. Disables plain HTTP file fast-path; chat and files stay on encrypted RNS links only.</p>
+          <label class="settings-toggle-card">
+            <div class="toggle-text">
+              <strong>WAN secure mode</strong>
+              <span>Require encrypted transports only — no LAN HTTP file bypass. Pair with <code>--share --tls</code> for HTTPS UI.</span>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="settings-wan-secure-mode">
+            </div>
+          </label>
+        </div>
+        <div class="settings-block">
           <h3>Network maintenance</h3>
           <p class="block-lead">Background upkeep for discovery counters and network state.</p>
           <label class="settings-toggle-card">

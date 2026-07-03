@@ -442,6 +442,13 @@ class FailoverMixin:
         print(f"[connect] Waiting for path to {peer[:16]}... (no {prefer_family or 'usable'} path yet)")
         return False
 
+    def _session_transport_locked(self):
+        """True when the user picked a transport — no serial↔LAN cross-failover."""
+        raw = (self._session_transport or "").strip().lower()
+        if not raw:
+            return False
+        return self._normalize_transport(raw) in ("serial", "lan")
+
     def link_needs_failover(self):
         if self.dual_identity_mode:
             return False, ""
@@ -454,6 +461,16 @@ class FailoverMixin:
             return False, ""
 
         attached = self._link_attached_interface(self.active_link)
+        att_fam = interface_family(attached)
+        transport_locked = self._session_transport_locked()
+        if transport_locked:
+            session_fam = self._normalize_transport((self._session_transport or "").strip().lower())
+            if session_fam == "serial":
+                if att_fam == "serial" and self._link_interface_healthy(self.active_link):
+                    return False, ""
+            elif session_fam == "lan":
+                if att_fam in ("udp", "lan", "tcp") and self._link_interface_healthy(self.active_link):
+                    return False, ""
         if self._hub_transport_active() and self._peer_uses_hub_transport(peer):
             att_fam = interface_family(attached)
             if att_fam == "tcp" and self._link_interface_healthy(self.active_link):
@@ -469,10 +486,9 @@ class FailoverMixin:
             return True, f"link interface offline ({type(attached).__name__ if attached else 'none'})"
 
         path_iface = self._peer_path_interface_for_peer(peer)
-        att_fam = interface_family(attached)
         path_fam = interface_family(path_iface) if path_iface else ""
 
-        if path_iface and attached and not self._interfaces_equivalent(path_iface, attached):
+        if not transport_locked and path_iface and attached and not self._interfaces_equivalent(path_iface, attached):
             if self._interface_healthy(path_iface):
                 new_score = self._interface_path_score(path_iface)
                 old_score = self._interface_path_score(attached)
@@ -485,21 +501,13 @@ class FailoverMixin:
                 elif not in_grace and new_score > old_score + 25:
                     return True, f"better path on {type(path_iface).__name__}"
 
-        if att_fam == "lan" and not lan_mesh_has_peer():
-            if bool(online_interfaces(family="udp")):
-                return True, "AutoInterface down, UDP available"
-            if self._has_online_family("serial"):
-                return True, "LAN down, serial available"
-
-        if att_fam == "udp" and not self._lan_transport_ready():
-            if self._has_online_family("serial"):
-                return True, "LAN down, serial available"
-            if lan_mesh_has_peer():
-                return True, "UDP down, AutoInterface available"
-
-        if att_fam == "udp" and not physical_lan_reachable() and self._has_online_family("serial"):
-            if not in_grace:
-                return True, "ethernet down, serial available"
+        if not transport_locked:
+            if att_fam == "lan" and not lan_mesh_has_peer():
+                if bool(online_interfaces(family="udp")):
+                    return True, "AutoInterface down, UDP available"
+            if att_fam == "udp" and not self._lan_transport_ready():
+                if lan_mesh_has_peer():
+                    return True, "UDP down, AutoInterface available"
 
         serial_only = self._peer_expected_transport_families(peer) == {"serial"}
         lan_only = bool(
@@ -524,36 +532,10 @@ class FailoverMixin:
         if serial_only and att_fam == "serial" and self._link_interface_healthy(self.active_link):
             return False, ""
 
-        if (
-            not parallel
-            and att_fam in ("udp", "lan")
-            and self._has_online_family("serial")
-            and self._peer_has_path_on_family(peer, "serial")
-            and not in_grace
-            and not serial_only
-        ):
-            return True, "peer path on serial"
-
         if att_fam == "serial" and not self._serial_transport_ready():
-            if (self._has_online_family("udp") or self._has_online_family("lan")) and physical_lan_reachable():
-                if not serial_only:
+            if not serial_only and not transport_locked:
+                if (self._has_online_family("udp") or self._has_online_family("lan")) and physical_lan_reachable():
                     return True, "serial offline, LAN available"
-
-        if (
-            not parallel
-            and att_fam == "serial"
-            and physical_lan_reachable()
-            and self._has_online_family("udp")
-            and not in_grace
-            and not serial_only
-        ):
-            if self._serial_faster_than_lan(peer) and self._peer_has_path_on_family(peer, "serial"):
-                return False, ""
-            path_iface = self._peer_path_interface_for_peer(peer)
-            if path_iface and interface_family(path_iface) == "serial":
-                if self._serial_faster_than_lan(peer):
-                    return False, ""
-            return True, "LAN available, upgrading from serial"
 
         if len(self._pending_sends) >= RECEIPT_FAILOVER_MIN_PENDING:
             oldest = min(self._pending_sends.values())
@@ -573,10 +555,13 @@ class FailoverMixin:
                 and self._peer_link_active(peer)
             ):
                 pass
+            elif transport_locked:
+                if not self._link_interface_healthy(self.active_link):
+                    return True, "no path to peer (link interface dead)"
             else:
                 alt = self._preferred_failover_family(peer, attached)
-                if alt and self._has_online_family(alt):
-                    return True, f"path lost, trying {alt}"
+                if alt and alt == att_fam and self._has_online_family(alt):
+                    return True, f"path lost on {alt}"
                 if not self._link_interface_healthy(self.active_link):
                     return True, "no path to peer (link interface dead)"
 

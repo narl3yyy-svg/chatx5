@@ -12,6 +12,7 @@ from urllib.parse import unquote
 
 from aiohttp import web
 
+from chatx5.core.messaging import HUB_GROUP_PEER, is_hub_peer_hash
 from chatx5.core.voice import VoicePlayer
 from chatx5.utils.file_serve import stream_file_response
 from chatx5.utils.helpers import (
@@ -23,6 +24,43 @@ from chatx5.utils.helpers import (
 
 
 class TransferRoutesMixin:
+    def _transfer_target_ready(self, queue_target):
+        if not self.messaging or not queue_target:
+            return False
+        if is_hub_peer_hash(queue_target):
+            return bool(self.messaging._hub_tcp_linked_peers())
+        return bool(self.messaging._peer_link_active(queue_target))
+
+    def _hub_transfer_settings(self):
+        settings = self.load_settings()
+        role = settings.get("hub_role", "off")
+        return (
+            role,
+            (settings.get("hub_server_hash") or "").strip(),
+            role == "server",
+        )
+
+    def _send_transfer(self, save_path, msg_type, queue_target, fname, size, transfer_id):
+        if is_hub_peer_hash(queue_target):
+            role, hub_hash, hub_server_mode = self._hub_transfer_settings()
+            if role == "off":
+                return None
+            return self.messaging.send_hub_file(
+                save_path,
+                msg_type,
+                progress_callback=self._make_progress_callback(fname, size, transfer_id),
+                transfer_id=transfer_id,
+                hub_server_hash=hub_hash,
+                hub_server_mode=hub_server_mode,
+            )
+        return self.messaging.send_file(
+            save_path,
+            msg_type,
+            progress_callback=self._make_progress_callback(fname, size, transfer_id),
+            transfer_id=transfer_id,
+            target_peer=queue_target,
+        )
+
     async def handle_file_upload(self, request):
         if not self.messaging:
             return web.json_response({"error": "not ready"}, status=400)
@@ -53,18 +91,19 @@ class TransferRoutesMixin:
 
             queue_target = self._queue_target_hash()
             transfer_id = str(uuid.uuid4())[:12]
-            linked_to_target = bool(
-                queue_target and self.messaging._peer_link_active(queue_target)
-            )
+            hub_group = is_hub_peer_hash(queue_target)
+            linked_to_target = self._transfer_target_ready(queue_target)
             if not linked_to_target or self.messaging._has_active_transfer():
                 self.messaging.enqueue(
                     msg_type, save_path,
-                    target_hash=queue_target,
+                    target_hash=queue_target or HUB_GROUP_PEER,
                     file_name=fname, file_size=size, file_path=save_path,
                     msg_id=transfer_id,
                 )
                 my_hash = self._my_sender_hash()
-                chat_peer = self._peer_dest_hash(queue_target) or self._session_chat_peer()
+                chat_peer = HUB_GROUP_PEER if hub_group else (
+                    self._peer_dest_hash(queue_target) or self._session_chat_peer()
+                )
                 entry = self._enrich_message({
                     "type": msg_type,
                     "content": save_path,
@@ -75,6 +114,7 @@ class TransferRoutesMixin:
                     "file_name": fname,
                     "file_size": size,
                     "msg_id": transfer_id,
+                    "hub_group": hub_group,
                     "status": "queued",
                 }, outgoing=True)
                 self.message_history.append(entry)
@@ -85,11 +125,13 @@ class TransferRoutesMixin:
                     "name": fname,
                     "size": size,
                     "msg_id": transfer_id,
-                    "reason": None if not self.messaging.active_link else "transfer in progress",
+                    "reason": None if linked_to_target else "hub not linked",
                 })
             my_hash = self._my_sender_hash()
             ts = time.time()
-            chat_peer = self._peer_dest_hash(queue_target) or self._session_chat_peer()
+            chat_peer = HUB_GROUP_PEER if hub_group else (
+                self._peer_dest_hash(queue_target) or self._session_chat_peer()
+            )
             transfer_id = str(uuid.uuid4())[:12]
             entry = self._enrich_message({
                 "type": msg_type,
@@ -101,20 +143,23 @@ class TransferRoutesMixin:
                 "file_name": fname,
                 "file_size": size,
                 "msg_id": transfer_id,
+                "hub_group": hub_group,
                 "status": "sent",
             }, outgoing=True)
             self.message_history.append(entry)
             self._save_history()
             await self._broadcast({"type": "message", "data": entry})
 
-            result = self.messaging.send_file(
-                save_path, msg_type,
-                progress_callback=self._make_progress_callback(fname, size, transfer_id),
-                transfer_id=transfer_id,
-                target_peer=queue_target,
+            result = self._send_transfer(
+                save_path, msg_type, queue_target, fname, size, transfer_id,
             )
             if result:
-                method = "lan_http" if size >= 2 * 1024 * 1024 and self.host in ("0.0.0.0", "::") else "resource"
+                if hub_group:
+                    method = "hub_resource"
+                elif size >= 2 * 1024 * 1024 and self.host in ("0.0.0.0", "::"):
+                    method = "lan_http"
+                else:
+                    method = "resource"
                 return web.json_response({"status": "ok", "name": fname, "size": size, "method": method})
             return web.json_response({"error": "send failed"}, status=400)
         except Exception as e:
@@ -194,19 +239,20 @@ class TransferRoutesMixin:
             zsize = os.path.getsize(zip_path)
             print(f"[folder] Created {zip_name} ({zsize} bytes, {file_count} files)")
             queue_target = self._queue_target_hash()
-            linked_to_target = bool(
-                queue_target and self.messaging._peer_link_active(queue_target)
-            )
+            hub_group = is_hub_peer_hash(queue_target)
+            linked_to_target = self._transfer_target_ready(queue_target)
             if not linked_to_target or self.messaging._has_active_transfer():
                 transfer_id = str(uuid.uuid4())[:12]
                 self.messaging.enqueue(
                     "file", zip_path,
-                    target_hash=queue_target,
+                    target_hash=queue_target or HUB_GROUP_PEER,
                     file_name=zip_name, file_size=zsize, file_path=zip_path,
                     msg_id=transfer_id,
                 )
                 my_hash = self._my_sender_hash()
-                chat_peer = self._peer_dest_hash(queue_target) or self._session_chat_peer()
+                chat_peer = HUB_GROUP_PEER if hub_group else (
+                    self._peer_dest_hash(queue_target) or self._session_chat_peer()
+                )
                 entry = self._enrich_message({
                     "type": "file",
                     "content": zip_path,
@@ -217,6 +263,7 @@ class TransferRoutesMixin:
                     "file_name": zip_name,
                     "file_size": zsize,
                     "msg_id": transfer_id,
+                    "hub_group": hub_group,
                     "status": "queued",
                 }, outgoing=True)
                 self.message_history.append(entry)
@@ -231,7 +278,9 @@ class TransferRoutesMixin:
                 })
             my_hash = self._my_sender_hash()
             ts = time.time()
-            chat_peer = self._peer_dest_hash(queue_target) or self._session_chat_peer()
+            chat_peer = HUB_GROUP_PEER if hub_group else (
+                self._peer_dest_hash(queue_target) or self._session_chat_peer()
+            )
             transfer_id = str(uuid.uuid4())[:12]
             entry = self._enrich_message({
                 "type": "file",
@@ -243,16 +292,14 @@ class TransferRoutesMixin:
                 "file_name": zip_name,
                 "file_size": zsize,
                 "msg_id": transfer_id,
+                "hub_group": hub_group,
                 "status": "sent",
             }, outgoing=True)
             self.message_history.append(entry)
             self._save_history()
             await self._broadcast({"type": "message", "data": entry})
-            result = self.messaging.send_file(
-                zip_path, "file",
-                progress_callback=self._make_progress_callback(zip_name, zsize, transfer_id),
-                transfer_id=transfer_id,
-                target_peer=queue_target,
+            result = self._send_transfer(
+                zip_path, "file", queue_target, zip_name, zsize, transfer_id,
             )
             if result:
                 return web.json_response({"status": "ok", "name": zip_name, "size": zsize})
@@ -308,20 +355,21 @@ class TransferRoutesMixin:
                 f.write(audio_bytes)
 
             queue_target = self._queue_target_hash()
-            linked_to_target = bool(
-                queue_target and self.messaging._peer_link_active(queue_target)
-            )
+            hub_group = is_hub_peer_hash(queue_target)
+            linked_to_target = self._transfer_target_ready(queue_target)
             if not linked_to_target or self.messaging._has_active_transfer():
                 voice_name = os.path.basename(voice_path)
                 transfer_id = str(uuid.uuid4())[:12]
                 self.messaging.enqueue(
-                    "voice", voice_path, target_hash=queue_target,
+                    "voice", voice_path, target_hash=queue_target or HUB_GROUP_PEER,
                     file_name=voice_name,
                     file_size=len(audio_bytes), file_path=voice_path,
                     msg_id=transfer_id,
                 )
                 my_hash = self._my_sender_hash()
-                chat_peer = self._peer_dest_hash(queue_target) or self._session_chat_peer()
+                chat_peer = HUB_GROUP_PEER if hub_group else (
+                    self._peer_dest_hash(queue_target) or self._session_chat_peer()
+                )
                 entry = self._enrich_message({
                     "type": "voice",
                     "content": voice_path,
@@ -332,6 +380,7 @@ class TransferRoutesMixin:
                     "file_name": voice_name,
                     "file_size": len(audio_bytes),
                     "msg_id": transfer_id,
+                    "hub_group": hub_group,
                     "status": "queued",
                 }, outgoing=True)
                 self.message_history.append(entry)
@@ -345,7 +394,9 @@ class TransferRoutesMixin:
 
             my_hash = self._my_sender_hash()
             ts = time.time()
-            chat_peer = self._peer_dest_hash(queue_target) or self._session_chat_peer()
+            chat_peer = HUB_GROUP_PEER if hub_group else (
+                self._peer_dest_hash(queue_target) or self._session_chat_peer()
+            )
             voice_name = os.path.basename(voice_path)
             transfer_id = str(uuid.uuid4())[:12]
             entry = self._enrich_message({
@@ -358,17 +409,15 @@ class TransferRoutesMixin:
                 "file_name": voice_name,
                 "file_size": len(audio_bytes),
                 "msg_id": transfer_id,
+                "hub_group": hub_group,
                 "status": "sent",
             }, outgoing=True)
             self.message_history.append(entry)
             self._save_history()
             await self._broadcast({"type": "message", "data": entry})
 
-            result = self.messaging.send_file(
-                voice_path, "voice",
-                progress_callback=self._make_progress_callback(voice_name, len(audio_bytes), transfer_id),
-                transfer_id=transfer_id,
-                target_peer=queue_target,
+            result = self._send_transfer(
+                voice_path, "voice", queue_target, voice_name, len(audio_bytes), transfer_id,
             )
             if result:
                 return web.json_response({"status": "ok"})

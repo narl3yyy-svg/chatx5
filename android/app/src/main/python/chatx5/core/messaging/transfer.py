@@ -727,7 +727,7 @@ class TransferMixin:
                 pass
 
     def send_file(self, file_path, msg_type=MESSAGE_TYPE_FILE, progress_callback=None,
-                  transfer_id=None, target_peer=None, link=None):
+                  transfer_id=None, target_peer=None, link=None, hub_group=False):
         peer = self.dest_hash_for(target_peer or self.active_peer_hash or "")
         link = link or self._best_transfer_link(peer) or self._outgoing_link(peer)
         if link:
@@ -747,6 +747,8 @@ class TransferMixin:
             fname = os.path.basename(file_path)
             fsize = os.path.getsize(file_path)
             chat_msg = ChatMessage(msg_type, str(time.time()), file_name=fname, file_size=fsize, msg_id=transfer_id)
+            if hub_group:
+                chat_msg.hub_group = True
             transfer_id = chat_msg.msg_id
             self._current_transfer_id = transfer_id
             cancel_ev = threading.Event()

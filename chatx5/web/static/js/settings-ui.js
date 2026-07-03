@@ -123,6 +123,7 @@ function saveSettings() {
       lan_probe_interval_s, serial_probe_interval_s,
       brand_title: (document.getElementById('settings-brand-title')?.value || '').trim().slice(0, 18),
       lan_announce_interval_s, serial_announce_interval_s, max_peer_links,
+      wan_secure_mode: !!document.getElementById('settings-wan-secure-mode')?.checked,
     })
   }).then(async r => {
     const d = await r.json();

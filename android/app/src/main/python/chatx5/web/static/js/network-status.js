@@ -97,7 +97,7 @@ function renderNetworkStatusPanel(d) {
 
   const serialRows = d.serial_configured_port
     ? nsKv('Port', d.serial_configured_port)
-      + nsKv('In RNS', d.serial_in_rns ? 'Yes — failover ready' : 'Waiting for hot-add')
+      + nsKv('In RNS', d.serial_in_rns ? 'Yes — path ready' : 'Waiting for hot-add')
     : nsKv('Port', 'Not configured');
   const serialState = d.serial_in_rns ? 'Active' : (d.serial_configured_port ? 'Configured' : 'Off');
 

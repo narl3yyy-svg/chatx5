@@ -280,7 +280,10 @@ class RNSLifecycleMixin:
             receive_dir=received_dir,
             peer_resolver=self._resolve_incoming_peer,
             http_port=self.port,
-            lan_transfer_enabled=(self.host in ("0.0.0.0", "::")),
+            lan_transfer_enabled=(
+                self.host in ("0.0.0.0", "::")
+                and not bool(settings.get("wan_secure_mode"))
+            ),
             peer_endpoint_resolver=self._peer_endpoint_for_transfer,
             peer_scope_checker=self._peer_in_discovery_scope,
             peer_transport_resolver=lambda h, via=None: self._discovery_peer_for_connect(

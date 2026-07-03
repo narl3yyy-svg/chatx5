@@ -21,6 +21,26 @@ PROBE_AVG_WINDOW = 6
 PROBE_PACKET_MIN_BYTES = 32
 PROBE_PACKET_MAX_BYTES = 1472
 PROBE_PACKET_DEFAULT_BYTES = 64
+SERIAL_QUALITY_EXCELLENT_MS = 50
+SERIAL_QUALITY_POOR_MS = 2000
+
+
+def serial_link_quality_percent(rtt_ms):
+    """Map serial RF link RTT to a 0–100% quality score (lower RTT = better)."""
+    if rtt_ms is None:
+        return None
+    try:
+        rtt = int(rtt_ms)
+    except (TypeError, ValueError):
+        return None
+    if rtt < 0:
+        return None
+    if rtt <= SERIAL_QUALITY_EXCELLENT_MS:
+        return 100
+    if rtt >= SERIAL_QUALITY_POOR_MS:
+        return 0
+    span = SERIAL_QUALITY_POOR_MS - SERIAL_QUALITY_EXCELLENT_MS
+    return max(0, min(100, int(100 * (SERIAL_QUALITY_POOR_MS - rtt) / span)))
 
 
 def clamp_probe_interval(seconds):

@@ -97,7 +97,14 @@ function renderContactTransportRow(contact, via) {
   const labelClass = via === 'serial' ? 'usb' : 'lan';
   const linked = isPeerLinked(hash, via);
   const rowActive = viewingPeer && peersMatch(viewingPeer, hash) && normalizeVia(viewingVia) === normalizeVia(via);
-  const rttHint = rttForContactTransport(contact, via);
+  let rttHint = rttForContactTransport(contact, via);
+  if (via === 'serial' && linked && typeof serialQualityFromRtt === 'function') {
+    const lk = linkKey(hash, 'serial');
+    const q = (lk && linkQualityByKey[lk] != null)
+      ? linkQualityByKey[lk]
+      : serialQualityFromRtt(linkRttByKey[lk]);
+    if (q != null) rttHint = `${q}% RF`;
+  }
   const rttBadge = rttHint ? `<span class="peer-rtt">${escapeHtml(rttHint)}</span>` : '';
   const ipHint = via === 'lan' && (p?.ip || contact.ip) ? ` · ${escapeHtml(p?.ip || contact.ip)}` : '';
   return `<div class="contact-transport-row${rowActive ? ' active' : ''}" data-via="${via}">

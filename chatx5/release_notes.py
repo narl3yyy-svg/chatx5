@@ -3,6 +3,13 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.16": [
+        "Fix: Group chat file transfers — images, video, voice, and large files send over hub TCP; hub server relays to other clients.",
+        "Fix: Serial/USB links no longer auto-switch to LAN (or vice versa) — the transport you tap stays active.",
+        "New: Serial link quality % in peer header when connected over USB RF.",
+        "New: --share enables HTTPS locally when OpenSSL is available; use --no-tls for plain HTTP.",
+        "New: WAN secure mode (Settings → System) — encrypted RNS only, no plain HTTP file fast-path.",
+    ],
     "0.6.15": [
         "Refactor: Web UI split into css/app.css + 15 js modules — easier to maintain; same features and layout.",
         "Fix: Static assets (CSS/JS) packaged correctly for pip installs and Android WebView.",

@@ -95,6 +95,8 @@ function applySettingsToForm(s, ifaces) {
   if (receivedEl) receivedEl.value = s.received_dir || '';
   const autoReset = document.getElementById('settings-network-auto-reset');
   if (autoReset) autoReset.checked = s.network_stats_auto_reset !== false;
+  const wanSecure = document.getElementById('settings-wan-secure-mode');
+  if (wanSecure) wanSecure.checked = !!s.wan_secure_mode;
   if (Array.isArray(ifaces)) {
     populateLanInterfaceSelect(ifaces, s.lan_interface || '');
     renderLanInterfaceSummary(ifaces);
@@ -556,6 +558,37 @@ function showWelcome() {
 }
 
 const linkRttByKey = {};
+const linkQualityByKey = {};
+
+function applyLinkQuality(hash, qualityPct, via) {
+  if (!hash) return;
+  const n = parseInt(qualityPct, 10);
+  const clear = !Number.isFinite(n) || n < 0;
+  const transport = normalizeVia(via || viewingVia);
+  if (transport !== 'serial') return;
+  const lk = linkKey(hash, transport);
+  if (!lk) return;
+  if (clear) delete linkQualityByKey[lk];
+  else linkQualityByKey[lk] = Math.max(0, Math.min(100, n));
+}
+
+function linkQualityForViewingPeer() {
+  if (!viewingPeer || normalizeVia(viewingVia) !== 'serial') return null;
+  if (!isPeerLinked(viewingPeer, viewingVia)) return null;
+  const lk = linkKey(viewingPeer, 'serial');
+  if (lk && linkQualityByKey[lk] != null) return linkQualityByKey[lk];
+  const rtt = linkRttByKey[lk];
+  if (rtt == null) return null;
+  return serialQualityFromRtt(rtt);
+}
+
+function serialQualityFromRtt(rttMs) {
+  const rtt = parseInt(rttMs, 10);
+  if (!Number.isFinite(rtt) || rtt < 0) return null;
+  if (rtt <= 50) return 100;
+  if (rtt >= 2000) return 0;
+  return Math.max(0, Math.min(100, Math.round(100 * (2000 - rtt) / 1950)));
+}
 
 function applyLinkRttToDiscovered(hash, rttMs, via) {
   if (!hash) return;
@@ -566,6 +599,10 @@ function applyLinkRttToDiscovered(hash, rttMs, via) {
   if (lk) {
     if (clear) delete linkRttByKey[lk];
     else linkRttByKey[lk] = n;
+    if (transport === 'serial') {
+      if (clear) delete linkQualityByKey[lk];
+      else linkQualityByKey[lk] = serialQualityFromRtt(n);
+    }
   }
   window._discoveredPeers = (window._discoveredPeers || []).map(p => {
     if (!peersMatch(p.hash, hash) && !peersMatch(p.identity_hash, hash)) return p;
@@ -615,8 +652,13 @@ function updatePeerHeader() {
   const isHubChat = viewingPeer === HUB_GROUP_PEER;
   const name = contactNameFor(viewingPeer) || truncateHash(viewingPeer);
   const linked = isPeerLinked(viewingPeer, viewingVia);
-  const rtt = linked && !isHubChat ? rttForViewingPeer() : '';
+  const viaNorm = normalizeVia(viewingVia);
+  const rtt = linked && !isHubChat && viaNorm !== 'serial' ? rttForViewingPeer() : '';
+  const quality = linked && !isHubChat && viaNorm === 'serial' ? linkQualityForViewingPeer() : null;
   const rttBadge = rtt ? ` · <span class="peer-rtt">${escapeHtml(rtt)}</span>` : '';
+  const qualityBadge = quality != null
+    ? ` · <span class="peer-rtt">${escapeHtml(String(quality))}% RF</span>`
+    : '';
   document.getElementById('peer-name').textContent = name;
   linkPeer = linked && !isHubChat ? linkKey(viewingPeer, viewingVia) : null;
   const fullHash = isHubChat ? 'Group relay' : (peerKey(viewingPeer) || '');
@@ -624,7 +666,7 @@ function updatePeerHeader() {
   const statusEl = document.getElementById('peer-status');
   if (statusEl) {
     let conn = isHubChat ? hubGroupStatusLabel() : (linked ? 'Connected' : 'Not connected');
-    statusEl.innerHTML = `${escapeHtml(fullHash)} · ${escapeHtml(iface)} · ${conn}${rttBadge}`;
+    statusEl.innerHTML = `${escapeHtml(fullHash)} · ${escapeHtml(iface)} · ${conn}${qualityBadge || rttBadge}`;
   }
   document.getElementById('disconnect-btn').style.display = linked ? 'block' : 'none';
   setLinkStatus(linked ? 'connected' : 'disconnected', linked ? 'Active' : 'Inactive');

@@ -93,13 +93,18 @@ class ChatWebServer(
     DiscoveryBridgeMixin,
     ShareBrowserMixin,
 ):
-    def __init__(self, host="127.0.0.1", port=8742, verbose=False, debug=False, force=False, embedded=False):
+    def __init__(self, host="127.0.0.1", port=8742, verbose=False, debug=False, force=False,
+                 embedded=False, use_tls=False, cert_path=None, key_path=None):
         self.host = host
         self.port = port
         self.verbose = verbose
         self.debug = debug
         self.force = force
         self.embedded = embedded
+        self.use_tls = bool(use_tls)
+        self.cert_path = cert_path
+        self.key_path = key_path
+        self._ssl_context = None
         self.config_dir = CONFIG_DIR
         self.data_dir = DATA_DIR
         os.makedirs(self.config_dir, exist_ok=True)
@@ -396,9 +401,21 @@ class ChatWebServer(
         app.on_shutdown.append(self._on_shutdown)
         app.on_cleanup.append(self._on_cleanup)
 
+        if self.use_tls:
+            from chatx5.utils.tls import build_ssl_context, ensure_self_signed_cert
+
+            cert = self.cert_path
+            key = self.key_path
+            if not cert or not key:
+                cert, key = ensure_self_signed_cert(self.config_dir)
+            self._ssl_context = build_ssl_context(cert, key)
+        scheme = "https" if self._ssl_context else "http"
         print(f"chatx5 web server v{APP_VERSION}")
-        print(f"Web interface: http://{self.host}:{self.port}")
-        print("[startup] HTTP listening — RNS/network stack starting in background")
+        print(f"Web interface: {scheme}://{self.host}:{self.port}")
+        if self._ssl_context:
+            print("[startup] HTTPS listening (self-signed cert — trust in browser for LAN access)")
+        else:
+            print("[startup] HTTP listening — RNS/network stack starting in background")
         print("Press Ctrl+C to stop")
 
         loop = asyncio.new_event_loop()
@@ -409,7 +426,11 @@ class ChatWebServer(
 
         async def _start():
             await runner.setup()
-            site = TCPSite(runner, self.host, self.port, reuse_address=True)
+            site = TCPSite(
+                runner, self.host, self.port,
+                reuse_address=True,
+                ssl_context=self._ssl_context,
+            )
             await site.start()
 
         def _stop_loop(signum=None, frame=None):
@@ -483,6 +504,12 @@ def main():
     parser.add_argument("--host", default="127.0.0.1", help="Bind address")
     parser.add_argument("--port", type=int, default=8742, help="Port")
     parser.add_argument("--share", action="store_true", help="Listen on 0.0.0.0 (accessible on LAN)")
+    parser.add_argument("--tls", action="store_true",
+                        help="Serve web UI over HTTPS (auto self-signed cert if --cert/--key omitted)")
+    parser.add_argument("--no-tls", action="store_true",
+                        help="With --share, keep plain HTTP even if OpenSSL is available")
+    parser.add_argument("--cert", default=None, help="TLS certificate PEM (with --tls)")
+    parser.add_argument("--key", default=None, help="TLS private key PEM (with --tls)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show RNS debug logs")
     parser.add_argument("--debug", "-d", action="store_true",
                         help="Extreme RNS logging + chatx5 trace logs (very noisy)")
@@ -490,7 +517,18 @@ def main():
                         help="Stop any existing chatx5 server before starting")
     args = parser.parse_args()
     host = "0.0.0.0" if args.share else args.host
-    server = ChatWebServer(host=host, port=args.port, verbose=args.verbose, debug=args.debug, force=args.force)
+    use_tls = bool(args.tls)
+    if args.share and not args.no_tls and not use_tls:
+        try:
+            from chatx5.utils.tls import ensure_self_signed_cert
+            ensure_self_signed_cert(CONFIG_DIR)
+            use_tls = True
+        except Exception as exc:
+            print(f"[startup] HTTPS unavailable ({exc}) — using HTTP")
+    server = ChatWebServer(
+        host=host, port=args.port, verbose=args.verbose, debug=args.debug, force=args.force,
+        use_tls=use_tls, cert_path=args.cert, key_path=args.key,
+    )
     try:
         server.run()
     except KeyboardInterrupt:

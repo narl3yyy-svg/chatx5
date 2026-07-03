@@ -150,6 +150,7 @@ function handleWSMessage(msg) {
       registerPeerAliases(h, ...(msg.data.aliases || []));
       const linkVia = msg.data.via || viaForLinkedPeer(h) || viewingVia;
       if (msg.data.rtt_ms != null) applyLinkRttToDiscovered(h, msg.data.rtt_ms, linkVia);
+      if (msg.data.link_quality_pct != null) applyLinkQuality(h, msg.data.link_quality_pct, linkVia);
       const passive = msg.data.passive || msg.data.user_disconnected;
       if (msg.data.linked_peers) {
         syncLinkedPeers(msg.data.linked_peers);

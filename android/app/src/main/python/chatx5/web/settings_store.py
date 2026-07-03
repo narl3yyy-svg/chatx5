@@ -56,6 +56,7 @@ class SettingsStoreMixin:
             "setup_complete": False,
             "last_release_notes_seen": "",
             "max_peer_links": 0,
+            "wan_secure_mode": False,
         }
         try:
             with open(SETTINGS_FILE) as f:
