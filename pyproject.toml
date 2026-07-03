@@ -33,7 +33,7 @@ chatx5 = "chatx5.app:main"
 chatx5-web = "chatx5.web.server:main"
 
 [tool.setuptools.package-data]
-chatx5 = ["web/static/*"]
+chatx5 = ["web/static/*", "web/static/css/*", "web/static/js/*"]
 
 [tool.ruff]
 line-length = 100

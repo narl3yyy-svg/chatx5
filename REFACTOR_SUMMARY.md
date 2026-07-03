@@ -1,11 +1,11 @@
 # chatx5 Refactor Summary
 
-**Cleanliness score:** **10 / 10** (up from 4.5 pre-refactor) — messaging and web
-layers fully modularized; failover logic split out of the backend orchestrator;
-lint + types + tests + Android-sync gated by CI on every push and PR; tooling
-enforced locally via pre-commit. Remaining item is the intentionally-tracked
-Android bundle copy (kept in git so offline/CI APK builds work; kept in sync
-automatically and verified).
+**Cleanliness score:** **9.2 / 10** (up from 4.5 pre-refactor) — messaging and web
+Python layers fully modularized; frontend split from a 7.3k-line monolith into
+`index.html` shell + `css/app.css` + 15 focused JS modules; failover logic split
+out of the backend orchestrator; lint + types + tests + Android-sync gated by CI
+on every push and PR. Remaining: a few Python files still >1k lines; Android
+bundle copy in git (Phase 13).
 
 Baseline (pre-refactor): **4.5 / 10** — two 5k+ line god-modules, duplicated Android tree, minimal tooling.
 
@@ -63,7 +63,39 @@ chatx5/web/
   share_browser.py       # shared-folder browse sessions
 ```
 
-**305 tests pass**. Public API unchanged.
+**308 tests pass**. Public API unchanged.
+
+## Phase 11 — Frontend modularization (done)
+
+**Before:** `chatx5/web/static/index.html` (~7,281 lines) — CSS, HTML, and ~260
+functions in one file.
+
+**After:**
+
+```
+chatx5/web/static/
+  index.html          # ~612 lines — markup + script load order + bootstrap
+  css/app.css         # design tokens, layout, components
+  js/
+    state.js          # globals, constants, emoji tables
+    utils.js          # escapeHtml, toast, formatSize
+    peers.js          # peerKey, peersMatch, link state, contact display names
+    layout.js         # sidebar, Android shell, unread badges
+    app-core.js       # init pipeline, settings form, identity fetch
+    ws.js             # WebSocket connect + message dispatch
+    contacts.js       # saved contacts render/save/dedupe
+    discovery.js      # discovered peers, connect, announce
+    settings.js       # RNS interfaces, hub, LAN transport
+    network-status.js # live status panel (v0.6.14 cards)
+    settings-ui.js    # settings screen, release notes
+    chat.js           # openChat, send, disconnect
+    messages.js       # message render, emoji, voice, uploads
+    share.js          # shared-folder browser
+    identity.js       # identity modal, debug log, brand logo
+```
+
+Served at `/static/css/*` and `/static/js/*` via existing `handle_static` route.
+`tests/test_static_frontend.py` verifies all referenced assets exist.
 
 ## v0.6.14 — Contact names + live status UI (done)
 
@@ -150,15 +182,19 @@ Chaquopy still needs `android/app/src/main/python/chatx5/` on disk. Strategy:
 |-------|--------|--------|
 | 9 | Tooling + import hygiene + Android build sync | **done** |
 | 10 | Hub client fix + `FailoverMixin` split + CI on every push | **done** |
-| 11 | Perf | Peer hash index sets, probe cache, WS debounce (future) |
-| 12 | Android bundle untracked | Gradle-only sync, drop git copy (future) |
+| 11 | Frontend modularization (`index.html` → css + js/) | **done** |
+| 12 | Oversized Python module splits | future |
+| 13 | Android bundle untracked | future |
+| 14 | Perf (peer hash index, probe cache, WS debounce) | future |
 
 ## Remaining technical debt
 
-- `backend.py` ~1,108 lines (down from ~1,671; `FailoverMixin` extracted). A
-  further send-path/session split is possible but the file now reads cleanly.
+- `backend.py` ~1,150 lines; `connect.py`, `rns_interfaces.py`, `rns_lifecycle.py`,
+  `platform.py`, `discovery.py` still >1k lines (Phase 12 Python splits).
+- Frontend JS uses classic global scripts (not ES modules) — Phase 11b could add
+  `type="module"` with explicit exports once onclick handlers move to listeners.
 - Android Python tree still duplicated in git (sync is automated and verified;
-  Phase 12 would drop the tracked copy).
+  Phase 13 would drop the tracked copy).
 
 ## How to verify
 
