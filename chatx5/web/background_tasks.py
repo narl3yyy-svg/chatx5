@@ -114,6 +114,13 @@ class BackgroundTasksMixin:
                 )
                 rtt_updated = True
         removed = self.discovery.purge_stale_probes()
+        try:
+            from chatx5.core.rns_interfaces import prune_dead_serial_interfaces
+            pruned = prune_dead_serial_interfaces()
+            if pruned:
+                print(f"[serial] Pruned {pruned} dead interface(s) during probe cycle")
+        except Exception:
+            pass
         if rtt_updated and self.websockets and self._loop:
             self._schedule_peers_broadcast()
         return removed, bool(rtt_updated)

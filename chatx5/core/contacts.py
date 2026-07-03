@@ -147,9 +147,17 @@ def _contact_hashes(contact):
     return out
 
 
+def _normalize_contact_hash(peer_hash):
+    try:
+        from chatx5.core.discovery import normalize_hash
+        return normalize_hash(peer_hash)
+    except Exception:
+        return (peer_hash or "").strip().replace(":", "").lower()
+
+
 def find_contact_by_hash(config_dir, peer_hash):
     """Return a saved contact matching any stored hash field."""
-    clean = (peer_hash or "").strip().replace(":", "")
+    clean = _normalize_contact_hash(peer_hash)
     if not clean:
         return None
     for contact in list_contacts(config_dir):
@@ -160,6 +168,22 @@ def find_contact_by_hash(config_dir, peer_hash):
 
 def contact_has_hash(config_dir, peer_hash):
     return find_contact_by_hash(config_dir, peer_hash) is not None
+
+
+def contact_hash_for_transport(contact, prefer_via=None):
+    """Best connect hash for a saved contact row (LAN vs serial)."""
+    entry = normalize_contact(dict(contact or {}))
+    via = (prefer_via or "").strip().lower()
+    if via in ("serial", "usb"):
+        serial = (entry.get("serial_hash") or "").replace(":", "")
+        return serial or None
+    if via in ("lan", "rns", "beacon", "udp", "tcp", ""):
+        lan = (entry.get("lan_hash") or entry.get("hash") or "").replace(":", "")
+        return lan or None
+    lan = (entry.get("lan_hash") or entry.get("hash") or "").replace(":", "")
+    if lan:
+        return lan
+    return (entry.get("serial_hash") or "").replace(":", "") or None
 
 
 def _peer_transport_family(via):

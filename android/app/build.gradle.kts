@@ -15,8 +15,8 @@ val versionProps = Properties().apply {
 val appVersionName = versionProps.getProperty("VERSION_NAME", "0.0.0")
 val appVersionCode = versionProps.getProperty("VERSION_CODE", "1").toInt()
 // CI release metadata (keep in sync via scripts/bump-version.sh)
-val releaseVersionNameForCi = "0.6.25"  // versionName
-val releaseVersionCodeForCi = 212  // versionCode
+val releaseVersionNameForCi = "0.6.26"  // versionName
+val releaseVersionCodeForCi = 213  // versionCode
 
 android {
     namespace = "com.chatx5.android"
@@ -70,10 +70,10 @@ chaquopy {
             install("aiohttp")
         }
     }
-    // Canonical Python source at repo-root chatx5/ (Phase 13 — no tracked bundle copy).
+    // Canonical Python source at repo-root chatx5/ (replaces default src/main/python).
     sourceSets {
         getByName("main") {
-            srcDir("../../chatx5")
+            setSrcDirs(listOf("../../chatx5"))
         }
     }
 }

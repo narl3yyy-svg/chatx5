@@ -11,8 +11,8 @@ if [ ! -d "$SRC" ]; then
   exit 1
 fi
 
-if ! grep -q 'srcDir("../../chatx5")' "$GRADLE"; then
-  echo "verify-android-sync: android/app/build.gradle.kts must set chaquopy srcDir to ../../chatx5" >&2
+if ! grep -qE 'srcDir\("../../chatx5"\)|setSrcDirs\(listOf\("../../chatx5"\)\)' "$GRADLE"; then
+  echo "verify-android-sync: android/app/build.gradle.kts must point chaquopy at ../../chatx5" >&2
   exit 1
 fi
 

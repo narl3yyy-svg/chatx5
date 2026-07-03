@@ -304,7 +304,8 @@ function renderContacts(contacts) {
       };
     });
     if (!rows) {
-      div.onclick = () => openChat(c.hash, true, { ip: c.ip, port: c.port });
+      const fallbackHash = contactLanHash(c) || contactSerialHash(c) || c.hash;
+      div.onclick = () => openChat(fallbackHash, true, { ip: c.ip, port: c.port });
     }
     div.oncontextmenu = (e) => {
       e.preventDefault();

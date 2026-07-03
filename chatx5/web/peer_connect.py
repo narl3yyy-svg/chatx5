@@ -158,9 +158,14 @@ class PeerConnectMixin:
                         "pick the matching IPv4 on both devices"
                     ),
                 }, status=400)
+            saved_contact = self._find_saved_contact(peer_hash) or self._find_saved_contact(
+                resolved_hash,
+            )
             if (
                 self.discovery
                 and hub_role == "off"
+                and not saved_contact
+                and not contact_has_hash(self.config_dir, peer_hash)
                 and not contact_has_hash(self.config_dir, resolved_hash)
                 and not self._peer_is_current(resolved_hash)
                 and not (

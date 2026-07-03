@@ -3,6 +3,11 @@
 from chatx5._version import __version__ as CURRENT_VERSION
 
 RELEASE_NOTES = {
+    "0.6.26": [
+        "Fix: Saved contacts connect reliably — no more “stale peer hash” when opening a contact you already saved.",
+        "Fix: USB unplugged no longer floods logs with /dev/ttyUSB0 reconnect errors.",
+        "Fix: Android APK builds use a single canonical Python source tree.",
+    ],
     "0.6.25": [
         "Internal: rns_interfaces split into focused modules — same behavior, easier maintenance.",
         "Internal: Android builds use repo-root Python sources directly (no duplicate tree in git).",

@@ -10,8 +10,10 @@ import RNS
 
 from chatx5.core.contacts import (
     contact_has_hash,
+    contact_hash_for_transport,
     find_contact_by_hash,
     list_contacts,
+    sync_contact_from_discovery,
 )
 from chatx5.core.discovery import normalize_hash
 from chatx5.core.messaging import HUB_GROUP_PEER, is_hub_peer_hash
@@ -471,10 +473,65 @@ class MessagingBridgeMixin:
                 best = peer
         return best
 
+    def _find_saved_contact(self, peer_hash):
+        for candidate in (peer_hash, self._peer_dest_hash(peer_hash)):
+            contact = find_contact_by_hash(self.config_dir, candidate)
+            if contact:
+                return contact
+        return None
+
+    def _refresh_saved_contact_from_discovery(self, contact, prefer_via=None):
+        if not contact or not self.discovery:
+            return contact
+        from chatx5.core.contacts import _contact_matches_discovery_peer
+
+        updated = contact
+        contacts_dirty = False
+        for peer in self._scoped_peers():
+            if prefer_via and not self._peer_matches_transport(peer, prefer_via):
+                continue
+            if not _contact_matches_discovery_peer(
+                contact, peer, peers_equivalent=self._peers_equivalent,
+            ):
+                continue
+            synced = sync_contact_from_discovery(
+                self.config_dir,
+                peer,
+                peers_equivalent=self._peers_equivalent,
+                local_scope_ip=self._discovery_scope_ip(),
+            )
+            if synced:
+                updated = synced
+                contacts_dirty = True
+        if contacts_dirty:
+            self._schedule_contacts_broadcast()
+        return updated
+
+    def _saved_contact_connect_hash(self, peer_hash, prefer_via=None, peer_ip=None):
+        contact = self._find_saved_contact(peer_hash)
+        if not contact:
+            return None
+        contact = self._refresh_saved_contact_from_discovery(contact, prefer_via=prefer_via)
+        transport_hash = contact_hash_for_transport(contact, prefer_via)
+        if transport_hash:
+            return self._peer_dest_hash(transport_hash)
+        if peer_ip:
+            for peer in self._scoped_peers():
+                if (peer.get("ip") or "").strip() != peer_ip:
+                    continue
+                if prefer_via and not self._peer_matches_transport(peer, prefer_via):
+                    continue
+                return self._peer_dest_hash(peer.get("hash"))
+        return self._peer_dest_hash(
+            contact.get("lan_hash") or contact.get("hash") or contact.get("serial_hash"),
+        )
+
     def _peer_is_current(self, peer_hash):
         clean = self._peer_dest_hash(peer_hash)
         if not clean:
             return False
+        if self._find_saved_contact(peer_hash) or self._find_saved_contact(clean):
+            return True
         if contact_has_hash(self.config_dir, clean):
             return True
         scope_ip = self._discovery_scope_ip()
@@ -508,20 +565,17 @@ class MessagingBridgeMixin:
         return pvia in ("rns", "beacon", "lan", "")
 
     def _contact_hash_for_transport(self, peer_hash, prefer_via=None):
-
-        contact = find_contact_by_hash(self.config_dir, self._peer_dest_hash(peer_hash))
+        contact = self._find_saved_contact(peer_hash)
         if not contact:
             return None
-        via = (prefer_via or "").strip().lower()
-        if via == "serial":
-            serial = (contact.get("serial_hash") or "").replace(":", "")
-            return serial or None
-        if via in ("lan", "rns", "beacon", "udp", "tcp"):
-            lan = (contact.get("lan_hash") or contact.get("hash") or "").replace(":", "")
-            return lan or None
-        return None
+        return contact_hash_for_transport(contact, prefer_via)
 
     def _resolve_current_peer_hash(self, peer_hash, peer_ip=None, prefer_via=None):
+        saved_hash = self._saved_contact_connect_hash(
+            peer_hash, prefer_via=prefer_via, peer_ip=peer_ip,
+        )
+        if saved_hash:
+            return saved_hash
         clean = self._peer_dest_hash(peer_hash)
         transport_hash = self._contact_hash_for_transport(clean, prefer_via)
         if transport_hash:

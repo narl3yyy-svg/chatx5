@@ -2,6 +2,13 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.26] — 2026-07-03
+
+### Fixed
+- **Saved contact connect** — Contacts no longer show “stale peer hash”; saved peers connect using persisted LAN/serial hashes and auto-refresh from discovery when the peer is online.
+- **Serial USB unplugged** — Dead `/dev/ttyUSB0` interfaces are pruned during the probe cycle instead of spamming reconnect errors every 5s.
+- **Android APK build** — Chaquopy uses `setSrcDirs` (not additive `srcDir`) so local builds don’t duplicate Python modules when an old bundle folder exists.
+
 ## [0.6.25] — 2026-07-02
 
 ### Changed
