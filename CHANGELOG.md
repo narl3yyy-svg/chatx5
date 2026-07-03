@@ -2,10 +2,15 @@
 
 All notable changes to chatx5 are documented here. The README lists only the latest release summary.
 
+## [0.6.28] — 2026-07-03
+
+### Fixed
+- **Android APK** — Restore pre-build `sync-android.sh` bundle copy and `setSrcDirs(src/main/python)` so the APK includes `main.py` and the `chatx5/` package (v0.6.25–0.6.27 broke imports). CI syncs before Gradle; repo-root srcDir avoided Gradle task conflicts.
+
 ## [0.6.27] — 2026-07-03
 
 ### Fixed
-- **Android APK runtime** — Chaquopy again packages `main.py` and the `chatx5/` package (v0.6.25–0.6.26 flattened modules and v0.6.26 dropped `main`). `setSrcDirs` now uses `src/main/python` + repo root; stale bundle copies are pruned before build.
+- **Android APK runtime** — Attempted repo-root `setSrcDirs`; CI failed (Gradle task overlap). Superseded by v0.6.28.
 
 ## [0.6.26] — 2026-07-03
 

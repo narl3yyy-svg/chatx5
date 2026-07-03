@@ -15,8 +15,8 @@ val versionProps = Properties().apply {
 val appVersionName = versionProps.getProperty("VERSION_NAME", "0.0.0")
 val appVersionCode = versionProps.getProperty("VERSION_CODE", "1").toInt()
 // CI release metadata (keep in sync via scripts/bump-version.sh)
-val releaseVersionNameForCi = "0.6.27"  // versionName
-val releaseVersionCodeForCi = 214  // versionCode
+val releaseVersionNameForCi = "0.6.28"  // versionName
+val releaseVersionCodeForCi = 215  // versionCode
 
 android {
     namespace = "com.chatx5.android"
@@ -70,12 +70,11 @@ chaquopy {
             install("aiohttp")
         }
     }
-    // main.py stays in src/main/python; canonical chatx5/ package comes from repo root.
-    // setSrcDirs replaces defaults — do not point at ../../chatx5 alone (flattens imports
-    // and drops main.py). Prune stale android/app/src/main/python/chatx5/ before building.
+    // main.py + synced chatx5/ bundle under src/main/python (see scripts/sync-android.sh).
+    // setSrcDirs replaces defaults so a stale additive srcDir cannot duplicate modules.
     sourceSets {
         getByName("main") {
-            setSrcDirs(listOf("src/main/python", "../.."))
+            setSrcDirs(listOf("src/main/python"))
         }
     }
 }
